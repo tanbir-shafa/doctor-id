@@ -1,0 +1,163 @@
+/**
+ * Plain (non-Mongoose) shape of a Doctor document.
+ *
+ * Used by:
+ *   - Server Actions returning serialized docs to client components
+ *   - The completeness scorer (which doesn't need Mongoose machinery)
+ *   - The FHIR mapper
+ *
+ * The Mongoose model (lib/db/models/Doctor.ts) declares the canonical schema;
+ * this file mirrors the same shape as a TS type to avoid coupling client code
+ * to Mongoose document types.
+ */
+
+export type VerificationLevel = "unverified" | "bmdc_verified" | "fully_verified";
+export type DoctorStatus = "draft" | "published" | "suspended";
+export type OwnerType = "doctor" | "clinic";
+export type Gender = "male" | "female" | "other" | "prefer_not_to_say";
+export type TitlePrefix = "Dr." | "Prof. Dr." | "Asst. Prof. Dr." | "Assoc. Prof. Dr.";
+
+export interface DoctorName {
+  prefix: TitlePrefix;
+  first: string;
+  last: string;
+  displayName: string;
+}
+
+export interface DoctorPhoto {
+  url: string;
+  s3Key: string;
+}
+
+export interface DoctorSpecialty {
+  name: string;
+  isPrimary: boolean;
+  fhirCode?: string;
+}
+
+export interface DoctorQualification {
+  degree: string;
+  institution: string;
+  year: number;
+  country: string;
+}
+
+export interface DoctorExperience {
+  role: string;
+  organization: string;
+  from: Date | string;
+  to?: Date | string | null;
+  current: boolean;
+}
+
+export interface ChamberCoordinates {
+  lat: number;
+  lng: number;
+}
+
+export interface ChamberScheduleSlot {
+  day: "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
+  startTime: string; // "HH:mm" 24h
+  endTime: string;
+  available: boolean;
+}
+
+export interface ChamberFee {
+  amount: number;
+  currency: "BDT" | "USD";
+}
+
+export interface DoctorChamber {
+  name: string;
+  address: string;
+  area: string;
+  city: string;
+  division: string;
+  coordinates?: ChamberCoordinates;
+  phone?: string;
+  schedule: ChamberScheduleSlot[];
+  consultationFee?: ChamberFee;
+  isPrimary: boolean;
+}
+
+export interface DoctorRegistration {
+  council: "BMDC" | "BMDC-Dental";
+  number: string;
+  validFrom?: Date | string;
+  validTo?: Date | string;
+}
+
+export interface DoctorContact {
+  publicPhone?: string;
+  publicEmail?: string;
+  whatsapp?: string;
+  website?: string;
+}
+
+export interface DoctorSocialLinks {
+  facebook?: string;
+  linkedin?: string;
+  researchGate?: string;
+  googleScholar?: string;
+}
+
+/**
+ * The "Like" suffix here means: structurally compatible with both a Mongoose
+ * doc (which has extra methods) and a POJO serialized version. Anything that
+ * only reads fields should accept this type.
+ */
+/**
+ * `ObjectIdLike` accepts either a string (when the doc has been JSON-serialized
+ * for the client) or a Mongoose ObjectId (when manipulating documents server-side).
+ */
+type ObjectIdLike = string | { toString(): string };
+
+export interface DoctorDocLike {
+  _id?: ObjectIdLike;
+  userId?: ObjectIdLike | null;
+  ownerType: OwnerType;
+  ownerId: ObjectIdLike;
+  slug: string;
+
+  bmdcNumber?: string;
+  bmdcVerified: boolean;
+  bmdcVerifiedAt?: Date | string | null;
+  nidVerified: boolean;
+  verificationLevel: VerificationLevel;
+
+  name: DoctorName;
+  photo?: DoctorPhoto | null;
+  coverPhoto?: DoctorPhoto | null;
+  bio?: string;
+
+  gender?: Gender;
+  dateOfBirth?: Date | string | null;
+  languages: string[];
+
+  specialties: DoctorSpecialty[];
+  subSpecialties?: string[];
+  qualifications: DoctorQualification[];
+  experience: DoctorExperience[];
+  chambers: DoctorChamber[];
+  registrations: DoctorRegistration[];
+
+  contact: DoctorContact;
+  socialLinks?: DoctorSocialLinks;
+
+  profileCompletenessScore: number;
+  profileViews: number;
+
+  isClaimed: boolean;
+  claimRequestedBy?: ObjectIdLike | null;
+  claimedAt?: Date | string | null;
+
+  status: DoctorStatus;
+  seoTitle?: string;
+  seoDescription?: string;
+
+  privacyHidePhone?: boolean;
+  privacyHideEmail?: boolean;
+
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}

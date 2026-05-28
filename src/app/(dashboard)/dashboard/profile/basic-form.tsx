@@ -1,0 +1,103 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { updateProfileBasicAction } from "@/server/actions/doctor";
+import type { DoctorDocLike } from "@/types/doctor";
+
+const ALL_LANGS = ["Bangla", "English", "Hindi", "Urdu", "Arabic"];
+
+export function BasicSectionForm({ doctor }: { doctor: DoctorDocLike }) {
+  const [pending, startTransition] = useTransition();
+  const [msg, setMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    setMsg(null);
+    startTransition(async () => {
+      const r = await updateProfileBasicAction(form);
+      setMsg(r.ok ? { tone: "ok", text: "Saved." } : { tone: "err", text: r.error });
+    });
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-1.5">
+        <Label htmlFor="prefix">Prefix</Label>
+        <select
+          id="prefix"
+          name="prefix"
+          defaultValue={doctor.name.prefix}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        >
+          {["Dr.", "Prof. Dr.", "Asst. Prof. Dr.", "Assoc. Prof. Dr."].map((p) => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="displayName">Display name (shown publicly)</Label>
+        <Input id="displayName" name="displayName" defaultValue={doctor.name.displayName} required />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="firstName">First name</Label>
+        <Input id="firstName" name="firstName" defaultValue={doctor.name.first} required />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="lastName">Last name</Label>
+        <Input id="lastName" name="lastName" defaultValue={doctor.name.last} required />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="gender">Gender</Label>
+        <select
+          id="gender"
+          name="gender"
+          defaultValue={doctor.gender ?? "prefer_not_to_say"}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        >
+          <option value="prefer_not_to_say">Prefer not to say</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <fieldset className="space-y-1.5">
+        <legend className="text-sm font-medium">Languages</legend>
+        <div className="flex flex-wrap gap-3">
+          {ALL_LANGS.map((l) => (
+            <label key={l} className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="languages"
+                value={l}
+                defaultChecked={(doctor.languages ?? []).includes(l)}
+                className="size-4"
+              />
+              {l}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label htmlFor="bio">Bio (markdown supported, max 2000 chars)</Label>
+        <textarea
+          id="bio"
+          name="bio"
+          rows={5}
+          maxLength={2000}
+          defaultValue={doctor.bio ?? ""}
+          className="w-full rounded-md border border-input bg-background p-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      </div>
+      <div className="flex items-center gap-3 sm:col-span-2">
+        <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save basic info"}</Button>
+        {msg ? (
+          <p className={msg.tone === "ok" ? "text-sm text-green-600" : "text-sm text-destructive"}>{msg.text}</p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
