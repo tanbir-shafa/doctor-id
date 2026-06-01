@@ -7,7 +7,7 @@ import type { DoctorDocLike } from "@/types/doctor";
 export function DoctorCard({ doctor }: { doctor: DoctorDocLike }) {
   const primarySpecialty = doctor.specialties.find((s) => s.isPrimary) ?? doctor.specialties[0];
   const primaryChamber = doctor.chambers.find((c) => c.isPrimary) ?? doctor.chambers[0];
-  const fullName = `${doctor.name.prefix} ${doctor.name.displayName}`;
+  const fullName = doctor.name.displayName;
 
   return (
     <Link

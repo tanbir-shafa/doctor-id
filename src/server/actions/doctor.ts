@@ -16,6 +16,9 @@ import {
   ProfileSpecialtiesSchema,
   ProfileQualificationsSchema,
   ProfileExperienceSchema,
+  ProfileStatusSchema,
+  ProfileCredentialsSchema,
+  ChambersUpdateSchema,
   ChangePasswordSchema,
 } from "@/lib/validators/doctor";
 
@@ -92,7 +95,16 @@ export async function recordProfileViewAction(slug: string): Promise<ActionResul
       referrer,
       userAgent,
     }),
-    Doctor.updateOne({ _id: doctor._id }, { $inc: { profileViews: 1 } }),
+    // Lifetime counter + 30d window cache (T12 — surfaces as "views this
+    // month" chip on the public profile). lastViewedAt powers freshness
+    // signals later.
+    Doctor.updateOne(
+      { _id: doctor._id },
+      {
+        $inc: { profileViews: 1, "metrics.profileViews30d": 1 },
+        $set: { "metrics.lastViewedAt": new Date() },
+      },
+    ),
   ]);
   return { ok: true };
 }
@@ -258,6 +270,135 @@ export async function updateProfileExperienceAction(form: FormData): Promise<Act
   doctor.set("profileCompletenessScore", bumpCompleteness(doctor.toObject()));
   await doctor.save();
   revalidatePath(`/${doctor.get("slug")}`);
+  return { ok: true };
+}
+
+/**
+ * Loop A — designation + institute + years of experience. Three flat fields
+ * that surface on the public profile header. Empty string sets the field
+ * to `null` so the chip hides.
+ */
+export async function updateProfileStatusAction(form: FormData): Promise<ActionResult> {
+  const ctx = await loadMyDoctor();
+  if (!ctx.ok) return ctx;
+  const yearsRaw = form.get("yearsOfExperience");
+  const parsed = ProfileStatusSchema.safeParse({
+    designation: String(form.get("designation") ?? ""),
+    institute: String(form.get("institute") ?? ""),
+    yearsOfExperience:
+      yearsRaw == null || yearsRaw === "" ? null : Number(yearsRaw),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  const {doctor} = ctx;
+  doctor.set("designation", parsed.data.designation?.trim() || null);
+  doctor.set("institute", parsed.data.institute?.trim() || null);
+  doctor.set("yearsOfExperience", parsed.data.yearsOfExperience ?? null);
+  doctor.set("profileCompletenessScore", bumpCompleteness(doctor.toObject()));
+  await doctor.save();
+  revalidatePath(`/${doctor.get("slug")}`);
+  return { ok: true };
+}
+
+/**
+ * Loop A — credentials block: awards, memberships, publications. The dashboard
+ * editor submits the full lists (not deltas), same pattern as qualifications
+ * and experience.
+ *
+ * Wire format: form fields "awards", "memberships", "publications" each carry
+ * a JSON-encoded array string.
+ */
+export async function updateProfileCredentialsAction(form: FormData): Promise<ActionResult> {
+  const ctx = await loadMyDoctor();
+  if (!ctx.ok) return ctx;
+  let awardsRaw: unknown;
+  let membershipsRaw: unknown;
+  let publicationsRaw: unknown;
+  try {
+    awardsRaw = JSON.parse(String(form.get("awards") ?? "[]"));
+    membershipsRaw = JSON.parse(String(form.get("memberships") ?? "[]"));
+    publicationsRaw = JSON.parse(String(form.get("publications") ?? "[]"));
+  } catch {
+    return { ok: false, error: "Could not read credentials payload." };
+  }
+  const parsed = ProfileCredentialsSchema.safeParse({
+    awards: awardsRaw,
+    memberships: membershipsRaw,
+    publications: publicationsRaw,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  const {doctor} = ctx;
+  // Normalize empty-string optional fields back to undefined so Mongoose
+  // doesn't persist empty strings.
+  const norm = <T extends Record<string, unknown>>(rows: T[]) =>
+    rows.map((r) => {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(r)) {
+        if (typeof v === "string" && v.trim().length === 0) continue;
+        out[k] = v;
+      }
+      return out;
+    });
+  doctor.set("awards", norm(parsed.data.awards));
+  doctor.set("memberships", norm(parsed.data.memberships));
+  doctor.set("publications", norm(parsed.data.publications));
+  doctor.set("profileCompletenessScore", bumpCompleteness(doctor.toObject()));
+  await doctor.save();
+  revalidatePath(`/${doctor.get("slug")}`);
+  return { ok: true };
+}
+
+/**
+ * Replace the chambers array wholesale.
+ *
+ * The dashboard editor submits the full list (not deltas), matching the
+ * pattern used by specialties/qualifications/experience. Server-side we
+ * Zod-validate per-chamber (HH:mm, no overlap, single primary), then normalize
+ * the primary flag so exactly one chamber is primary when ≥1 are present.
+ *
+ * Wire format: form field "chambers" carries a JSON-encoded array string.
+ */
+export async function updateChambersAction(form: FormData): Promise<ActionResult> {
+  const ctx = await loadMyDoctor();
+  if (!ctx.ok) return ctx;
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(form.get("chambers") ?? "[]"));
+  } catch {
+    return { ok: false, error: "Could not read chambers payload." };
+  }
+  const parsed = ChambersUpdateSchema.safeParse({ chambers: raw });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  // Normalize primary flag: if no chamber is explicitly primary but there's
+  // at least one chamber, the first becomes primary. (Public profile fell
+  // back to chambers[0] already; making it explicit keeps the DB tidy.)
+  const chambers = parsed.data.chambers.map((c, i) => ({
+    ...c,
+    isPrimary: parsed.data.chambers.some((x) => x.isPrimary)
+      ? Boolean(c.isPrimary)
+      : i === 0,
+    coordinates: c.coordinates
+      ? { lat: c.coordinates.lat, lng: c.coordinates.lng }
+      : { lat: null, lng: null },
+    phone: c.phone ?? null,
+    consultationFee: c.consultationFee ?? { amount: 0, currency: "BDT" as const },
+  }));
+
+  const { doctor } = ctx;
+  doctor.set("chambers", chambers);
+  doctor.set("profileCompletenessScore", bumpCompleteness(doctor.toObject()));
+  await doctor.save();
+
+  revalidatePath(`/${doctor.get("slug")}`);
+  revalidatePath("/dashboard/chambers");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 

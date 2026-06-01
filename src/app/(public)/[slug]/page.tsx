@@ -9,9 +9,12 @@ import { buildProfileMetadata } from "@/lib/seo/meta";
 import { buildPhysicianJsonLd, buildChamberJsonLd, pruneJsonLd, profileUrl } from "@/lib/seo/jsonld";
 import { recordProfileViewAction } from "@/server/actions/doctor";
 import { ProfileHeader } from "@/components/profile/profile-header";
+import { ProfileCredentials } from "@/components/profile/profile-credentials";
 import { ChamberCard } from "@/components/profile/chamber-card";
 import { ShareButton } from "@/components/profile/share-button";
 import { WhatsappButton } from "@/components/profile/whatsapp-button";
+import { ShareToWhatsappButton } from "@/components/profile/share-to-whatsapp-button";
+import { AppointmentRequestDialog } from "@/components/profile/appointment-request-dialog";
 import { ReportButton } from "@/components/profile/report-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SpecialtyListing } from "@/components/search/specialty-listing";
@@ -125,11 +128,18 @@ export default async function SlugPage({
 
       {!doctor.isClaimed ? (
         <aside className="mx-auto mt-6 max-w-4xl rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:px-6">
-          Are you <strong>{doctor.name.prefix} {doctor.name.displayName}</strong>?{" "}
-          <Link href={`/auth/register?bmdc=${encodeURIComponent(doctor.bmdcNumber ?? "")}`} className="font-medium underline">
-            Claim this profile
-          </Link>{" "}
-          to keep it up to date.
+          <p>
+            Are you <strong>{doctor.name.displayName}</strong>?
+          </p>
+          <p className="mt-2">
+            <Link
+              href={`/auth/register?slug=${encodeURIComponent(doctor.slug)}`}
+              className="inline-flex items-center gap-1 rounded-md bg-amber-900 px-3 py-1.5 font-medium text-amber-50 hover:bg-amber-800"
+            >
+              Claim this profile
+            </Link>{" "}
+            <span className="text-xs text-amber-900/80">Free · phone + SMS verification</span>
+          </p>
         </aside>
       ) : null}
 
@@ -169,6 +179,8 @@ export default async function SlugPage({
               </CardContent>
             </Card>
           ) : null}
+
+          <ProfileCredentials doctor={doctor} />
 
           {doctor.experience.length > 0 ? (
             <Card>
@@ -217,7 +229,31 @@ export default async function SlugPage({
               <CardTitle>Contact</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <WhatsappButton whatsapp={doctor.contact.whatsapp ?? doctor.contact.publicPhone ?? null} doctorName={doctor.name.displayName} />
+              {doctor.isClaimed && doctor.chambers.length > 0 ? (
+                <AppointmentRequestDialog
+                  slug={doctor.slug}
+                  doctorName={doctor.name.displayName}
+                  chambers={doctor.chambers.map((c, i) => ({
+                    // Mongoose-leaned subdoc carries _id; fall back to index when
+                    // the field is missing for any reason.
+                    _id: String((c as unknown as { _id?: unknown })._id ?? i),
+                    name: c.name,
+                    area: c.area,
+                    city: c.city,
+                    schedule: (c.schedule ?? []).map((s) => ({
+                      day: s.day,
+                      startTime: s.startTime,
+                      endTime: s.endTime,
+                      available: s.available,
+                    })),
+                  }))}
+                />
+              ) : null}
+              <WhatsappButton
+                whatsapp={doctor.contact.whatsapp ?? doctor.contact.publicPhone ?? null}
+                doctorName={doctor.name.displayName}
+                variant={doctor.isClaimed && doctor.chambers.length > 0 ? "outline" : "default"}
+              />
               {doctor.contact.publicPhone && !doctor.privacyHidePhone ? (
                 <a href={`tel:${doctor.contact.publicPhone}`} className="flex items-center gap-2 hover:underline">
                   <Phone className="size-4" aria-hidden="true" /> {doctor.contact.publicPhone}
@@ -245,9 +281,27 @@ export default async function SlugPage({
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-muted-foreground break-all">{url}</p>
+              <ShareToWhatsappButton doctor={doctor} />
               <ShareButton url={url} name={doctor.name.displayName} />
             </CardContent>
           </Card>
+
+          {(doctor.concentrations?.length ?? 0) > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Areas of focus</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="flex flex-wrap gap-2 text-sm">
+                  {doctor.concentrations!.slice(0, 12).map((c) => (
+                    <li key={c} className="rounded-full bg-muted px-3 py-1 text-foreground">
+                      {c}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
 
           {doctor.languages.length > 0 ? (
             <Card>

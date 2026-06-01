@@ -22,6 +22,7 @@ export default function LeafletLazy(props: {
   label?: string;
   zoom?: number;
   height?: number;
+  onLocationChange?: (lat: number, lng: number) => void;
 }) {
   return <LeafletMap {...props} />;
 }

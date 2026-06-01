@@ -3,11 +3,16 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Lightweight Leaflet wrapper — read-only display of a single chamber pin.
+ * Lightweight Leaflet wrapper.
+ *
+ * Two modes:
+ *   - read-only (default): renders a single pin at lat/lng.
+ *   - picker: when `onLocationChange` is passed, the marker is draggable and
+ *     a click on the map moves the marker. Useful for the chamber editor.
  *
  * We load Leaflet via dynamic import inside `useEffect` so its CSS + JS stay
  * out of the SSR bundle and only ship when the user actually scrolls to a
- * chamber. The wrapper component itself is rendered via `next/dynamic` so it
+ * map. The wrapper component itself is rendered via `next/dynamic` so it
  * never executes server-side.
  */
 export interface LeafletMapProps {
@@ -16,17 +21,33 @@ export interface LeafletMapProps {
   label?: string;
   zoom?: number;
   height?: number;
+  onLocationChange?: (lat: number, lng: number) => void;
 }
 
-export default function LeafletMap({ lat, lng, label, zoom = 15, height = 280 }: LeafletMapProps) {
+export default function LeafletMap({
+  lat,
+  lng,
+  label,
+  zoom = 15,
+  height = 280,
+  onLocationChange,
+}: LeafletMapProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const initialized = useRef(false);
+  // Holds the live Leaflet handles so the (lat,lng) effect can sync without
+  // recreating the map.
+  const handles = useRef<{
+    map: { remove: () => void; setView: (...args: unknown[]) => void } | null;
+    marker: { setLatLng: (...args: unknown[]) => void } | null;
+  }>({ map: null, marker: null });
+  const cbRef = useRef(onLocationChange);
+  cbRef.current = onLocationChange;
 
   useEffect(() => {
     if (initialized.current || !ref.current) return;
     initialized.current = true;
 
-    let map: { remove: () => void } | null = null;
+    let cleanupFn: () => void = () => {};
     (async () => {
       const L = await import("leaflet");
       // Inject Leaflet's CSS once, lazily — avoids a global import.
@@ -38,19 +59,53 @@ export default function LeafletMap({ lat, lng, label, zoom = 15, height = 280 }:
         link.crossOrigin = "";
         document.head.appendChild(link);
       }
-      map = L.map(ref.current!, { scrollWheelZoom: false, zoomControl: true }).setView([lat, lng], zoom);
+      const map = L.map(ref.current!, { scrollWheelZoom: false, zoomControl: true }).setView(
+        [lat, lng],
+        zoom,
+      );
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; OpenStreetMap',
+        attribution: "&copy; OpenStreetMap",
         maxZoom: 19,
       }).addTo(map as never);
-      const marker = L.marker([lat, lng]).addTo(map as never);
+      const marker = L.marker([lat, lng], { draggable: Boolean(cbRef.current) }).addTo(map as never);
       if (label) marker.bindPopup(label);
+
+      // Picker behavior: click the map to move the marker; drag the marker
+      // and emit on dragend. We read the live callback from `cbRef` so prop
+      // changes don't require rebinding handlers.
+      if (cbRef.current) {
+        (map as unknown as { on: Function }).on("click", (e: { latlng: { lat: number; lng: number } }) => {
+          marker.setLatLng(e.latlng);
+          cbRef.current?.(e.latlng.lat, e.latlng.lng);
+        });
+        (marker as unknown as { on: Function }).on("dragend", () => {
+          const ll = (marker as unknown as { getLatLng: () => { lat: number; lng: number } }).getLatLng();
+          cbRef.current?.(ll.lat, ll.lng);
+        });
+      }
+
+      handles.current = {
+        map: map as unknown as { remove: () => void; setView: (...args: unknown[]) => void },
+        marker: marker as unknown as { setLatLng: (...args: unknown[]) => void },
+      };
+      cleanupFn = () => {
+        (map as unknown as { remove: () => void }).remove();
+      };
     })();
 
-    return () => {
-      if (map) map.remove();
-    };
-  }, [lat, lng, zoom, label]);
+    return () => cleanupFn();
+    // Init once; subsequent (lat,lng) changes go through the sync effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep marker + view in sync when lat/lng change externally (e.g. RHF
+  // resets the form to a different chamber). Skipped on first render — the
+  // init effect above already places everything correctly.
+  useEffect(() => {
+    if (!handles.current.map || !handles.current.marker) return;
+    handles.current.marker.setLatLng([lat, lng]);
+    handles.current.map.setView([lat, lng], zoom);
+  }, [lat, lng, zoom]);
 
   return (
     <div

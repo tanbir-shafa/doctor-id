@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
-import { Doctor, ClaimRequest } from "@/lib/db/models";
+import { Doctor, ClaimRequest, User } from "@/lib/db/models";
 import { normalizeBmdc, isValidBmdcFormat } from "@/lib/utils/bmdc";
+import { recordAuditLog } from "@/lib/audit/log";
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -55,7 +56,11 @@ async function requireAdmin() {
   if (!session?.user?.id || session.user.role !== "admin") {
     return { ok: false as const, error: "Admin only." };
   }
-  return { ok: true as const, userId: session.user.id };
+  return {
+    ok: true as const,
+    userId: session.user.id,
+    email: session.user.email ?? null,
+  };
 }
 
 export async function approveClaimAction(claimId: string): Promise<ActionResult> {
@@ -69,22 +74,46 @@ export async function approveClaimAction(claimId: string): Promise<ActionResult>
   const doctor = await Doctor.findById(claim.get("doctorId"));
   if (!doctor) return { ok: false, error: "Linked doctor not found." };
 
+  const now = new Date();
   doctor.set("bmdcVerified", true);
-  doctor.set("bmdcVerifiedAt", new Date());
+  doctor.set("bmdcVerifiedAt", now);
   doctor.set(
     "verificationLevel",
     doctor.get("nidVerified") ? "fully_verified" : "bmdc_verified",
   );
   if (!doctor.get("isClaimed")) {
     doctor.set("isClaimed", true);
-    doctor.set("claimedAt", new Date());
+    doctor.set("claimedAt", now);
   }
   await doctor.save();
 
   claim.set("status", "approved");
   claim.set("reviewedBy", guard.userId);
-  claim.set("reviewedAt", new Date());
+  claim.set("reviewedAt", now);
+  claim.set("verifiedAt", now);
   await claim.save();
+
+  // Approval also unlocks the requester's sign-in. New doctor accounts are
+  // created with `approved: false` so they can't log in until this flag is
+  // flipped — see auth.ts:completeRegistrationAction.
+  const requesterId = claim.get("requestedBy");
+  if (requesterId) {
+    await User.updateOne({ _id: requesterId }, { $set: { approved: true } });
+  }
+
+  await recordAuditLog({
+    type: "claim.approved",
+    entityType: "ClaimRequest",
+    entityId: claim._id,
+    actorId: guard.userId,
+    actorRole: "admin",
+    actorEmail: guard.email,
+    metadata: {
+      doctorId: String(doctor._id),
+      doctorSlug: doctor.get("slug"),
+      verificationLevel: doctor.get("verificationLevel"),
+    },
+  });
 
   revalidatePath(`/${doctor.get("slug")}`);
   revalidatePath("/admin/verifications");
@@ -99,11 +128,25 @@ export async function rejectClaimAction(claimId: string, notes: string): Promise
   if (!claim) return { ok: false, error: "Request not found." };
   if (claim.get("status") !== "pending") return { ok: false, error: "Already reviewed." };
 
+  const trimmedNotes = String(notes || "").slice(0, 1000);
   claim.set("status", "rejected");
   claim.set("reviewedBy", guard.userId);
   claim.set("reviewedAt", new Date());
-  claim.set("reviewerNotes", String(notes || "").slice(0, 1000));
+  claim.set("reviewerNotes", trimmedNotes);
   await claim.save();
+
+  await recordAuditLog({
+    type: "claim.rejected",
+    entityType: "ClaimRequest",
+    entityId: claim._id,
+    actorId: guard.userId,
+    actorRole: "admin",
+    actorEmail: guard.email,
+    note: trimmedNotes || null,
+    metadata: {
+      doctorId: String(claim.get("doctorId")),
+    },
+  });
 
   revalidatePath("/admin/verifications");
   return { ok: true };
@@ -115,9 +158,21 @@ export async function suspendDoctorAction(slug: string, reason: string): Promise
   await dbConnect();
   const doctor = await Doctor.findOne({ slug });
   if (!doctor) return { ok: false, error: "Doctor not found." };
+  const trimmedReason = String(reason || "").slice(0, 120);
   doctor.set("status", "suspended");
-  doctor.set("seoDescription", doctor.get("seoDescription") || `(suspended) ${String(reason).slice(0, 120)}`);
+  doctor.set("seoDescription", doctor.get("seoDescription") || `(suspended) ${trimmedReason}`);
   await doctor.save();
+
+  await recordAuditLog({
+    type: "doctor.suspended",
+    entityType: "Doctor",
+    entityId: doctor._id,
+    actorId: guard.userId,
+    actorRole: "admin",
+    actorEmail: guard.email,
+    note: trimmedReason || null,
+  });
+
   revalidatePath(`/${slug}`);
   revalidatePath("/admin/doctors");
   return { ok: true };

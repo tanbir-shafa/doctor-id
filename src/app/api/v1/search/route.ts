@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
         total,
         results: doctors.map((d) => ({
           slug: d.slug,
-          name: `${d.name.prefix} ${d.name.displayName}`,
+          name: d.name.displayName,
           specialty: d.specialties.find((s) => s.isPrimary)?.name ?? d.specialties[0]?.name ?? null,
           city: d.chambers.find((c) => c.isPrimary)?.city ?? d.chambers[0]?.city ?? null,
           verificationLevel: d.verificationLevel,

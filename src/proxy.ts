@@ -22,7 +22,9 @@ export default auth((req) => {
 
   if (!isAuthed) {
     const url = req.nextUrl.clone();
-    url.pathname = "/auth/login";
+    // Admin URLs get the email/password admin login. Everything else
+    // (the doctor dashboard) goes to the phone-OTP doctor login.
+    url.pathname = pathname.startsWith("/admin") ? "/auth/admin/login" : "/auth/login";
     url.search = `?next=${encodeURIComponent(pathname + search)}`;
     return NextResponse.redirect(url);
   }

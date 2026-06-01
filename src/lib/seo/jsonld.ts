@@ -44,7 +44,7 @@ export function buildPhysicianJsonLd(doc: DoctorDocLike): Record<string, unknown
     "@context": "https://schema.org",
     "@type": "Physician",
     "@id": url,
-    name: `${doc.name.prefix} ${doc.name.displayName}`,
+    name: doc.name.displayName,
     url,
     image: doc.photo?.url,
     description: doc.bio?.slice(0, 280) || `${doc.name.displayName}, ${primarySpecialty?.name ?? "Doctor"} in Bangladesh.`,

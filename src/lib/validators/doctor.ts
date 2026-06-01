@@ -73,29 +73,153 @@ export const ProfileExperienceSchema = z.object({
 });
 export type ProfileExperienceInput = z.infer<typeof ProfileExperienceSchema>;
 
-export const ChamberSchema = z.object({
-  name: z.string().min(1),
-  address: z.string().min(1),
-  area: z.string().min(1),
-  city: z.string().min(1),
-  division: z.string().min(1),
-  phone: z.string().optional(),
-  consultationFee: z
-    .object({ amount: z.number().min(0), currency: z.enum(["BDT", "USD"]) })
-    .optional(),
-  coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
-  schedule: z
-    .array(
-      z.object({
-        day: z.enum(["sun", "mon", "tue", "wed", "thu", "fri", "sat"]),
-        startTime: z.string(),
-        endTime: z.string(),
-        available: z.boolean().default(true),
-      }),
-    )
-    .default([]),
-  isPrimary: z.boolean().default(false),
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const ScheduleSlotSchema = z
+  .object({
+    day: z.enum(["sun", "mon", "tue", "wed", "thu", "fri", "sat"]),
+    startTime: z.string().regex(HHMM_RE, "Use HH:mm (24-hour)"),
+    endTime: z.string().regex(HHMM_RE, "Use HH:mm (24-hour)"),
+    available: z.boolean().default(true),
+  })
+  .refine((s) => s.startTime < s.endTime, {
+    message: "End time must be after start time",
+    path: ["endTime"],
+  });
+
+export const ChamberSchema = z
+  .object({
+    name: z.string().min(1, "Name is required").max(120),
+    address: z.string().min(1, "Address is required").max(240),
+    area: z.string().min(1, "Area is required").max(120),
+    city: z.string().min(1, "City is required").max(80),
+    division: z.string().min(1, "Division is required").max(80),
+    phone: z.string().max(40).optional().nullable(),
+    consultationFee: z
+      .object({ amount: z.number().min(0).max(100000), currency: z.enum(["BDT", "USD"]) })
+      .optional(),
+    coordinates: z
+      .object({
+        lat: z.number().min(-90).max(90).nullable(),
+        lng: z.number().min(-180).max(180).nullable(),
+      })
+      .optional(),
+    schedule: z.array(ScheduleSlotSchema).default([]),
+    isPrimary: z.boolean().default(false),
+  })
+  .superRefine((chamber, ctx) => {
+    // Detect overlapping slots within the same day for this chamber.
+    const byDay = new Map<string, Array<{ startTime: string; endTime: string; idx: number }>>();
+    chamber.schedule.forEach((slot, idx) => {
+      const arr = byDay.get(slot.day) ?? [];
+      arr.push({ startTime: slot.startTime, endTime: slot.endTime, idx });
+      byDay.set(slot.day, arr);
+    });
+    for (const [, slots] of byDay) {
+      slots.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      for (let i = 1; i < slots.length; i++) {
+        if (slots[i]!.startTime < slots[i - 1]!.endTime) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Time slots on the same day overlap",
+            path: ["schedule", slots[i]!.idx, "startTime"],
+          });
+        }
+      }
+    }
+  });
+
+/**
+ * Full-replacement payload for the chambers editor. Max 10 chambers (real
+ * use cases stay under 5). At most one isPrimary; the action normalizes the
+ * primary flag if zero are set (first chamber becomes primary by default).
+ */
+export const ChambersUpdateSchema = z
+  .object({
+    chambers: z
+      .array(ChamberSchema)
+      .min(0)
+      .max(10, "You can list up to 10 chambers."),
+  })
+  .superRefine((data, ctx) => {
+    const primaryCount = data.chambers.filter((c) => c.isPrimary).length;
+    if (primaryCount > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Only one chamber can be marked primary.",
+        path: ["chambers"],
+      });
+    }
+  });
+export type ChambersUpdateInput = z.infer<typeof ChambersUpdateSchema>;
+
+/**
+ * Status-signaling block — designation, institute, years of experience.
+ * One small form on the dashboard that surfaces on the public profile header.
+ */
+export const ProfileStatusSchema = z.object({
+  designation: z.string().max(160).optional().or(z.literal("")),
+  institute: z.string().max(160).optional().or(z.literal("")),
+  yearsOfExperience: z.number().int().min(0).max(80).optional().nullable(),
 });
+export type ProfileStatusInput = z.infer<typeof ProfileStatusSchema>;
+
+const currentYear = new Date().getFullYear();
+
+export const AwardEntrySchema = z.object({
+  title: z.string().min(1).max(160),
+  issuer: z.string().max(160).optional().or(z.literal("")),
+  year: z.number().int().min(1900).max(currentYear + 1).optional().nullable(),
+});
+export type AwardEntryInput = z.infer<typeof AwardEntrySchema>;
+
+export const MembershipEntrySchema = z.object({
+  body: z.string().min(1).max(160),
+  role: z.string().max(120).optional().or(z.literal("")),
+  since: z.number().int().min(1900).max(currentYear + 1).optional().nullable(),
+});
+export type MembershipEntryInput = z.infer<typeof MembershipEntrySchema>;
+
+export const PublicationEntrySchema = z.object({
+  title: z.string().min(1).max(240),
+  journal: z.string().max(160).optional().or(z.literal("")),
+  year: z.number().int().min(1900).max(currentYear + 1).optional().nullable(),
+  url: z.string().url().optional().or(z.literal("")),
+});
+export type PublicationEntryInput = z.infer<typeof PublicationEntrySchema>;
+
+/**
+ * Credentials editor — awards / memberships / publications saved together.
+ * Each capped at 20 entries to keep the FHIR payload bounded.
+ */
+export const ProfileCredentialsSchema = z.object({
+  awards: z.array(AwardEntrySchema).max(20).default([]),
+  memberships: z.array(MembershipEntrySchema).max(20).default([]),
+  publications: z.array(PublicationEntrySchema).max(20).default([]),
+});
+export type ProfileCredentialsInput = z.infer<typeof ProfileCredentialsSchema>;
+
+/**
+ * Sub-specialty tags (sasthyaseba uses ~5–15 per doctor). Free-form strings —
+ * we don't enforce a controlled vocabulary at this layer.
+ */
+export const ProfileConcentrationsSchema = z.object({
+  concentrations: z.array(z.string().min(1).max(80)).max(30).default([]),
+});
+export type ProfileConcentrationsInput = z.infer<typeof ProfileConcentrationsSchema>;
+
+/**
+ * Socials section — extends the existing socialLinks subdoc with youtube.
+ * URL validation is lenient (allows empty string) so dashboard can clear a field.
+ */
+export const ProfileSocialsSchema = z.object({
+  facebook: z.string().url().optional().or(z.literal("")),
+  linkedin: z.string().url().optional().or(z.literal("")),
+  researchGate: z.string().url().optional().or(z.literal("")),
+  googleScholar: z.string().url().optional().or(z.literal("")),
+  youtube: z.string().url().optional().or(z.literal("")),
+});
+export type ProfileSocialsInput = z.infer<typeof ProfileSocialsSchema>;
 
 export const ChangePasswordSchema = z
   .object({

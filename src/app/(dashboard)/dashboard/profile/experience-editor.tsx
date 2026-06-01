@@ -10,6 +10,9 @@ import type { DoctorExperience } from "@/types/doctor";
 
 type Row = { role: string; organization: string; from: string; to: string; current: boolean };
 
+type SubmitResult = { ok: true } | { ok: false; error: string };
+type SubmitAction = (form: FormData) => Promise<SubmitResult>;
+
 function toIsoDate(value: Date | string | null | undefined): string {
   if (!value) return "";
   const d = typeof value === "string" ? new Date(value) : value;
@@ -17,7 +20,13 @@ function toIsoDate(value: Date | string | null | undefined): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function ExperienceEditor({ initial }: { initial: DoctorExperience[] }) {
+export function ExperienceEditor({
+  initial,
+  submitAction,
+}: {
+  initial: DoctorExperience[];
+  submitAction?: SubmitAction;
+}) {
   const [rows, setRows] = useState<Row[]>(() =>
     initial.map((e) => ({
       role: e.role,
@@ -51,7 +60,8 @@ export function ExperienceEditor({ initial }: { initial: DoctorExperience[] }) {
     startTransition(async () => {
       const fd = new FormData();
       fd.set("experience", JSON.stringify(payload));
-      const r = await updateProfileExperienceAction(fd);
+      const action = submitAction ?? updateProfileExperienceAction;
+      const r = await action(fd);
       setMsg(r.ok ? { tone: "ok", text: "Saved." } : { tone: "err", text: r.error });
     });
   }

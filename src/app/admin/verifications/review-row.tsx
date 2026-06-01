@@ -3,28 +3,57 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, XCircle, ExternalLink, FileText } from "lucide-react";
+import {
+  CheckCircle2,
+  XCircle,
+  ExternalLink,
+  FileText,
+  Clock,
+  Phone,
+  Mail,
+  Tag,
+  User as UserIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { approveClaimAction, rejectClaimAction } from "@/server/actions/verification";
+import { classifySla, type SlaTone } from "@/lib/sla";
 
 interface Props {
   claim: {
     _id: string;
-    bmdcNumberProvided: string;
+    status: string;
+    bmdcNumberProvided: string | null;
     documentsUploaded: string[];
     notesFromDoctor: string | null;
     createdAt: string;
+    slaExpiresAt: string | null;
+    verifiedAt: string | null;
     doctorId: {
       _id: string;
       slug: string;
       name: { displayName: string; prefix: string };
       bmdcNumber: string | null;
     };
+    requestedBy: {
+      _id: string;
+      email: string;
+      phone: string | null;
+      phoneVerified: boolean;
+      approved: boolean;
+      role: "doctor" | "admin" | "patient";
+    } | null;
   };
+  nowIso: string;
 }
 
-export function ReviewRow({ claim }: Props) {
+const TONE_CLASSES: Record<SlaTone, string> = {
+  red: "bg-red-100 text-red-900 border-red-200",
+  amber: "bg-amber-100 text-amber-900 border-amber-200",
+  green: "bg-emerald-100 text-emerald-900 border-emerald-200",
+};
+
+export function ReviewRow({ claim, nowIso }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [rejectNotes, setRejectNotes] = useState("");
@@ -52,17 +81,49 @@ export function ReviewRow({ claim }: Props) {
     });
   }
 
+  const sla = classifySla(claim, new Date(nowIso));
+  const requesterEmail = claim.requestedBy?.email ?? "—";
+  const isSyntheticEmail = requesterEmail.endsWith("@phone.doctor.id.bd");
+  const requesterPhone = claim.requestedBy?.phone ?? "—";
+  const bmdcChanged =
+    claim.bmdcNumberProvided &&
+    claim.doctorId.bmdcNumber &&
+    claim.bmdcNumberProvided !== claim.doctorId.bmdcNumber;
+
   return (
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle>
-              {claim.doctorId.name.prefix} {claim.doctorId.name.displayName}
+          <div className="min-w-0">
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              <span>
+                {claim.doctorId.name.displayName}
+              </span>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${TONE_CLASSES[sla.tone]}`}
+                title="24-hour verification SLA"
+              >
+                <Clock className="size-3.5" aria-hidden="true" />
+                {sla.label}
+              </span>
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
+                title="Claim review"
+              >
+                <Tag className="size-3" aria-hidden="true" />
+                Claim
+              </span>
             </CardTitle>
             <CardDescription>
-              BMDC #{claim.bmdcNumberProvided}
-              {" · "}submitted {new Date(claim.createdAt).toLocaleDateString()}
+              Submitted {new Date(claim.createdAt).toLocaleString()}
+              {" · "}slug{" "}
+              <Link
+                href={`/${claim.doctorId.slug}`}
+                target="_blank"
+                className="text-primary hover:underline"
+              >
+                /{claim.doctorId.slug}
+              </Link>
             </CardDescription>
           </div>
           <Link
@@ -75,29 +136,93 @@ export function ReviewRow({ claim }: Props) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
+        {/* Requester identity panel */}
+        <div className="rounded-md border border-border bg-muted/30 p-3 text-xs">
+          <p className="mb-1 font-medium text-foreground">Requested by</p>
+          <ul className="space-y-1 text-muted-foreground">
+            <li className="inline-flex items-center gap-1">
+              <Phone className="size-3.5" aria-hidden="true" />
+              <a href={`tel:${requesterPhone}`} className="hover:underline">
+                {requesterPhone}
+              </a>
+              {claim.requestedBy?.phoneVerified ? (
+                <span className="ml-1 rounded-full bg-emerald-100 px-1.5 text-[10px] text-emerald-900">
+                  verified
+                </span>
+              ) : (
+                <span className="ml-1 rounded-full bg-amber-100 px-1.5 text-[10px] text-amber-900">
+                  unverified
+                </span>
+              )}
+            </li>
+            <li className="inline-flex items-center gap-1">
+              <Mail className="size-3.5" aria-hidden="true" />
+              {isSyntheticEmail ? (
+                <span className="italic">no email on file</span>
+              ) : (
+                <a href={`mailto:${requesterEmail}`} className="hover:underline">
+                  {requesterEmail}
+                </a>
+              )}
+            </li>
+            <li className="inline-flex items-center gap-1">
+              <UserIcon className="size-3.5" aria-hidden="true" />
+              role: {claim.requestedBy?.role ?? "—"}
+              {claim.requestedBy?.approved === false ? (
+                <span className="ml-1 rounded-full bg-amber-100 px-1.5 text-[10px] text-amber-900">
+                  awaiting approval (login blocked)
+                </span>
+              ) : null}
+            </li>
+          </ul>
+        </div>
+
+        {/* BMDC sub-line */}
+        <p className="text-xs text-muted-foreground">
+          BMDC provided: <strong>{claim.bmdcNumberProvided ?? "—"}</strong>
+          {claim.doctorId.bmdcNumber ? (
+            <>
+              {" · "}on profile: <strong>{claim.doctorId.bmdcNumber}</strong>
+            </>
+          ) : null}
+          {bmdcChanged ? (
+            <span className="ml-2 rounded-full bg-amber-100 px-1.5 text-[10px] text-amber-900">
+              mismatch
+            </span>
+          ) : null}
+        </p>
+
         {claim.notesFromDoctor ? (
           <p className="rounded-md border border-border bg-muted/40 p-2 text-muted-foreground">
             {claim.notesFromDoctor}
           </p>
         ) : null}
+
+        {/* Document attachments */}
         {claim.documentsUploaded.length > 0 ? (
-          <ul className="space-y-1">
-            {claim.documentsUploaded.map((k) => (
-              <li key={k} className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                <FileText className="size-3.5" aria-hidden="true" />
-                <a
-                  href={`https://${process.env.S3_BUCKET ?? "doctor-id-uploads"}.s3.amazonaws.com/${k}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:underline"
-                >
-                  {k}
-                </a>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-foreground">
+              {claim.documentsUploaded.length} document
+              {claim.documentsUploaded.length === 1 ? "" : "s"} attached
+            </p>
+            <ul className="space-y-1">
+              {claim.documentsUploaded.map((k) => (
+                <li key={k} className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <FileText className="size-3.5" aria-hidden="true" />
+                  <a
+                    href={`https://${process.env.S3_BUCKET ?? "doctor-id-uploads"}.s3.amazonaws.com/${k}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline"
+                  >
+                    {k}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : (
-          <p className="text-xs text-muted-foreground">No documents uploaded.</p>
+          <p className="text-xs text-muted-foreground italic">No documents uploaded.</p>
         )}
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -121,7 +246,7 @@ export function ReviewRow({ claim }: Props) {
         ) : (
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={approve} disabled={pending}>
-              <CheckCircle2 className="size-4" aria-hidden="true" /> Approve
+              <CheckCircle2 className="size-4" aria-hidden="true" /> Approve &amp; unlock login
             </Button>
             <Button type="button" variant="outline" onClick={() => setShowRejectBox(true)} disabled={pending}>
               <XCircle className="size-4" aria-hidden="true" /> Reject

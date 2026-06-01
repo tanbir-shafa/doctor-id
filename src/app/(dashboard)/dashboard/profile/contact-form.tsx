@@ -7,7 +7,16 @@ import { Button } from "@/components/ui/button";
 import { updateProfileContactAction } from "@/server/actions/doctor";
 import type { DoctorDocLike } from "@/types/doctor";
 
-export function ContactSectionForm({ doctor }: { doctor: DoctorDocLike }) {
+type SubmitResult = { ok: true } | { ok: false; error: string };
+type SubmitAction = (form: FormData) => Promise<SubmitResult>;
+
+export function ContactSectionForm({
+  doctor,
+  submitAction,
+}: {
+  doctor: DoctorDocLike;
+  submitAction?: SubmitAction;
+}) {
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
 
@@ -16,7 +25,8 @@ export function ContactSectionForm({ doctor }: { doctor: DoctorDocLike }) {
     const form = new FormData(e.currentTarget);
     setMsg(null);
     startTransition(async () => {
-      const r = await updateProfileContactAction(form);
+      const action = submitAction ?? updateProfileContactAction;
+      const r = await action(form);
       setMsg(r.ok ? { tone: "ok", text: "Saved." } : { tone: "err", text: r.error });
     });
   }

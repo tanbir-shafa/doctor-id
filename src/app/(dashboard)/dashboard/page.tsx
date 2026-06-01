@@ -3,18 +3,25 @@ import Link from "next/link";
 import { ExternalLink, ArrowRight, CheckCircle2, Circle } from "lucide-react";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
-import { Doctor, ProfileView } from "@/lib/db/models";
+import { Doctor, ProfileView, User } from "@/lib/db/models";
 import { computeCompleteness } from "@/lib/utils/completeness";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { EmrBanner } from "./emr-banner";
 import type { DoctorDocLike } from "@/types/doctor";
 
 export const metadata: Metadata = { title: "Dashboard overview" };
 export const dynamic = "force-dynamic";
 
-export default async function DashboardOverview() {
+interface PageProps {
+  searchParams: Promise<{ welcome?: string }>;
+}
+
+export default async function DashboardOverview({ searchParams }: PageProps) {
   const session = await auth();
   await dbConnect();
+  const params = await searchParams;
+  const isWelcome = params.welcome === "1";
 
   const doctorDoc = await Doctor.findOne({ ownerId: session!.user.id }).lean();
   if (!doctorDoc) {
@@ -27,6 +34,14 @@ export default async function DashboardOverview() {
   }
   const doctor = JSON.parse(JSON.stringify(doctorDoc)) as DoctorDocLike;
   const { score, sections } = computeCompleteness(doctor);
+  // For the single-CTA nudge: highest-weight section the doctor hasn't done.
+  // (Ties broken by section order — basic info first, etc.) Score < 100 only.
+  const nextSection =
+    score < 100
+      ? [...sections]
+          .filter((s) => !s.done)
+          .sort((a, b) => b.weight - a.weight)[0] ?? null
+      : null;
 
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const last30 = await (ProfileView as unknown as { countDocuments: Function }).countDocuments({
@@ -34,8 +49,35 @@ export default async function DashboardOverview() {
     viewedAt: { $gte: since },
   });
 
+  // Read the EMR subdoc so the banner can render the right state. Missing
+  // subdoc (legacy users) → treat as "not requested" → banner hidden.
+  const userRow = await User.findById(session!.user.id)
+    .select("emr")
+    .lean<{ emr?: { seatStatus?: "pending" | "ready" | "declined"; accountEmail?: string | null } } | null>();
+  const emrStatus = userRow?.emr?.seatStatus ?? null;
+  const emrEmail = userRow?.emr?.accountEmail ?? null;
+
   return (
     <div className="space-y-6">
+      {emrStatus === "pending" || emrStatus === "ready" ? (
+        <EmrBanner seatStatus={emrStatus} accountEmail={emrEmail} />
+      ) : null}
+      {isWelcome ? (
+        <aside className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 sm:px-6">
+          <p className="font-semibold">Welcome to doctor.id.bd, {doctor.name.first}!</p>
+          <p className="mt-1">
+            Your profile is claimed. We&apos;ll verify your details within 24 hours.{" "}
+            <Link href="/dashboard/profile" className="font-medium underline">
+              Polish your profile
+            </Link>{" "}
+            or{" "}
+            <Link href="/dashboard/verification" className="font-medium underline">
+              upload your BMDC certificate
+            </Link>{" "}
+            to get the verified badge faster.
+          </p>
+        </aside>
+      ) : null}
       <header>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Welcome back, {doctor.name.first}</h1>
         <p className="text-sm text-muted-foreground">
@@ -50,6 +92,21 @@ export default async function DashboardOverview() {
           .
         </p>
       </header>
+
+      {nextSection ? (
+        <aside className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm sm:px-6">
+          <p>
+            <span className="font-semibold text-foreground">{score}% complete</span>
+            <span className="text-muted-foreground"> — </span>
+            <span className="text-foreground">
+              add <strong>{nextSection.label.toLowerCase()}</strong> to gain {nextSection.weight}%.
+            </span>{" "}
+            <Link href="/dashboard/profile" className="font-medium text-primary hover:underline">
+              Polish your profile →
+            </Link>
+          </p>
+        </aside>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
@@ -143,6 +200,43 @@ export default async function DashboardOverview() {
           </ul>
         </CardContent>
       </Card>
+
+      {doctor.status === "published" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Share your profile</CardTitle>
+            <CardDescription>
+              Drop these on a WhatsApp group, print them on your visiting card,
+              or share on your Facebook page. Every scan or click lands a
+              patient on your profile.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="grid gap-2 sm:grid-cols-2">
+              <li>
+                <a
+                  href={`/api/qr-card/${doctor.slug}`}
+                  download={`${doctor.slug}-qr-card.png`}
+                  className="block rounded-md border border-border p-3 hover:bg-accent"
+                >
+                  Download QR business card{" "}
+                  <span className="text-xs text-muted-foreground">(1050×600 PNG, print-ready)</span>
+                </a>
+              </li>
+              <li>
+                <a
+                  href={`/api/og/${doctor.slug}/square`}
+                  download={`${doctor.slug}-profile-card.png`}
+                  className="block rounded-md border border-border p-3 hover:bg-accent"
+                >
+                  Download square profile card{" "}
+                  <span className="text-xs text-muted-foreground">(1080×1080 PNG, WhatsApp Status)</span>
+                </a>
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

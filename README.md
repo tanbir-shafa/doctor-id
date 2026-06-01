@@ -47,7 +47,7 @@ git clone <repo> doctor-id && cd doctor-id
 cp .env.example .env.local
 # Edit .env.local — at minimum, set MONGO_URI and AUTH_SECRET
 npm install
-npm run seed         # populates 20 specialties + 50 BD doctors + 1 admin
+npm run seed         # bootstraps admin + 36 specialties (idempotent, no fake doctors)
 npm run dev
 open http://localhost:3000
 ```
@@ -87,7 +87,8 @@ sharing the repo with collaborators.
 | `npm run dev` | Next dev server with Turbopack |
 | `npm run build` | Production build with `output: 'standalone'` |
 | `npm start` | Run the production build |
-| `npm run seed` | Wipe + reseed the database (20 specialties, 50 BD doctors, 1 admin) |
+| `npm run seed` | Bootstrap: upsert admin + 36-specialty catalog. Idempotent — no drops, no fake doctors. |
+| `npm run seed -- --source=popular-diagnostic [--limit=N] [--dry-run]` | Ingest the Popular Diagnostic JSON dump at `data/popular-diagnostic/` as unclaimed profiles. Idempotent (no drops). |
 | `npm test` | Run the Vitest suite (no DB required) |
 | `npm run test:watch` | Vitest watch mode |
 | `npm run typecheck` | `tsc --noEmit` |

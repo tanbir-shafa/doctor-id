@@ -9,6 +9,22 @@ import { presignProfileUpload, confirmProfilePhoto } from "@/server/actions/phot
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
 
+type PresignResult =
+  | { ok: true; data?: { uploadUrl: string; publicUrl: string; key: string } }
+  | { ok: false; error: string };
+type ConfirmResult = { ok: true } | { ok: false; error: string };
+
+type PresignAction = (input: {
+  kind: "profile" | "cover" | "verification";
+  contentType: string;
+  contentLength: number;
+}) => Promise<PresignResult>;
+type ConfirmAction = (input: {
+  kind: "profile" | "cover";
+  url: string;
+  key: string;
+}) => Promise<ConfirmResult>;
+
 /**
  * Presigned-PUT photo uploader.
  *
@@ -19,9 +35,13 @@ const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
 export function PhotoUploader({
   kind,
   currentUrl,
+  presignAction,
+  confirmAction,
 }: {
   kind: "profile" | "cover";
   currentUrl: string | null;
+  presignAction?: PresignAction;
+  confirmAction?: ConfirmAction;
 }) {
   const ref = useRef<HTMLInputElement | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl);
@@ -47,7 +67,10 @@ export function PhotoUploader({
     setPreviewUrl(localUrl);
 
     startTransition(async () => {
-      const presigned = await presignProfileUpload({
+      const presign = presignAction ?? presignProfileUpload;
+      const confirm = confirmAction ?? confirmProfilePhoto;
+
+      const presigned = await presign({
         kind,
         contentType: file.type,
         contentLength: file.size,
@@ -67,13 +90,13 @@ export function PhotoUploader({
         return;
       }
 
-      const confirm = await confirmProfilePhoto({
+      const confirmed = await confirm({
         kind,
         url: presigned.data.publicUrl,
         key: presigned.data.key,
       });
-      if (!confirm.ok) {
-        setError(confirm.error);
+      if (!confirmed.ok) {
+        setError(confirmed.error);
         return;
       }
       setPreviewUrl(presigned.data.publicUrl);

@@ -71,8 +71,23 @@ describe("computeCompleteness", () => {
         contact: { publicPhone: "+8801" },
         bmdcNumber: "123456",
         languages: ["Bangla"],
+        // Loop A block (designation/institute/awards/memberships/publications)
+        // each contributes 3 points; together they make the profile reach 100.
+        designation: "Associate Professor of Cardiology",
+        institute: "BSMMU",
+        awards: [{ title: "Gold Medal" }],
+        memberships: [{ body: "BMA" }],
+        publications: [{ title: "On the management of acute MI" }],
       }),
     );
     expect(score).toBe(100);
+  });
+
+  it("rewards each Loop A field independently (designation alone = +3)", () => {
+    const baseline = computeCompleteness(makeDoc()).score; // 10 from basic
+    const withDesignation = computeCompleteness(
+      makeDoc({ designation: "Professor of Cardiology" }),
+    ).score;
+    expect(withDesignation - baseline).toBe(3);
   });
 });

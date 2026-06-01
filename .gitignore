@@ -45,3 +45,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# offline data snapshots (scripts/fetch-popular-diagnostic.ts etc.)
+/data/

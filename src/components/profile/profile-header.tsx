@@ -1,13 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, MapPin } from "lucide-react";
+import { Award, Building2, Eye, MapPin } from "lucide-react";
 import { VerifiedBadge } from "./verified-badge";
 import type { DoctorDocLike } from "@/types/doctor";
+
+// 30-day view chip is hidden below this threshold — tiny numbers look bad.
+const VIEW_CHIP_MIN = 100;
 
 export function ProfileHeader({ doctor }: { doctor: DoctorDocLike }) {
   const primarySpecialty = doctor.specialties.find((s) => s.isPrimary) ?? doctor.specialties[0];
   const primaryChamber = doctor.chambers.find((c) => c.isPrimary) ?? doctor.chambers[0];
-  const fullName = `${doctor.name.prefix} ${doctor.name.displayName}`;
+  const fullName = doctor.name.displayName;
+  const views30d = doctor.metrics?.profileViews30d ?? 0;
 
   return (
     <header className="mx-auto max-w-4xl px-4 pt-8 sm:px-6 lg:pt-12">
@@ -48,6 +52,15 @@ export function ProfileHeader({ doctor }: { doctor: DoctorDocLike }) {
               </span>
             ) : null}
           </p>
+          {doctor.designation || doctor.institute ? (
+            <p className="mt-1 text-sm text-foreground/90">
+              {doctor.designation ? <span className="font-medium">{doctor.designation}</span> : null}
+              {doctor.designation && doctor.institute ? (
+                <span className="text-muted-foreground"> · </span>
+              ) : null}
+              {doctor.institute ? <span>{doctor.institute}</span> : null}
+            </p>
+          ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
             {primaryChamber ? (
               <span className="inline-flex items-center gap-1">
@@ -60,10 +73,29 @@ export function ProfileHeader({ doctor }: { doctor: DoctorDocLike }) {
                 </Link>
               </span>
             ) : null}
-            <span className="inline-flex items-center gap-1">
-              <Eye className="size-4" aria-hidden="true" />
-              {Intl.NumberFormat("en-IN").format(doctor.profileViews)} profile views
-            </span>
+            {typeof doctor.yearsOfExperience === "number" ? (
+              <span className="inline-flex items-center gap-1">
+                <Award className="size-4" aria-hidden="true" />
+                {doctor.yearsOfExperience}+ years experience
+              </span>
+            ) : null}
+            {doctor.institute ? (
+              <span className="inline-flex items-center gap-1 lg:hidden">
+                <Building2 className="size-4" aria-hidden="true" />
+                {doctor.institute}
+              </span>
+            ) : null}
+            {views30d >= VIEW_CHIP_MIN ? (
+              <span className="inline-flex items-center gap-1">
+                <Eye className="size-4" aria-hidden="true" />
+                {Intl.NumberFormat("en-IN").format(views30d)} views this month
+              </span>
+            ) : doctor.profileViews >= VIEW_CHIP_MIN ? (
+              <span className="inline-flex items-center gap-1">
+                <Eye className="size-4" aria-hidden="true" />
+                {Intl.NumberFormat("en-IN").format(doctor.profileViews)} profile views
+              </span>
+            ) : null}
           </div>
         </div>
       </div>

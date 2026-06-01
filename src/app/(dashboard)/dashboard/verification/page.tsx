@@ -5,6 +5,7 @@ import { Doctor, ClaimRequest } from "@/lib/db/models";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { VerifiedBadge } from "@/components/profile/verified-badge";
 import { VerificationRequestForm } from "./request-form";
+import { classifySla } from "@/lib/db/queries/admin";
 import type { DoctorDocLike, VerificationLevel } from "@/types/doctor";
 
 export const metadata: Metadata = { title: "Verification" };
@@ -63,21 +64,38 @@ export default async function VerificationPage() {
       </Card>
 
       {latest && (latest as { status: string }).status === "pending" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Request under review</CardTitle>
-            <CardDescription>
-              You submitted documents on {new Date((latest as { createdAt: Date }).createdAt).toLocaleDateString()}. Reviews typically take 1–3 business days.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        (() => {
+          const latestTyped = latest as {
+            createdAt: Date;
+            slaExpiresAt: Date | null;
+            status: string;
+          };
+          const sla = classifySla(latestTyped);
+          const submitted = new Date(latestTyped.createdAt).toLocaleString();
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Request under review</CardTitle>
+                <CardDescription>
+                  We verify every submission within 24 hours. Submitted: {submitted}
+                  {sla.remainingMs !== null
+                    ? sla.tone === "red" && sla.bucket === "breached"
+                      ? ` · We're past our SLA — escalating with the team.`
+                      : ` · ${sla.label}`
+                    : null}
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          );
+        })()
       ) : (
         <Card>
           <CardHeader>
             <CardTitle>Request verification</CardTitle>
             <CardDescription>
-              Upload your BMDC certificate. Our team reviews submissions and grants the BMDC verified
-              badge once your registration is confirmed against the BMDC public registry.
+              Upload your BMDC certificate. <strong>We verify within 24 hours</strong> and grant
+              the BMDC verified badge once your registration is confirmed against the BMDC public
+              registry.
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -9,7 +9,16 @@ import type { DoctorDocLike } from "@/types/doctor";
 
 const ALL_LANGS = ["Bangla", "English", "Hindi", "Urdu", "Arabic"];
 
-export function BasicSectionForm({ doctor }: { doctor: DoctorDocLike }) {
+type SubmitResult = { ok: true } | { ok: false; error: string };
+type SubmitAction = (form: FormData) => Promise<SubmitResult>;
+
+export function BasicSectionForm({
+  doctor,
+  submitAction,
+}: {
+  doctor: DoctorDocLike;
+  submitAction?: SubmitAction;
+}) {
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
 
@@ -18,15 +27,31 @@ export function BasicSectionForm({ doctor }: { doctor: DoctorDocLike }) {
     const form = new FormData(e.currentTarget);
     setMsg(null);
     startTransition(async () => {
-      const r = await updateProfileBasicAction(form);
+      const action = submitAction ?? updateProfileBasicAction;
+      const r = await action(form);
       setMsg(r.ok ? { tone: "ok", text: "Saved." } : { tone: "err", text: r.error });
     });
   }
 
   return (
     <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label htmlFor="displayName">Public display name</Label>
+        <Input
+          id="displayName"
+          name="displayName"
+          defaultValue={doctor.name.displayName}
+          required
+          placeholder="e.g. Prof. Dr. Md Nur Alam Lelin"
+        />
+        <p className="text-xs text-muted-foreground">
+          This is rendered exactly as typed on the public profile, search results,
+          OG/SEO tags, the Rx pad, and the QR card. Include the title — &ldquo;Dr.&rdquo;,
+          &ldquo;Prof. Dr.&rdquo;, etc.
+        </p>
+      </div>
       <div className="space-y-1.5">
-        <Label htmlFor="prefix">Prefix</Label>
+        <Label htmlFor="prefix">Title (sort &amp; filter only)</Label>
         <select
           id="prefix"
           name="prefix"
@@ -37,10 +62,10 @@ export function BasicSectionForm({ doctor }: { doctor: DoctorDocLike }) {
             <option key={p} value={p}>{p}</option>
           ))}
         </select>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="displayName">Display name (shown publicly)</Label>
-        <Input id="displayName" name="displayName" defaultValue={doctor.name.displayName} required />
+        <p className="text-xs text-muted-foreground">
+          Auxiliary — used for sorting and filtering directory listings. Not
+          shown to patients; edit the display name above to change what they see.
+        </p>
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="firstName">First name</Label>

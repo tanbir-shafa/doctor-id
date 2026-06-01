@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
       // Seeded placeholder portraits — only used by the seed script in dev/staging.
       { protocol: "https", hostname: "i.pravatar.cc" },
       { protocol: "https", hostname: "images.unsplash.com" },
+      // Popular Diagnostic ingestion fallback — used when S3 isn't configured,
+      // we point Doctor.photo.url at Popular's CDN instead of re-uploading.
+      { protocol: "https", hostname: "old.populardiagnostic.com" },
+      { protocol: "https", hostname: "populardiagnostic.com" },
+      { protocol: "https", hostname: "www.populardiagnostic.com" },
     ],
   },
 
@@ -30,6 +35,19 @@ const nextConfig: NextConfig = {
     "@aws-sdk/client-sesv2",
     "@aws-sdk/s3-request-presigner",
   ],
+
+  // Permanent slug redirects from the specialty-catalog reshuffle:
+  //   - Obstetrics (394585009) was renamed to Obstetrics & Gynaecology because
+  //     its SNOMED code is actually the COMBINED entry.
+  //   - Forensic Medicine was dropped (had no SNOMED match in either SIL Thailand
+  //     or HL7 c80-practice-codes value sets; 1 source occurrence).
+  // See .claude/plans/act-like-a-data-sparkling-orbit.md.
+  async redirects() {
+    return [
+      {source: "/obstetrics", destination: "/obstetrics-gynecology", permanent: true},
+      {source: "/forensic-medicine", destination: "/", permanent: true},
+    ];
+  },
 };
 
 export default nextConfig;

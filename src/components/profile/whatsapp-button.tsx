@@ -3,17 +3,23 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
- * "Request Appointment" CTA — opens WhatsApp with a pre-filled message.
+ * "Chat on WhatsApp" CTA — opens WhatsApp with a pre-filled message.
  *
- * MVP has no in-product booking, so the doctor receives the request directly
- * via WhatsApp (the most common Bangladeshi channel for clinic appointments).
+ * Always renders full-width in its container; the surrounding card is narrow
+ * on lg+ (one of three columns), so a natural-width button overflows. The
+ * base Button has `whitespace-nowrap` — we override it here so the label
+ * wraps on the rare narrowest viewports rather than punching out the card.
  */
 export function WhatsappButton({
   whatsapp,
   doctorName,
+  label = "Chat on WhatsApp",
+  variant = "default",
 }: {
   whatsapp: string | null | undefined;
   doctorName: string;
+  label?: string;
+  variant?: "default" | "outline";
 }) {
   if (!whatsapp) return null;
   const digits = whatsapp.replace(/\D/g, "");
@@ -24,10 +30,13 @@ export function WhatsappButton({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}
+      className={cn(
+        buttonVariants({ variant, size: "lg" }),
+        "w-full whitespace-normal text-center leading-tight",
+      )}
     >
-      <MessageCircle className="size-4" aria-hidden="true" />
-      Request appointment on WhatsApp
+      <MessageCircle className="size-4 shrink-0" aria-hidden="true" />
+      {label}
     </a>
   );
 }

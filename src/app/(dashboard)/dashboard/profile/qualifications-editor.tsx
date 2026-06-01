@@ -10,7 +10,16 @@ import type { DoctorQualification } from "@/types/doctor";
 
 type Row = { degree: string; institution: string; year: number; country: string };
 
-export function QualificationsEditor({ initial }: { initial: DoctorQualification[] }) {
+type SubmitResult = { ok: true } | { ok: false; error: string };
+type SubmitAction = (form: FormData) => Promise<SubmitResult>;
+
+export function QualificationsEditor({
+  initial,
+  submitAction,
+}: {
+  initial: DoctorQualification[];
+  submitAction?: SubmitAction;
+}) {
   const [rows, setRows] = useState<Row[]>(() =>
     initial.map((q) => ({ degree: q.degree, institution: q.institution, year: q.year, country: q.country ?? "Bangladesh" })),
   );
@@ -31,7 +40,8 @@ export function QualificationsEditor({ initial }: { initial: DoctorQualification
     startTransition(async () => {
       const fd = new FormData();
       fd.set("qualifications", JSON.stringify(rows));
-      const r = await updateProfileQualificationsAction(fd);
+      const action = submitAction ?? updateProfileQualificationsAction;
+      const r = await action(fd);
       setMsg(r.ok ? { tone: "ok", text: "Saved." } : { tone: "err", text: r.error });
     });
   }

@@ -24,6 +24,8 @@ export interface CompletenessResult {
 }
 
 export function computeCompleteness(doc: DoctorDocLike): CompletenessResult {
+  // Weights sum to 100. Loop A (designation/institute/credentials block)
+  // takes 15% — pulled proportionally from bio, experience, languages, bmdc.
   const sections: CompletenessSection[] = [
     {
       key: "basic",
@@ -40,7 +42,7 @@ export function computeCompleteness(doc: DoctorDocLike): CompletenessResult {
     {
       key: "bio",
       label: "Bio (at least 80 chars)",
-      weight: 10,
+      weight: 5,
       done: typeof doc.bio === "string" && doc.bio.trim().length >= 80,
     },
     {
@@ -58,7 +60,7 @@ export function computeCompleteness(doc: DoctorDocLike): CompletenessResult {
     {
       key: "experience",
       label: "Experience",
-      weight: 10,
+      weight: 5,
       done: Array.isArray(doc.experience) && doc.experience.length > 0,
     },
     {
@@ -76,14 +78,46 @@ export function computeCompleteness(doc: DoctorDocLike): CompletenessResult {
     {
       key: "bmdc",
       label: "BMDC number entered",
-      weight: 10,
+      weight: 8,
       done: Boolean(doc.bmdcNumber),
     },
     {
       key: "languages",
       label: "Languages spoken",
-      weight: 5,
+      weight: 2,
       done: Array.isArray(doc.languages) && doc.languages.length > 0,
+    },
+    // --- Loop A block: 15 points total, one section per field so the
+    // "92% complete — add X to hit 100%" nudge can pick a precise CTA. ---
+    {
+      key: "designation",
+      label: "Designation (e.g. \"Associate Professor of Cardiology\")",
+      weight: 3,
+      done: Boolean(doc.designation && doc.designation.trim().length > 0),
+    },
+    {
+      key: "institute",
+      label: "Affiliated institute (e.g. \"BSMMU\", \"DMCH\")",
+      weight: 3,
+      done: Boolean(doc.institute && doc.institute.trim().length > 0),
+    },
+    {
+      key: "awards",
+      label: "Awards (at least one)",
+      weight: 3,
+      done: Array.isArray(doc.awards) && doc.awards.length > 0,
+    },
+    {
+      key: "memberships",
+      label: "Memberships (e.g. FCPS, BMA)",
+      weight: 3,
+      done: Array.isArray(doc.memberships) && doc.memberships.length > 0,
+    },
+    {
+      key: "publications",
+      label: "Publications (at least one)",
+      weight: 3,
+      done: Array.isArray(doc.publications) && doc.publications.length > 0,
     },
   ];
 

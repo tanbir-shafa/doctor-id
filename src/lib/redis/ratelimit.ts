@@ -39,3 +39,14 @@ export const publicApiRateLimiter = makeLimiter("api", 60, 60);
 
 /** 20 profile-view writes per IP per minute (prevents view-count spam). */
 export const profileViewRateLimiter = makeLimiter("pview", 20, 60);
+
+/** 3 SMS OTP requests per phone per 10 minutes (A.4 claim flow). */
+export const smsOtpRequestLimiter = makeLimiter("sms-otp-req", 3, 600);
+
+/** 5 SMS OTP verify attempts per phone per 10 minutes (A.4 claim flow). */
+export const smsOtpVerifyLimiter = makeLimiter("sms-otp-verify", 5, 600);
+
+/** 3 appointment-request submissions per IP per hour (A.3 public form). */
+export const appointmentByIpLimiter = makeLimiter("appt-ip", 3, 3600);
+/** 3 appointment-request submissions per phone per hour (A.3 public form). */
+export const appointmentByPhoneLimiter = makeLimiter("appt-phone", 3, 3600);

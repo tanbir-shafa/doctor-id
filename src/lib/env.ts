@@ -33,6 +33,13 @@ const ServerEnvSchema = z.object({
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 
+  // MDL SMS gateway (A.4 — SMS magic-link claim). Optional in dev: when any
+  // of these are missing, `sendSms()` logs the message to the console
+  // instead of dispatching, so the claim flow stays testable offline.
+  MDL_SMS_API_BASE_URL: z.string().url().optional(),
+  MDL_SMS_API_KEY: z.string().optional(),
+  MDL_SMS_API_SENDER_ID: z.string().optional(),
+
   // App
   ADMIN_EMAILS: z.string().optional(),
 

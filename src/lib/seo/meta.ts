@@ -12,7 +12,7 @@ export function buildProfileMetadata(doc: DoctorDocLike): Metadata {
   const primary = doc.specialties.find((s) => s.isPrimary) ?? doc.specialties[0];
   const primaryChamber = doc.chambers.find((c) => c.isPrimary) ?? doc.chambers[0];
 
-  const fullName = `${doc.name.prefix} ${doc.name.displayName}`;
+  const fullName = doc.name.displayName;
   const specialtyLabel = primary?.name ?? "Doctor";
   const cityLabel = primaryChamber?.city ? ` in ${primaryChamber.city}` : "";
 

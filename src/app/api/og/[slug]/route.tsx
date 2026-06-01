@@ -41,9 +41,11 @@ export async function GET(
     );
   }
   const doc = JSON.parse(JSON.stringify(raw)) as DoctorDocLike;
-  const fullName = `${doc.name.prefix} ${doc.name.displayName}`;
+  const fullName = doc.name.displayName;
   const primary = doc.specialties.find((s) => s.isPrimary) ?? doc.specialties[0];
   const chamber = doc.chambers.find((c) => c.isPrimary) ?? doc.chambers[0];
+  const isVerified =
+    doc.verificationLevel === "fully_verified" || doc.verificationLevel === "bmdc_verified";
   const verifyLabel =
     doc.verificationLevel === "fully_verified"
       ? "Fully verified"
@@ -108,12 +110,29 @@ export async function GET(
                 {chamber.area}, {chamber.city}
               </div>
             ) : null}
+            {isVerified ? (
+              <div
+                style={{
+                  display: "flex",
+                  marginTop: 20,
+                  fontSize: 24,
+                  fontWeight: 600,
+                  padding: "8px 18px",
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.18)",
+                  border: "2px solid rgba(255,255,255,0.45)",
+                  alignSelf: "flex-start",
+                }}
+              >
+                {verifyLabel}
+              </div>
+            ) : null}
           </div>
         </div>
 
         {/* Footer */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 22, opacity: 0.85 }}>
-          <div style={{ display: "flex" }}>{verifyLabel}</div>
+          <div style={{ display: "flex" }}>{isVerified ? verifyLabel : "Profile on doctor.id.bd"}</div>
           <div style={{ display: "flex" }}>doctor.id.bd / {doc.slug}</div>
         </div>
       </div>

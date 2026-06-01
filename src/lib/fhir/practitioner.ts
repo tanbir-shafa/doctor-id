@@ -20,6 +20,20 @@ import type { DoctorDocLike } from "@/types/doctor";
 
 const EXT_PREFIX = "https://doctor.id.bd/fhir";
 
+/**
+ * FHIR extensions can nest. We model that explicitly so arrays of structured
+ * entries (awards, memberships, publications) round-trip without JSON-string
+ * encoding. Adheres to https://www.hl7.org/fhir/extensibility.html
+ */
+export interface FhirExtension {
+  url: string;
+  valueString?: string;
+  valueBoolean?: boolean;
+  valueInteger?: number;
+  valueUrl?: string;
+  extension?: FhirExtension[];
+}
+
 export interface FhirPractitionerEnvelope {
   resourceType: "Practitioner";
   id: string;
@@ -35,7 +49,7 @@ export interface FhirPractitionerEnvelope {
   }>;
   communication?: Array<{ coding: Array<{ system: string; display: string }> }>;
   photo?: Array<{ url: string; contentType: string }>;
-  extension: Array<{ url: string; valueString?: string; valueBoolean?: boolean }>;
+  extension: Array<FhirExtension>;
   // Non-standard convenience block — FHIR purists should ignore, EMR consumers
   // get a fully-shaped PractitionerRole array without a separate Bundle hop.
   roles: Array<{
@@ -85,7 +99,7 @@ export function toFhirPractitioner(doc: DoctorDocLike): FhirPractitionerEnvelope
         prefix: [doc.name.prefix],
         given: [doc.name.first],
         family: doc.name.last,
-        text: `${doc.name.prefix} ${fullName}`,
+        text: fullName,
       },
     ],
     telecom,
@@ -108,11 +122,7 @@ export function toFhirPractitioner(doc: DoctorDocLike): FhirPractitionerEnvelope
     photo: doc.photo
       ? [{ url: doc.photo.url, contentType: doc.photo.url.endsWith(".png") ? "image/png" : "image/jpeg" }]
       : undefined,
-    extension: [
-      { url: `${EXT_PREFIX}/verificationLevel`, valueString: doc.verificationLevel },
-      { url: `${EXT_PREFIX}/isClaimed`, valueBoolean: doc.isClaimed },
-      { url: `${EXT_PREFIX}/bmdcVerified`, valueBoolean: doc.bmdcVerified },
-    ],
+    extension: buildExtensions(doc),
     roles: doc.chambers.map((chamber) => ({
       resourceType: "PractitionerRole",
       specialty: doc.specialties.map((s) => ({
@@ -149,4 +159,52 @@ export function toFhirPractitioner(doc: DoctorDocLike): FhirPractitionerEnvelope
         })),
     })),
   };
+}
+
+function buildExtensions(doc: DoctorDocLike): FhirExtension[] {
+  const ext: FhirExtension[] = [
+    { url: `${EXT_PREFIX}/verificationLevel`, valueString: doc.verificationLevel },
+    { url: `${EXT_PREFIX}/isClaimed`, valueBoolean: doc.isClaimed },
+    { url: `${EXT_PREFIX}/bmdcVerified`, valueBoolean: doc.bmdcVerified },
+  ];
+
+  if (doc.designation) {
+    ext.push({ url: `${EXT_PREFIX}/designation`, valueString: doc.designation });
+  }
+  if (doc.institute) {
+    ext.push({ url: `${EXT_PREFIX}/institute`, valueString: doc.institute });
+  }
+  if (typeof doc.yearsOfExperience === "number") {
+    ext.push({ url: `${EXT_PREFIX}/yearsOfExperience`, valueInteger: doc.yearsOfExperience });
+  }
+
+  // Repeated extensions, one per entry, each with nested sub-extensions —
+  // the standard FHIR pattern for structured arrays.
+  for (const a of doc.awards ?? []) {
+    const subs: FhirExtension[] = [{ url: "title", valueString: a.title }];
+    if (a.issuer) subs.push({ url: "issuer", valueString: a.issuer });
+    if (typeof a.year === "number") subs.push({ url: "year", valueInteger: a.year });
+    ext.push({ url: `${EXT_PREFIX}/award`, extension: subs });
+  }
+
+  for (const m of doc.memberships ?? []) {
+    const subs: FhirExtension[] = [{ url: "body", valueString: m.body }];
+    if (m.role) subs.push({ url: "role", valueString: m.role });
+    if (typeof m.since === "number") subs.push({ url: "since", valueInteger: m.since });
+    ext.push({ url: `${EXT_PREFIX}/membership`, extension: subs });
+  }
+
+  for (const p of doc.publications ?? []) {
+    const subs: FhirExtension[] = [{ url: "title", valueString: p.title }];
+    if (p.journal) subs.push({ url: "journal", valueString: p.journal });
+    if (typeof p.year === "number") subs.push({ url: "year", valueInteger: p.year });
+    if (p.url) subs.push({ url: "url", valueUrl: p.url });
+    ext.push({ url: `${EXT_PREFIX}/publication`, extension: subs });
+  }
+
+  for (const c of doc.concentrations ?? []) {
+    ext.push({ url: `${EXT_PREFIX}/concentration`, valueString: c });
+  }
+
+  return ext;
 }

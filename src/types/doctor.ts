@@ -99,6 +99,32 @@ export interface DoctorSocialLinks {
   linkedin?: string;
   researchGate?: string;
   googleScholar?: string;
+  youtube?: string;
+}
+
+export interface DoctorAward {
+  title: string;
+  issuer?: string;
+  year?: number;
+}
+
+export interface DoctorMembership {
+  body: string;
+  role?: string;
+  since?: number;
+}
+
+export interface DoctorPublication {
+  title: string;
+  journal?: string;
+  year?: number;
+  url?: string;
+}
+
+export interface DoctorMetrics {
+  profileViews30d: number;
+  whatsappClicks30d: number;
+  lastViewedAt?: Date | string | null;
 }
 
 /**
@@ -144,8 +170,21 @@ export interface DoctorDocLike {
   contact: DoctorContact;
   socialLinks?: DoctorSocialLinks;
 
+  // Loop A — status signaling (designation/institute used standalone; awards,
+  // memberships, publications, concentrations enrich the public profile).
+  designation?: string;
+  institute?: string;
+  yearsOfExperience?: number;
+  awards?: DoctorAward[];
+  memberships?: DoctorMembership[];
+  publications?: DoctorPublication[];
+  concentrations?: string[];
+
   profileCompletenessScore: number;
   profileViews: number;
+  // 30-day rolling window — denormalized cache for profile chips. Lifetime
+  // counter stays on `profileViews` above.
+  metrics?: DoctorMetrics;
 
   isClaimed: boolean;
   claimRequestedBy?: ObjectIdLike | null;
@@ -157,6 +196,9 @@ export interface DoctorDocLike {
 
   privacyHidePhone?: boolean;
   privacyHideEmail?: boolean;
+
+  /** Set by the dedup pipeline when a candidate group can't be auto-merged. */
+  dupReviewGroup?: string | null;
 
   createdAt: Date | string;
   updatedAt: Date | string;

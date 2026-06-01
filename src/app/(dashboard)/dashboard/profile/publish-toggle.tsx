@@ -6,7 +6,16 @@ import { Button } from "@/components/ui/button";
 import { setPublishStatusAction } from "@/server/actions/doctor";
 import type { DoctorStatus } from "@/types/doctor";
 
-export function PublishToggle({ initialStatus }: { initialStatus: DoctorStatus }) {
+type SubmitResult = { ok: true } | { ok: false; error: string };
+type SubmitAction = (publish: boolean) => Promise<SubmitResult>;
+
+export function PublishToggle({
+  initialStatus,
+  submitAction,
+}: {
+  initialStatus: DoctorStatus;
+  submitAction?: SubmitAction;
+}) {
   const [status, setStatus] = useState(initialStatus);
   const [pending, startTransition] = useTransition();
   const published = status === "published";
@@ -14,7 +23,8 @@ export function PublishToggle({ initialStatus }: { initialStatus: DoctorStatus }
   function flip() {
     startTransition(async () => {
       const next = !published;
-      const result = await setPublishStatusAction(next);
+      const action = submitAction ?? setPublishStatusAction;
+      const result = await action(next);
       if (result.ok) setStatus(next ? "published" : "draft");
     });
   }

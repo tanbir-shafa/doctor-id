@@ -1,31 +1,83 @@
 /**
- * Seed script — populates dev/staging databases with realistic data.
+ * Seed script — bootstraps the database to a usable state.
  *
- * Run with: `npm run seed` (uses .env.local automatically via tsx --env-file).
+ * Default mode (`npm run seed`):
+ *   - Upserts the bootstrap admin user.
+ *   - Upserts the canonical 36-specialty catalog.
+ *   - Does NOT create fake doctor profiles.
+ *   - Does NOT drop or reset any collection — safe to re-run.
  *
- * Idempotent: drops and re-inserts each collection it owns. Safe to run
- * repeatedly. Will refuse to run if NODE_ENV === 'production'.
+ * Ingestion mode (`npm run seed -- --source=popular-diagnostic`):
+ *   - Reads the on-disk dump at `data/popular-diagnostic/` and upserts
+ *     unclaimed Doctor profiles.
+ *   - Idempotent by `(sourceProvider, sourceProviderId)`.
+ *   - Refuses to run if NODE_ENV === 'production' (mirrors the seed
+ *     guardrail).
+ *
+ * Common flags:
+ *   --limit=N      cap ingestion at N records (ignored in default mode)
+ *   --dry-run      log what would be inserted/updated, no DB writes
  */
 
-// Env vars are loaded by `tsx --env-file=.env.local` (see package.json `seed` script).
 import bcrypt from "bcryptjs";
-import { faker } from "@faker-js/faker";
 import mongoose from "mongoose";
 import { dbConnect, dbDisconnect } from "@/lib/db/mongoose";
-import { User, Specialty, Doctor } from "@/lib/db/models";
+import { User, Specialty, Doctor, FILE_VISIBILITY } from "@/lib/db/models";
 import { generateSlug } from "@/lib/utils/slug";
-import { computeCompleteness } from "@/lib/utils/completeness";
-import type { DoctorDocLike } from "@/types/doctor";
+import {
+  POPULAR_PROVIDER,
+  buildSpecialtyLookup,
+  loadPopularDetail,
+  loadPopularIndex,
+  normalizePopularDoctor,
+  uploadPopularPhoto,
+} from "./lib/providers/popular";
 
 if (process.env.NODE_ENV === "production") {
   console.error("Refusing to seed: NODE_ENV is production. Set to development to run.");
   process.exit(1);
 }
 
-faker.seed(20260528); // deterministic output
+interface CliArgs {
+  source: "default" | "popular-diagnostic";
+  limit: number | null;
+  dryRun: boolean;
+}
 
-// --- Bangladesh-specific reference data ---
+function parseArgs(argv: string[]): CliArgs {
+  const args: CliArgs = { source: "default", limit: null, dryRun: false };
+  for (const a of argv) {
+    if (a === "--dry-run") args.dryRun = true;
+    else if (a.startsWith("--source=")) {
+      const v = a.slice("--source=".length);
+      if (v === "popular-diagnostic") args.source = v;
+      else if (v === "default") args.source = "default";
+      else throw new Error(`Unknown --source value: ${v}`);
+    } else if (a.startsWith("--limit=")) {
+      const n = Number(a.slice("--limit=".length));
+      if (!Number.isFinite(n) || n <= 0) throw new Error(`Invalid --limit: ${a}`);
+      args.limit = n;
+    }
+  }
+  return args;
+}
 
+// ---------------------------------------------------------------------------
+// Reference data
+// ---------------------------------------------------------------------------
+
+/**
+ * The canonical specialty catalog. Mirrors what's been curated in
+ * production today (36 specialties, BD-relevant first, with Bangla
+ * translations and SNOMED-CT / FHIR practitioner codes).
+ *
+ * `slug` is the public URL segment (e.g. `/cardiology`).
+ *
+ * To add a new specialty, append here and re-run `npm run seed`. To
+ * deactivate one, set `active: false` directly in the database — the seed
+ * never flips `active` to false, only `true` (so re-running doesn't
+ * resurrect deprecated specialties).
+ */
 const SPECIALTIES: Array<{
   name: string;
   nameBangla: string;
@@ -34,6 +86,22 @@ const SPECIALTIES: Array<{
   snomedCode: string;
   sortOrder: number;
 }> = [
+  // ─────────────────────────────────────────────────────────────────────
+  // SNOMED codes verified against TWO international sources:
+  //   - SIL Thailand FHIR IG (https://fhir-ig.sil-th.org/build/core/ValueSet-vs-sct-clinical-specialty.html, 237 entries)
+  //   - HL7 FHIR R4 c80-practice-codes (https://hl7.org/fhir/R4/valueset-c80-practice-codes.html, 137 entries — the FHIR Practitioner.specialty binding)
+  // Both draw from SNOMED CT International. 5 entries are in SIL/SNOMED but
+  // NOT in HL7 c80 (Cardiothoracic Surgery 394603008, Neonatology 408445005,
+  // Sports Medicine 1251536003, Dentistry 722163006, Dietetics & Nutrition
+  // 722164000, plus Adolescent Medicine, Emergency Medicine) — deliberate
+  // choice; all are valid SNOMED CT International codes.
+  // Slugs are URL-stable so SEO doesn't break. The renamed `obstetrics`
+  // → `obstetrics-gynecology` and dropped `forensic-medicine` get 301
+  // redirects in next.config.ts.
+  // For the ≤5% residual that resolves to nothing, seed-unified.ts injects
+  // inline {name: "Other / Not Listed", fhirCode: "394733009"} on the Doctor;
+  // we deliberately do NOT seed that as a Specialty row (would clutter SEO/UX).
+  // ─────────────────────────────────────────────────────────────────────
   { name: "Cardiology", nameBangla: "হৃদরোগ", slug: "cardiology", fhirCode: "394579002", snomedCode: "394579002", sortOrder: 1 },
   { name: "Gynecology", nameBangla: "স্ত্রীরোগ", slug: "gynecology", fhirCode: "394586005", snomedCode: "394586005", sortOrder: 2 },
   { name: "Pediatrics", nameBangla: "শিশুরোগ", slug: "pediatrics", fhirCode: "394537008", snomedCode: "394537008", sortOrder: 3 },
@@ -52,251 +120,346 @@ const SPECIALTIES: Array<{
   { name: "Pulmonology", nameBangla: "শ্বাসতন্ত্র", slug: "pulmonology", fhirCode: "418112009", snomedCode: "418112009", sortOrder: 16 },
   { name: "Rheumatology", nameBangla: "বাত-ব্যথা", slug: "rheumatology", fhirCode: "394810000", snomedCode: "394810000", sortOrder: 17 },
   { name: "Hematology", nameBangla: "রক্তরোগ", slug: "hematology", fhirCode: "394803006", snomedCode: "394803006", sortOrder: 18 },
-  { name: "ENT", nameBangla: "নাক-কান-গলা", slug: "ent", fhirCode: "394605004", snomedCode: "394605004", sortOrder: 19 },
-  { name: "Obstetrics", nameBangla: "প্রসূতিবিদ্যা", slug: "obstetrics", fhirCode: "394585009", snomedCode: "394585009", sortOrder: 20 },
+  // CODE FIX: was 394605004 ("Oral surgery"). Correct: 418960008 (Otolaryngology).
+  { name: "ENT", nameBangla: "নাক-কান-গলা", slug: "ent", fhirCode: "418960008", snomedCode: "418960008", sortOrder: 19 },
+  // RENAMED from "Obstetrics" — the code 394585009 was always the COMBINED entry
+  // "Obstetrics and gynaecology". Slug changes; redirect from /obstetrics added in
+  // next.config.ts.
+  { name: "Obstetrics & Gynaecology", nameBangla: "প্রসূতি ও স্ত্রীরোগ", slug: "obstetrics-gynecology", fhirCode: "394585009", snomedCode: "394585009", sortOrder: 20 },
+  { name: "Neurosurgery", nameBangla: "নিউরোসার্জারি", slug: "neurosurgery", fhirCode: "394610002", snomedCode: "394610002", sortOrder: 21 },
+  // CODE FIX: was 408463005 (which is "Vascular surgery" — confused with our Vascular Surgery row).
+  // Correct: 394603008 (Cardiothoracic surgery in SIL; in SNOMED CT International but not in HL7 c80 which only has the more-specific 408466002 "Cardiac surgery").
+  { name: "Cardiothoracic Surgery", nameBangla: "কার্ডিওথোরাসিক সার্জারি", slug: "cardiothoracic-surgery", fhirCode: "394603008", snomedCode: "394603008", sortOrder: 22 },
+  { name: "Plastic Surgery", nameBangla: "প্লাস্টিক সার্জারি", slug: "plastic-surgery", fhirCode: "394611003", snomedCode: "394611003", sortOrder: 23 },
+  { name: "Pediatric Surgery", nameBangla: "শিশু সার্জারি", slug: "pediatric-surgery", fhirCode: "394539006", snomedCode: "394539006", sortOrder: 24 },
+  // CODE FIX: was 408464004 (which is "Colorectal surgery"). Correct: 408463005 (Vascular surgery).
+  { name: "Vascular Surgery", nameBangla: "ভাস্কুলার সার্জারি", slug: "vascular-surgery", fhirCode: "408463005", snomedCode: "408463005", sortOrder: 25 },
+  // CODE FIX: was 408471003 (not in SIL). Correct: 408464004 (Colorectal surgery).
+  { name: "Colorectal Surgery", nameBangla: "কোলোরেক্টাল সার্জারি", slug: "colorectal-surgery", fhirCode: "408464004", snomedCode: "408464004", sortOrder: 26 },
+  { name: "Physical Medicine & Rehabilitation", nameBangla: "ফিজিক্যাল মেডিসিন", slug: "physical-medicine", fhirCode: "394602003", snomedCode: "394602003", sortOrder: 27 },
+  { name: "Nuclear Medicine", nameBangla: "নিউক্লিয়ার মেডিসিন", slug: "nuclear-medicine", fhirCode: "394649004", snomedCode: "394649004", sortOrder: 28 },
+  { name: "Critical Care Medicine", nameBangla: "ক্রিটিক্যাল কেয়ার", slug: "critical-care", fhirCode: "408478003", snomedCode: "408478003", sortOrder: 29 },
+  // CODE FIX: was 394913002 (Psychotherapy). Correct: 394882004 (Pain management).
+  { name: "Pain Medicine", nameBangla: "ব্যথা ব্যবস্থাপনা", slug: "pain-medicine", fhirCode: "394882004", snomedCode: "394882004", sortOrder: 30 },
+  // CODE FIX: was 394811001 (Geriatric medicine). Correct: 408446006 (Gynaecological oncology).
+  { name: "Gynaecological Oncology", nameBangla: "স্ত্রীরোগ অনকোলজি", slug: "gynae-oncology", fhirCode: "408446006", snomedCode: "408446006", sortOrder: 31 },
+  // CODE FIX: was 394821009 (Occupational medicine). Correct: 1251536003 (Sport medicine). In SNOMED CT International but not in HL7 c80.
+  { name: "Sports Medicine", nameBangla: "স্পোর্টস মেডিসিন", slug: "sports-medicine", fhirCode: "1251536003", snomedCode: "1251536003", sortOrder: 32 },
+  // DROPPED: Forensic Medicine — original code 394814009 was actually "General practice"; no clean SIL match exists (closest are 394817002 Forensic psychiatry or 26011000087105 Forensic pathology, neither a fit). No source data backing.
+  // CODE FIX: was 394592004 (Clinical oncology). Correct: 722163006 (Dentistry). In SNOMED CT International but not in HL7 c80.
+  { name: "Dental Surgery", nameBangla: "দন্তচিকিৎসা", slug: "dental-surgery", fhirCode: "722163006", snomedCode: "722163006", sortOrder: 33 },
+  { name: "Radiology", nameBangla: "রেডিওলজি", slug: "radiology", fhirCode: "394914008", snomedCode: "394914008", sortOrder: 34 },
+  // CODE FIX: was 408477008 (Transplantation surgery). Correct: 722164000 (Dietetics and nutrition). In SNOMED CT International but not in HL7 c80.
+  { name: "Nutrition & Dietetics", nameBangla: "পুষ্টি ও ডায়েট", slug: "nutrition", fhirCode: "722164000", snomedCode: "722164000", sortOrder: 35 },
+  // ───────────── NEW CANONICALS (13 entries) ─────────────
+  { name: "Anesthesiology", nameBangla: "অ্যানেস্থেসিয়া", slug: "anesthesiology", fhirCode: "394577000", snomedCode: "394577000", sortOrder: 36 },
+  { name: "Pathology", nameBangla: "প্যাথলজি", slug: "pathology", fhirCode: "394595002", snomedCode: "394595002", sortOrder: 37 },
+  { name: "Family Medicine", nameBangla: "ফ্যামিলি মেডিসিন", slug: "family-medicine", fhirCode: "419772000", snomedCode: "419772000", sortOrder: 38 },
+  // Neonatology: in SIL, not in HL7 c80.
+  { name: "Neonatology", nameBangla: "নবজাতকবিদ্যা", slug: "neonatology", fhirCode: "408445005", snomedCode: "408445005", sortOrder: 39 },
+  { name: "Hepatobiliary Surgery", nameBangla: "যকৃৎ-পিত্তথলি সার্জারি", slug: "hepatobiliary-surgery", fhirCode: "408474001", snomedCode: "408474001", sortOrder: 40 },
+  { name: "Maxillofacial Surgery", nameBangla: "ম্যাক্সিলোফেসিয়াল সার্জারি", slug: "maxillofacial-surgery", fhirCode: "408465003", snomedCode: "408465003", sortOrder: 41 },
+  { name: "Allergy & Immunology", nameBangla: "অ্যালার্জি ও ইমিউনোলজি", slug: "allergy-immunology", fhirCode: "394805004", snomedCode: "394805004", sortOrder: 42 },
+  { name: "Public Health Medicine", nameBangla: "জনস্বাস্থ্য", slug: "public-health", fhirCode: "408440000", snomedCode: "408440000", sortOrder: 43 },
+  // Splits "Hepatologist" / "Liver Specialist" out of Gastroenterology — distinct discipline in SNOMED.
+  { name: "Hepatology", nameBangla: "যকৃৎ রোগ", slug: "hepatology", fhirCode: "408472002", snomedCode: "408472002", sortOrder: 44 },
+  // Splits "Diabetes Specialist" out of Endocrinology — distinct discipline in SNOMED.
+  { name: "Diabetic Medicine", nameBangla: "ডায়াবেটিস", slug: "diabetic-medicine", fhirCode: "408475000", snomedCode: "408475000", sortOrder: 45 },
+  // Future-proofing for medical-student signups; 0 source occurrences today.
+  // In SIL, not in HL7 c80.
+  { name: "Adolescent Medicine", nameBangla: "কিশোর-কিশোরী চিকিৎসা", slug: "adolescent-medicine", fhirCode: "25931000087108", snomedCode: "25931000087108", sortOrder: 46 },
+  // Future-proofing for medical-student signups; 0 source occurrences today.
+  // In SIL, not in HL7 c80 (HL7 has only the more-specific 394576009 "Surgical-Accident & emergency").
+  { name: "Emergency Medicine", nameBangla: "জরুরি চিকিৎসা", slug: "emergency-medicine", fhirCode: "773568002", snomedCode: "773568002", sortOrder: 47 },
 ];
 
-// Common BD first/last names (transliteration). Used to make profiles credible.
-const BD_FIRST_NAMES_M = ["Karim", "Rahim", "Imran", "Nazmul", "Shahriar", "Tanvir", "Faisal", "Saiful", "Mahbub", "Arif", "Nasir", "Rezaul", "Habibur", "Mostafa", "Sajid"];
-const BD_FIRST_NAMES_F = ["Fatema", "Sumaiya", "Nasrin", "Tahmina", "Rumana", "Saima", "Sharmin", "Jannatul", "Farhana", "Mahiya", "Tasnim", "Israt", "Nusrat", "Sabina", "Lutfa"];
-const BD_LAST_NAMES = ["Rahman", "Hossain", "Ahmed", "Islam", "Khan", "Chowdhury", "Akhter", "Karim", "Mahmud", "Siddique", "Begum", "Sultana", "Haque", "Bhuiyan", "Talukder"];
+// ---------------------------------------------------------------------------
+// Bootstrap helpers (shared by default mode + Popular ingestion)
+// ---------------------------------------------------------------------------
 
-const BD_AREAS_DHAKA = ["Dhanmondi", "Gulshan", "Banani", "Mirpur", "Uttara", "Mohammadpur", "Bashundhara", "Tejgaon", "Mohakhali", "Shantinagar", "Lalmatia", "Wari"];
-const BD_AREAS_CHITTAGONG = ["Agrabad", "Khulshi", "Nasirabad", "GEC Circle", "Kotwali", "Panchlaish"];
-const BD_AREAS_SYLHET = ["Zindabazar", "Subidbazar", "Amberkhana", "Chowhatta"];
-
-const CITIES: Array<{ city: string; division: string; areas: string[]; lat: [number, number]; lng: [number, number] }> = [
-  { city: "Dhaka", division: "Dhaka", areas: BD_AREAS_DHAKA, lat: [23.70, 23.85], lng: [90.35, 90.45] },
-  { city: "Chittagong", division: "Chittagong", areas: BD_AREAS_CHITTAGONG, lat: [22.30, 22.40], lng: [91.80, 91.85] },
-  { city: "Sylhet", division: "Sylhet", areas: BD_AREAS_SYLHET, lat: [24.88, 24.92], lng: [91.85, 91.90] },
-];
-
-const MEDICAL_INSTITUTIONS = [
-  "Dhaka Medical College",
-  "Sir Salimullah Medical College",
-  "Chittagong Medical College",
-  "Sylhet MAG Osmani Medical College",
-  "Bangabandhu Sheikh Mujib Medical University",
-  "Mymensingh Medical College",
-  "Rajshahi Medical College",
-  "Sher-e-Bangla Medical College",
-];
-
-const DEGREES = ["MBBS", "FCPS (Medicine)", "FCPS (Surgery)", "FCPS (Gynae)", "MD", "MS", "MRCP (UK)", "FRCS", "DLO", "DTCD", "DO", "DCH", "DGO"];
-
-// --- Helpers ---
-
-function pick<T>(arr: readonly T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]!;
-}
-
-function randomBmdcNumber(used: Set<string>): string {
-  // BMDC numbers in the public registry are typically 5 digits, growing into 6.
-  for (let i = 0; i < 100; i++) {
-    const n = String(faker.number.int({ min: 30000, max: 199999 }));
-    if (!used.has(n)) {
-      used.add(n);
-      return n;
-    }
+/**
+ * Upsert the canonical specialty catalog. Idempotent — keyed by `slug`.
+ *
+ * Sets `active: true` so a re-run never strands a row in an inactive
+ * state. Deactivating a specialty is intentionally a manual DB edit
+ * (we don't want a hot-fix re-seed to flip a flag the admin chose).
+ *
+ * Returns the list in the same shape the Popular ingestion expects.
+ */
+async function ensureSpecialties(): Promise<Array<{ name: string; fhirCode: string }>> {
+  for (const s of SPECIALTIES) {
+    await Specialty.updateOne(
+      { slug: s.slug },
+      { $set: { ...s, active: true } },
+      { upsert: true },
+    );
   }
-  throw new Error("Couldn't generate a unique BMDC number");
+  return SPECIALTIES.map((s) => ({ name: s.name, fhirCode: s.fhirCode }));
 }
 
-function randomCoordinatesIn(city: (typeof CITIES)[number]): { lat: number; lng: number } {
-  return {
-    lat: parseFloat(faker.number.float({ min: city.lat[0], max: city.lat[1], fractionDigits: 6 }).toFixed(6)),
-    lng: parseFloat(faker.number.float({ min: city.lng[0], max: city.lng[1], fractionDigits: 6 }).toFixed(6)),
-  };
+/**
+ * Upsert the bootstrap admin user. Email comes from `ADMIN_EMAILS[0]`
+ * when set, otherwise the default `admin@doctor.id.bd`. The password is
+ * set only on insert — re-running never overwrites a rotated password.
+ *
+ * `approved: true` is set explicitly so the approval gate (which defaults
+ * new doctor accounts to false) never traps the admin.
+ */
+async function ensureBootstrapAdmin(): Promise<{ adminId: mongoose.Types.ObjectId; email: string }> {
+  const adminEmail = (
+    process.env.ADMIN_EMAILS?.split(",")[0]?.trim() || "admin@doctor.id.bd"
+  ).toLowerCase();
+  const adminPassword = "ChangeMe!2026";
+  const adminHash = await bcrypt.hash(adminPassword, 12);
+  const admin = await User.findOneAndUpdate(
+    { email: adminEmail },
+    {
+      $set: {
+        email: adminEmail,
+        role: "admin",
+        emailVerified: new Date(),
+        approved: true,
+      },
+      $setOnInsert: { passwordHash: adminHash },
+    },
+    { upsert: true, returnDocument: "after" },
+  ).lean();
+  if (!admin) throw new Error("Failed to bootstrap admin user");
+  return { adminId: admin._id as unknown as mongoose.Types.ObjectId, email: adminEmail };
 }
 
-function randomSchedule(): Array<{ day: string; startTime: string; endTime: string; available: boolean }> {
-  const days = ["sat", "sun", "mon", "tue", "wed", "thu"]; // Bangladesh standard week (Fri off)
-  return days.map((day) => ({
-    day,
-    startTime: "17:00",
-    endTime: "21:00",
-    available: faker.datatype.boolean({ probability: 0.8 }),
-  }));
-}
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
 
 async function main() {
+  const args = parseArgs(process.argv.slice(2));
   console.log("→ Connecting to Mongo…");
   await dbConnect();
 
-  console.log("→ Dropping seed collections (drops stale indexes too)…");
-  // Use `collection.drop()` so any indexes left over from previous schema
-  // shapes are removed. Mongoose will recreate the current indexes on the
-  // next write. `try` because dropping a non-existent collection throws.
-  for (const m of [Specialty, Doctor]) {
-    try {
-      await m.collection.drop();
-    } catch (err: unknown) {
-      const e = err as { codeName?: string };
-      if (e.codeName !== "NamespaceNotFound") throw err;
-    }
-  }
-  // Only wipe seeded users — leave any admins/real signups alone.
-  await User.deleteMany({ email: { $regex: /@seed\.doctor\.id\.bd$/ } });
-
-  // Recreate indexes so the dropped collections come back with the current shape.
-  await Promise.all([Specialty.syncIndexes(), Doctor.syncIndexes()]);
-
-  // --- Specialties ---
-  console.log(`→ Inserting ${SPECIALTIES.length} specialties…`);
-  const specialtyDocs = await Specialty.insertMany(SPECIALTIES.map((s) => ({ ...s, active: true })));
-  console.log(`  ✓ ${specialtyDocs.length} specialties inserted.`);
-
-  // --- Admin user ---
-  const adminEmail = process.env.ADMIN_EMAILS?.split(",")[0]?.trim() || "admin@doctor.id.bd";
-  const adminPassword = "ChangeMe!2026";
-  const adminHash = await bcrypt.hash(adminPassword, 12);
-  console.log(`→ Upserting admin user ${adminEmail}…`);
-  await User.findOneAndUpdate(
-    { email: adminEmail.toLowerCase() },
-    {
-      $set: {
-        email: adminEmail.toLowerCase(),
-        passwordHash: adminHash,
-        role: "admin",
-        emailVerified: new Date(),
-      },
-    },
-    { upsert: true, new: true },
-  );
-  console.log(`  ✓ Admin: ${adminEmail} / ${adminPassword}`);
-
-  // --- 50 doctors ---
-  console.log("→ Generating 50 doctor profiles…");
-  const bmdcUsed = new Set<string>();
-  const slugUsed = new Set<string>();
-  // Mongoose's `insertMany` does its own runtime validation against the schema,
-  // so we keep this loose and rely on the model — strict typing across the
-  // seed's faker output adds friction without catching real bugs.
-  const docsToInsert: Record<string, unknown>[] = [];
-
-  for (let i = 0; i < 50; i++) {
-    const gender = faker.datatype.boolean() ? "male" : "female";
-    const first = gender === "male" ? pick(BD_FIRST_NAMES_M) : pick(BD_FIRST_NAMES_F);
-    const last = pick(BD_LAST_NAMES);
-    const displayName = `${first} ${last}`;
-    const primarySpecialty = pick(SPECIALTIES);
-    const extraSpecialty = faker.datatype.boolean({ probability: 0.3 }) ? pick(SPECIALTIES) : null;
-
-    let slug = generateSlug({ displayName, primarySpecialty: primarySpecialty.name });
-    if (slugUsed.has(slug)) {
-      slug = generateSlug({ displayName, primarySpecialty: primarySpecialty.name, disambiguator: i });
-    }
-    slugUsed.add(slug);
-
-    const bmdcNumber = randomBmdcNumber(bmdcUsed);
-    const city = pick(CITIES);
-    const area = pick(city.areas);
-    const ownerId = new mongoose.Types.ObjectId(); // pre-seeded profiles don't have a real user yet
-
-    const qualifications = Array.from({ length: faker.number.int({ min: 2, max: 4 }) }, () => ({
-      degree: pick(DEGREES),
-      institution: pick(MEDICAL_INSTITUTIONS),
-      year: faker.number.int({ min: 1995, max: 2022 }),
-      country: "Bangladesh",
-    }));
-
-    const yearsExp = faker.number.int({ min: 4, max: 30 });
-    const experience = [
-      {
-        role: "Consultant",
-        organization: faker.helpers.arrayElement(MEDICAL_INSTITUTIONS) + " Hospital",
-        from: new Date(new Date().getFullYear() - yearsExp, 0, 1),
-        to: null,
-        current: true,
-      },
-    ];
-
-    const chambers = [
-      {
-        name: `${pick(["Popular", "Square", "Labaid", "United", "Apollo", "Ibn Sina"])} Diagnostic Centre — ${area}`,
-        address: `${faker.location.streetAddress()}, ${area}, ${city.city}`,
-        area,
-        city: city.city,
-        division: city.division,
-        coordinates: randomCoordinatesIn(city),
-        phone: `+8801${faker.number.int({ min: 300000000, max: 999999999 })}`,
-        schedule: randomSchedule(),
-        consultationFee: { amount: faker.number.int({ min: 500, max: 2500 }), currency: "BDT" as const },
-        isPrimary: true,
-      },
-    ];
-
-    const verificationRoll = Math.random();
-    const verificationLevel: "unverified" | "bmdc_verified" | "fully_verified" =
-      verificationRoll < 0.15 ? "fully_verified" : verificationRoll < 0.55 ? "bmdc_verified" : "unverified";
-
-    const docLike = {
-      ownerType: "doctor" as const,
-      ownerId,
-      userId: null,
-      slug,
-      bmdcNumber,
-      bmdcVerified: verificationLevel !== "unverified",
-      bmdcVerifiedAt: verificationLevel !== "unverified" ? new Date() : null,
-      nidVerified: verificationLevel === "fully_verified",
-      verificationLevel,
-      name: { prefix: "Dr." as const, first, last, displayName },
-      photo: {
-        url: `https://i.pravatar.cc/400?img=${(i % 70) + 1}`,
-        s3Key: `seed/avatars/${i}.jpg`,
-      },
-      coverPhoto: null,
-      bio: faker.lorem.paragraphs({ min: 1, max: 2 }, "\n\n").slice(0, 1800),
-      gender,
-      languages: faker.datatype.boolean({ probability: 0.3 }) ? ["Bangla", "English", "Hindi"] : ["Bangla", "English"],
-      specialties: [
-        { name: primarySpecialty.name, isPrimary: true, fhirCode: primarySpecialty.fhirCode },
-        ...(extraSpecialty && extraSpecialty.name !== primarySpecialty.name
-          ? [{ name: extraSpecialty.name, isPrimary: false, fhirCode: extraSpecialty.fhirCode }]
-          : []),
-      ],
-      subSpecialties: [],
-      qualifications,
-      experience,
-      chambers,
-      registrations: [{ council: "BMDC" as const, number: bmdcNumber, validFrom: null, validTo: null }],
-      contact: {
-        publicPhone: chambers[0]!.phone,
-        publicEmail: null,
-        whatsapp: chambers[0]!.phone,
-        website: null,
-      },
-      socialLinks: {},
-      profileViews: faker.number.int({ min: 0, max: 5000 }),
-      isClaimed: false,
-      status: "published" as const,
-      seoTitle: null,
-      seoDescription: null,
-      privacyHidePhone: false,
-      privacyHideEmail: false,
-      profileCompletenessScore: 0, // computed below
-    };
-
-    const { score } = computeCompleteness(docLike as unknown as DoctorDocLike);
-    docLike.profileCompletenessScore = score;
-
-    docsToInsert.push(docLike);
+  if (args.source === "popular-diagnostic") {
+    await runPopularIngestion(args);
+    return;
   }
 
-  const inserted = await Doctor.insertMany(docsToInsert);
-  console.log(`  ✓ ${inserted.length} doctors inserted.`);
+  // Default mode: upsert admin + specialties only. No fake doctors, no
+  // destructive ops. Re-running is always safe.
+  console.log("→ Bootstrap mode (admin + specialty catalog)");
+  if (args.dryRun) console.log("  (dry-run: no DB writes will be persisted)");
 
-  // --- Summary ---
+  if (args.dryRun) {
+    console.log(`  [dry] would upsert admin from ADMIN_EMAILS or default`);
+    console.log(`  [dry] would upsert ${SPECIALTIES.length} specialties`);
+    return;
+  }
+
+  const { adminId: _adminId, email: adminEmail } = await ensureBootstrapAdmin();
+  console.log(`  ✓ admin: ${adminEmail}`);
+
+  const specs = await ensureSpecialties();
+  await Specialty.syncIndexes();
+  console.log(`  ✓ ${specs.length} specialties ready`);
+
   const counts = {
     specialties: await Specialty.countDocuments(),
-    doctors: await Doctor.countDocuments({ status: "published" }),
-    verifiedDoctors: await Doctor.countDocuments({ verificationLevel: { $ne: "unverified" } }),
+    activeSpecialties: await Specialty.countDocuments({ active: true }),
     admins: await User.countDocuments({ role: "admin" }),
+    doctors: await Doctor.countDocuments({}),
   };
   console.log("\n✓ Seed complete:");
   console.table(counts);
-  console.log(`  Admin login: ${adminEmail} / ${adminPassword}`);
-  console.log(`  Try: http://localhost:3000/${inserted[0]!.get("slug")}`);
+  console.log(`  Admin login: ${adminEmail} / ChangeMe!2026 at /auth/admin/login`);
+  console.log(
+    "  Tip: run `npm run seed -- --source=popular-diagnostic` to ingest real BD doctor profiles.",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Ingestion mode: Popular Diagnostic
+// ---------------------------------------------------------------------------
+
+async function runPopularIngestion(args: CliArgs) {
+  console.log("→ Popular Diagnostic ingestion mode");
+  if (args.dryRun) console.log("  (dry-run: no DB writes will be persisted)");
+
+  const { adminId, email: adminEmail } = await ensureBootstrapAdmin();
+  console.log(`  ✓ admin: ${adminEmail}`);
+
+  const specialties = await ensureSpecialties();
+  const specialtyLookup = buildSpecialtyLookup(specialties);
+  console.log(`  ✓ ${specialties.length} specialties ready`);
+
+  await Doctor.syncIndexes();
+
+  const allIds = await loadPopularIndex();
+  const ids = args.limit ? allIds.slice(0, args.limit) : allIds;
+  console.log(`→ Ingesting ${ids.length}${args.limit ? ` (capped at --limit=${args.limit})` : ""} of ${allIds.length} doctors`);
+
+  const stats = {
+    totalSeen: 0,
+    inserted: 0,
+    updated: 0,
+    skippedInvalid: 0,
+    photosUploaded: 0,
+    photosLegacyExternal: 0,
+    photosMissingFile: 0,
+    warnings: 0,
+  };
+
+  for (const id of ids) {
+    stats.totalSeen++;
+    let detail;
+    try {
+      detail = await loadPopularDetail(id);
+    } catch (e) {
+      console.warn(`  ⚠ detail load failed for id=${id}: ${(e as Error).message}`);
+      stats.skippedInvalid++;
+      continue;
+    }
+    const norm = normalizePopularDoctor(detail, id, specialtyLookup);
+    stats.warnings += norm.warnings.length;
+
+    if (!norm.parsedName) {
+      stats.skippedInvalid++;
+      continue;
+    }
+
+    const primarySpecialty = norm.specialties[0]?.name;
+    let slug = generateSlug({ displayName: norm.parsedName.displayName, primarySpecialty });
+    // Reserve a sentinel slug suffix for collisions — `pd<id>` is unique
+    // within the Popular dataset and short enough to keep URLs clean.
+    const slugAlternate = `${slug}-pd${id}`;
+
+    if (args.dryRun) {
+      console.log(`  [dry] id=${id} → ${norm.parsedName.displayName} / ${primarySpecialty ?? "(no specialty)"} / slug=${slug}`);
+      continue;
+    }
+
+    // Upsert by provenance key. Use $setOnInsert for fields we never want to
+    // overwrite (slug, ownerId, ownerType, claim state). Use $set for the
+    // refreshable fields (name, contact, bio, chambers, specialties).
+    const existing = await Doctor.findOne({
+      sourceProvider: POPULAR_PROVIDER,
+      sourceProviderId: String(id),
+    })
+      .select({ _id: 1, slug: 1, isClaimed: 1 })
+      .lean<{ _id: mongoose.Types.ObjectId; slug: string; isClaimed: boolean } | null>();
+
+    let doctorId: mongoose.Types.ObjectId;
+    let isNew = false;
+
+    if (existing) {
+      doctorId = existing._id as unknown as mongoose.Types.ObjectId;
+    } else {
+      // First insert. Resolve slug collision once.
+      const collision = await Doctor.findOne({ slug }).select({ _id: 1 }).lean();
+      if (collision) slug = slugAlternate;
+      const ownerId = new mongoose.Types.ObjectId();
+      doctorId = new mongoose.Types.ObjectId();
+      isNew = true;
+      try {
+        await Doctor.create({
+          _id: doctorId,
+          ownerType: "doctor",
+          ownerId,
+          userId: null,
+          slug,
+          name: norm.parsedName,
+          gender: norm.gender,
+          bio: norm.bio,
+          status: "published",
+          isClaimed: false,
+          contact: norm.contact,
+          qualifications: norm.qualifications,
+          specialties: norm.specialties,
+          subSpecialties: norm.subSpecialties,
+          chambers: norm.chambers,
+          sourceProvider: POPULAR_PROVIDER,
+          sourceProviderId: String(id),
+          sourceUrl: norm.sourceUrl,
+          // photo set below after upload
+        });
+      } catch (e) {
+        const err = e as { code?: number };
+        if (err.code === 11000) {
+          // Race or stale state: another row took the slug. Retry once with
+          // the disambiguated form.
+          slug = slugAlternate;
+          await Doctor.create({
+            _id: doctorId,
+            ownerType: "doctor",
+            ownerId,
+            userId: null,
+            slug,
+            name: norm.parsedName,
+            gender: norm.gender,
+            bio: norm.bio,
+            status: "published",
+            isClaimed: false,
+            contact: norm.contact,
+            qualifications: norm.qualifications,
+            specialties: norm.specialties,
+            subSpecialties: norm.subSpecialties,
+            chambers: norm.chambers,
+            sourceProvider: POPULAR_PROVIDER,
+            sourceProviderId: String(id),
+            sourceUrl: norm.sourceUrl,
+          });
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    // Upload (or fall back) the photo, then write Doctor.photo + refreshable
+    // fields. Skip refreshable updates entirely if the profile has been
+    // claimed (the doctor owns their content at that point).
+    const photoResult = await uploadPopularPhoto({
+      id,
+      doctorId,
+      adminId,
+      externalImageUrl: norm.externalImageUrl,
+    });
+
+    if (photoResult) {
+      if (photoResult.fileId) stats.photosUploaded++;
+      else stats.photosLegacyExternal++;
+    } else {
+      stats.photosMissingFile++;
+    }
+
+    const updateSet: Record<string, unknown> = {
+      sourceUrl: norm.sourceUrl,
+    };
+    if (!existing || !existing.isClaimed) {
+      Object.assign(updateSet, {
+        name: norm.parsedName,
+        gender: norm.gender,
+        bio: norm.bio,
+        contact: norm.contact,
+        qualifications: norm.qualifications,
+        specialties: norm.specialties,
+        subSpecialties: norm.subSpecialties,
+        chambers: norm.chambers,
+      });
+      if (photoResult) {
+        updateSet.photo = {
+          file: photoResult.fileId,
+          url: photoResult.url,
+          s3Bucket: photoResult.s3Bucket,
+          s3Key: photoResult.s3Key,
+          visibility: FILE_VISIBILITY.PUBLIC,
+        };
+      }
+    }
+
+    await Doctor.updateOne({ _id: doctorId }, { $set: updateSet });
+    if (isNew) stats.inserted++;
+    else stats.updated++;
+  }
+
+  console.log("\n✓ Popular ingestion complete:");
+  console.table(stats);
 }
 
 main()

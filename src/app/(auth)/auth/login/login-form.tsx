@@ -2,49 +2,122 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { loginAction } from "@/server/actions/auth";
+import { requestLoginOtpAction } from "@/server/actions/auth";
 
-export function LoginForm({ next, initialError }: { next?: string; initialError?: string }) {
+type Step = "phone" | "otp";
+
+/**
+ * Doctor login — phone + SMS OTP only.
+ *
+ * Step 1: enter phone → `requestLoginOtpAction` (silent no-op if the phone
+ *   isn't a real account, so attackers can't enumerate).
+ * Step 2: enter the 6-digit OTP → `signIn("sms-otp")` mints the session.
+ *
+ * Admins use `/auth/admin/login` instead.
+ */
+export function DoctorLoginForm({ defaultPhone = "", next }: { defaultPhone?: string; next?: string }) {
   const router = useRouter();
+  const [step, setStep] = useState<Step>("phone");
+  const [phone, setPhone] = useState(defaultPhone);
+  const [otp, setOtp] = useState("");
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(initialError ?? null);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
-  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function submitPhone(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    if (next) form.set("next", next);
     setError(null);
+    setInfo(null);
     startTransition(async () => {
-      const result = await loginAction(form);
+      const result = await requestLoginOtpAction({ phone });
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      router.push(result.data?.next ?? "/dashboard");
+      setInfo("If this phone is registered, we sent a 6-digit code. Expires in 10 minutes.");
+      setStep("otp");
+    });
+  }
+
+  function submitOtp(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    startTransition(async () => {
+      const r = await signIn("sms-otp", { phone, otp, redirect: false });
+      if (!r || r.error) {
+        setError("That code is incorrect or expired. Try again or request a new code.");
+        return;
+      }
+      router.push(next ?? "/dashboard");
       router.refresh();
     });
   }
 
+  if (step === "otp") {
+    return (
+      <form onSubmit={submitOtp} className="space-y-3" noValidate>
+        <div className="space-y-1.5">
+          <Label htmlFor="otp">6-digit code</Label>
+          <Input
+            id="otp"
+            name="otp"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+            required
+            autoFocus
+          />
+          <p className="text-xs text-muted-foreground">Sent to {phone}.</p>
+        </div>
+        {info ? (
+          <p className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-foreground">
+            {info}
+          </p>
+        ) : null}
+        {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+        <Button type="submit" className="w-full" disabled={pending || otp.length !== 6}>
+          {pending ? "Signing in…" : "Sign in"}
+        </Button>
+        <button
+          type="button"
+          className="block w-full text-center text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            setStep("phone");
+            setOtp("");
+            setError(null);
+            setInfo(null);
+          }}
+        >
+          Use a different phone number
+        </button>
+      </form>
+    );
+  }
+
   return (
-    <form onSubmit={onSubmit} className="space-y-4" noValidate>
+    <form onSubmit={submitPhone} className="space-y-3" noValidate>
       <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" autoComplete="email" required />
+        <Label htmlFor="phone">Phone number</Label>
+        <Input
+          id="phone"
+          name="phone"
+          type="tel"
+          autoComplete="tel"
+          placeholder="01712345678"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          required
+        />
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="password">Password</Label>
-        <Input id="password" name="password" type="password" autoComplete="current-password" required />
-      </div>
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
       <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Signing in…" : "Sign in"}
+        {pending ? "Sending code…" : "Send sign-in code"}
       </Button>
     </form>
   );

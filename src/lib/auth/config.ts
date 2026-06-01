@@ -21,6 +21,8 @@ import { LoginSchema } from "@/lib/validators/auth";
 import { dbConnect } from "@/lib/db/mongoose";
 import { User } from "@/lib/db/models";
 import { env } from "@/lib/env";
+import { hashOtp } from "@/lib/utils/otp";
+import { normalizeBdPhone } from "@/lib/utils/phone";
 
 // Type augmentation so `session.user.id` and `.role` are typed.
 declare module "next-auth" {
@@ -61,6 +63,65 @@ const providers: NextAuthConfig["providers"] = [
       };
     },
   }),
+  // Phone + OTP — doctor login only. Registration completion (which
+  // materializes the Doctor + ClaimRequest) happens in a separate Server
+  // Action (`completeRegistrationAction`) so we can gate sign-in on admin
+  // approval. This provider is the trust boundary for an _already-approved_
+  // doctor signing back in.
+  Credentials({
+    id: "sms-otp",
+    name: "Phone and code",
+    credentials: {
+      phone: { label: "Phone", type: "tel" },
+      otp: { label: "Code", type: "text" },
+    },
+    async authorize(raw) {
+      const phoneRaw = (raw as { phone?: unknown })?.phone;
+      const otpRaw = (raw as { otp?: unknown })?.otp;
+      if (typeof phoneRaw !== "string" || typeof otpRaw !== "string") return null;
+      const phone = normalizeBdPhone(phoneRaw);
+      if (!phone) return null;
+      const otp = otpRaw.trim();
+      if (!/^\d{6}$/.test(otp)) return null;
+
+      await dbConnect();
+      const user = await User.findOne({ phone })
+        .select("+smsOtpHash +smsOtpExpiresAt +smsOtpAttempts")
+        .lean();
+      if (!user || user.deletedAt) return null;
+      // Approval gate: a doctor whose ClaimRequest is still pending cannot
+      // sign in. `approved` defaults to `true` so admins / legacy rows pass
+      // through; only explicitly-flagged accounts are blocked.
+      if ((user as { approved?: boolean }).approved === false) return null;
+      if (!user.smsOtpHash || !user.smsOtpExpiresAt) return null;
+      if (new Date(user.smsOtpExpiresAt) < new Date()) return null;
+      if ((user.smsOtpAttempts ?? 0) >= 5) return null;
+
+      const expected = hashOtp(otp, e.AUTH_SECRET);
+      if (expected !== user.smsOtpHash) return null;
+
+      // Single-use: clear OTP state, stamp last-login.
+      User.updateOne(
+        { _id: user._id },
+        {
+          $set: {
+            phoneVerified: true,
+            lastLoginAt: new Date(),
+            smsOtpHash: null,
+            smsOtpExpiresAt: null,
+            smsOtpAttempts: 0,
+          },
+        },
+      ).catch(() => {});
+
+      return {
+        id: String(user._id),
+        email: user.email,
+        name: user.email.split("@")[0],
+        role: user.role,
+      };
+    },
+  }),
 ];
 
 // Google OAuth is optional in dev; only register the provider when configured.
@@ -74,10 +135,31 @@ if (e.AUTH_GOOGLE_ID && e.AUTH_GOOGLE_SECRET) {
   );
 }
 
+const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: e.AUTH_SECRET,
   trustHost: true,
-  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30 }, // 30-day session
+  session: { strategy: "jwt", maxAge: SESSION_MAX_AGE },
+  // Explicit cookie `maxAge` makes the session cookie persistent — without
+  // it the browser treats it as a session cookie and drops it on close,
+  // contradicting the 30-day JWT TTL above. Doctors expect "remember me"
+  // by default.
+  cookies: {
+    sessionToken: {
+      name:
+        process.env.NODE_ENV === "production"
+          ? "__Secure-authjs.session-token"
+          : "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: SESSION_MAX_AGE,
+      },
+    },
+  },
   pages: {
     signIn: "/auth/login",
     error: "/auth/login",
