@@ -23,9 +23,24 @@ const ServerEnvSchema = z.object({
 
   // AWS
   AWS_REGION: z.string().default("ap-south-1"),
+  // Static keys — the NON-PRODUCTION credential source (decision #7). In
+  // production `getS3()` ignores these and assumes the cross-account role.
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  // Cross-account STS role — the PRODUCTION credential source. Base creds come
+  // from the ECS task/instance role via the default provider chain.
+  AWS_ASSUME_ROLE_ARN: z.string().optional(),
+  AWS_S3_EXTERNAL_ID: z.string().optional(),
+  // Legacy single bucket (kept for ingestion + as the public-bucket fallback).
   S3_BUCKET: z.string().default("doctor-id-uploads"),
+  // Multi-bucket model (shafa-style). Public = profile/cover photos served by a
+  // stable URL; private = identity docs (selfie, verification) read via presigned GET.
+  AWS_PUBLIC_BUCKET_NAME: z.string().optional(),
+  AWS_PRIVATE_BUCKET_NAME: z.string().optional(),
+  // Upload limits + presign expiry (consumed by the upload actions).
+  MAX_FILE_SIZE_MB: z.coerce.number().int().positive().default(10),
+  MAX_FILES_COUNT: z.coerce.number().int().positive().default(5),
+  IMAGE_UPLOAD_PRESIGN_EXPIRES_SECONDS: z.coerce.number().int().positive().default(86400),
   SES_FROM_EMAIL: z.string().email().optional(),
   SES_REPLY_TO: z.string().email().optional(),
 

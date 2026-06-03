@@ -65,7 +65,7 @@ export function SpecialtyListing({
           No {specialtyName.toLowerCase()} doctors found{cityLabel}. Try widening your filters.
         </p>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-3">
           {doctors.map((d) => (
             <li key={d.slug}>
               <DoctorCard doctor={d} />

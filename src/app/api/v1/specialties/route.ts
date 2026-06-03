@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Specialty } from "@/lib/db/models";
 import { withApiHandler } from "@/lib/api/response";
@@ -14,7 +15,7 @@ export async function GET() {
   return withApiHandler(
     async () => {
       await dbConnect();
-      const rows = await (Specialty as unknown as { find: Function })
+      const rows = await (Specialty as unknown as Loose)
         .find({ active: true })
         .sort({ sortOrder: 1, name: 1 })
         .lean();

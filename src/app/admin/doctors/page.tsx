@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ExternalLink, Pencil } from "lucide-react";
@@ -40,7 +41,7 @@ export default async function AdminDoctorsPage({
     // a tiny query (~36 rows) and we want the names sorted A→Z.
     (async () => {
       await dbConnect();
-      return (await (Specialty as unknown as { find: Function })
+      return (await (Specialty as unknown as Loose)
         .find({ active: true })
         .sort({ name: 1 })
         .select("name")

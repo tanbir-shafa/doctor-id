@@ -4,11 +4,12 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { presignProfileUpload } from "@/server/actions/photo";
+import { uploadVerificationDocAction } from "@/server/actions/photo";
 import { requestVerificationAction } from "@/server/actions/verification";
 
 export function VerificationRequestForm({ initialBmdc }: { initialBmdc: string }) {
-  const [uploadedKey, setUploadedKey] = useState<string | null>(null);
+  const [uploadedFileId, setUploadedFileId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [bmdc, setBmdc] = useState(initialBmdc);
   const [notes, setNotes] = useState("");
   const [pending, startTransition] = useTransition();
@@ -19,25 +20,19 @@ export function VerificationRequestForm({ initialBmdc }: { initialBmdc: string }
     const file = event.target.files?.[0];
     if (!file) return;
     setError(null);
-    const presigned = await presignProfileUpload({
-      kind: "verification",
-      contentType: file.type,
-      contentLength: file.size,
-    });
-    if (!presigned.ok || !presigned.data) {
-      setError(!presigned.ok ? presigned.error : "Could not prepare upload");
-      return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      const r = await uploadVerificationDocAction(fd);
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setUploadedFileId(r.data?.fileId ?? null);
+    } finally {
+      setUploading(false);
     }
-    const put = await fetch(presigned.data.uploadUrl, {
-      method: "PUT",
-      body: file,
-      headers: { "Content-Type": file.type },
-    });
-    if (!put.ok) {
-      setError(`Upload failed (HTTP ${put.status})`);
-      return;
-    }
-    setUploadedKey(presigned.data.key);
   }
 
   function submit() {
@@ -46,7 +41,7 @@ export function VerificationRequestForm({ initialBmdc }: { initialBmdc: string }
       const fd = new FormData();
       fd.set("bmdcNumber", bmdc);
       fd.set("notes", notes);
-      if (uploadedKey) fd.append("documentKey", uploadedKey);
+      if (uploadedFileId) fd.append("documentFileId", uploadedFileId);
       const r = await requestVerificationAction(fd);
       if (!r.ok) setError(r.error);
       else setDone(true);
@@ -69,8 +64,16 @@ export function VerificationRequestForm({ initialBmdc }: { initialBmdc: string }
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="docFile">BMDC certificate (JPG/PNG/WebP/PDF)</Label>
-        <Input id="docFile" type="file" accept="image/*,application/pdf" onChange={handleFile} />
-        {uploadedKey ? (
+        <Input
+          id="docFile"
+          type="file"
+          accept="image/*,application/pdf"
+          onChange={handleFile}
+          disabled={uploading}
+        />
+        {uploading ? (
+          <p className="text-xs text-muted-foreground">Uploading…</p>
+        ) : uploadedFileId ? (
           <p className="text-xs text-green-600">Uploaded. Submit to send for review.</p>
         ) : null}
       </div>

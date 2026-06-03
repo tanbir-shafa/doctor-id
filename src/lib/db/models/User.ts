@@ -73,7 +73,12 @@ const UserSchema = new Schema(
           email: { type: String, default: null },
           bmdcNumber: { type: String, default: null },
           claimSlug: { type: String, default: null },
-          documentKeys: { type: [String], default: [] },
+          // Mandatory live selfie (private bucket). Metadata stashed so the
+          // File doc can be created at materialization without re-reading S3.
+          selfieKey: { type: String, default: null },
+          selfieSha256: { type: String, default: null },
+          selfieSize: { type: Number, default: null },
+          selfieMime: { type: String, default: null },
           expiresAt: { type: Date, default: null },
         },
         { _id: false },

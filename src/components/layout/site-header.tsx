@@ -23,7 +23,7 @@ export async function SiteHeader() {
   const dashboardHref = isAdmin ? "/admin" : "/dashboard";
 
   return (
-    <header className="border-b border-border bg-background">
+    <header className="sticky top-0 z-50 border-b border-border bg-background">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <Stethoscope className="size-5 text-primary" aria-hidden="true" />
@@ -60,8 +60,11 @@ export async function SiteHeader() {
               <Link href="/auth/login" className="text-muted-foreground hover:text-foreground">
                 Sign in
               </Link>
+              <Link href="/auth/register" className="text-muted-foreground hover:text-foreground">
+                Create profile
+              </Link>
               <Link
-                href="/auth/register"
+                href="/#claim"
                 className="rounded-md bg-primary px-3 py-1.5 text-primary-foreground hover:opacity-90"
               >
                 Claim your profile

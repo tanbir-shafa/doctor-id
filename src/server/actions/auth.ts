@@ -11,6 +11,7 @@
  *      to the client, since error UI is built from the discriminated union.
  */
 
+import type { Loose } from "@/lib/db/models/loose";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import crypto from "node:crypto";
@@ -37,6 +38,15 @@ import {
   ResetPasswordSchema,
 } from "@/lib/validators/auth";
 import { env, publicEnv } from "@/lib/env";
+import { createFileDoc } from "@/lib/s3/file-doc";
+import {
+  bucketFor,
+  visibilityFor,
+  securityClassFor,
+  UPLOAD_PURPOSE,
+  BUCKET_TYPE,
+} from "@/lib/s3/buckets";
+import { FILE_LINKED_ENTITY_TYPE } from "@/lib/db/models/files";
 import {
   generateOtp,
   hashOtp,
@@ -80,13 +90,20 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
   const candidate = {
     ...raw,
     agreeTerms: raw.agreeTerms === "on" || raw.agreeTerms === "true",
-    documentS3Keys: form.getAll("documentS3Keys").map(String).filter(Boolean),
   };
   const parsed = RegisterSchema.safeParse(candidate);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const { bmdcNumber, phone, firstName, lastName, email, claimSlug, documentS3Keys } = parsed.data;
+  const { bmdcNumber, phone, firstName, lastName, email, claimSlug, selfieS3Key } = parsed.data;
+
+  // Selfie upload metadata (returned by uploadRegistrationSelfieAction, carried
+  // through hidden form fields) — stashed so the File doc can be minted at
+  // materialization without re-downloading the object.
+  const selfieSha256 = String(form.get("selfieSha256") ?? "") || null;
+  const selfieSizeRaw = Number(form.get("selfieSize"));
+  const selfieSize = Number.isFinite(selfieSizeRaw) && selfieSizeRaw > 0 ? selfieSizeRaw : null;
+  const selfieMime = String(form.get("selfieMime") ?? "") || null;
 
   const normalizedPhone = normalizeBdPhone(phone);
   if (!normalizedPhone) {
@@ -175,7 +192,10 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
           email: normalizedEmail,
           bmdcNumber: bmdc,
           claimSlug: claimSlug ? claimSlug.toLowerCase() : null,
-          documentKeys: documentS3Keys ?? [],
+          selfieKey: selfieS3Key,
+          selfieSha256,
+          selfieSize,
+          selfieMime,
           expiresAt: draftExpiresAt,
         },
       },
@@ -288,7 +308,10 @@ export async function completeRegistrationAction(input: {
         email?: string | null;
         bmdcNumber?: string | null;
         claimSlug?: string | null;
-        documentKeys?: string[];
+        selfieKey?: string | null;
+        selfieSha256?: string | null;
+        selfieSize?: number | null;
+        selfieMime?: string | null;
         expiresAt?: Date | null;
       } | null;
     } | null>();
@@ -372,6 +395,48 @@ export async function completeRegistrationAction(input: {
 }
 
 /**
+ * Mint the registration selfie's File doc (private bucket) for a freshly
+ * materialized doctor and return the fields the ClaimRequest caches. Skips
+ * File-doc creation when the upload metadata is absent, but still records the
+ * key + bucket so admins can preview via a presigned GET.
+ */
+async function buildSelfieClaimFields(
+  doctorId: string,
+  userId: string,
+  draft: {
+    selfieKey?: string | null;
+    selfieSha256?: string | null;
+    selfieSize?: number | null;
+    selfieMime?: string | null;
+  },
+): Promise<{ selfieFileId: unknown; selfieKey: string | null; selfieBucket: string | null }> {
+  const selfieKey = draft.selfieKey ?? null;
+  if (!selfieKey) return { selfieFileId: null, selfieKey: null, selfieBucket: null };
+  const selfieBucket = bucketFor(BUCKET_TYPE.PRIVATE);
+  let selfieFileId: unknown = null;
+  if (selfieBucket && draft.selfieSha256 && draft.selfieSize && draft.selfieMime) {
+    const ext = draft.selfieMime.split("/")[1]?.replace("jpeg", "jpg") ?? "jpg";
+    const fileDoc = await createFileDoc({
+      s3Bucket: selfieBucket,
+      s3Key: selfieKey,
+      sha256: draft.selfieSha256,
+      sizeBytes: draft.selfieSize,
+      mimeType: draft.selfieMime,
+      ext,
+      linkedEntityType: FILE_LINKED_ENTITY_TYPE.DOCTOR,
+      linkedEntityId: doctorId,
+      uploadedBy: userId,
+      category: UPLOAD_PURPOSE.doctor_selfie.category,
+      visibility: visibilityFor(BUCKET_TYPE.PRIVATE),
+      securityClass: securityClassFor(BUCKET_TYPE.PRIVATE),
+      title: "Registration selfie",
+    });
+    selfieFileId = (fileDoc as { _id: unknown })._id;
+  }
+  return { selfieFileId, selfieKey, selfieBucket };
+}
+
+/**
  * Helper: bind / mint the Doctor doc and create a pending ClaimRequest.
  *
  * - `claimSlug` present → atomic claim of the seeded profile (race-safe via
@@ -391,7 +456,10 @@ async function materializeRegistration(args: {
     email?: string | null;
     bmdcNumber?: string | null;
     claimSlug?: string | null;
-    documentKeys?: string[];
+    selfieKey?: string | null;
+    selfieSha256?: string | null;
+    selfieSize?: number | null;
+    selfieMime?: string | null;
   };
 }): Promise<void> {
   const { userId, existingEmail, draft } = args;
@@ -404,7 +472,6 @@ async function materializeRegistration(args: {
   const displayName = `Dr. ${firstName} ${lastName}`.replace(/\s+/g, " ").trim();
   const bmdc = draft.bmdcNumber ?? null;
   const claimSlug = draft.claimSlug ?? null;
-  const docs = draft.documentKeys ?? [];
 
   if (claimSlug) {
     const claimed = await Doctor.findOneAndUpdate(
@@ -424,15 +491,13 @@ async function materializeRegistration(args: {
     if (!claimed) {
       throw new Error("This profile has just been claimed by someone else.");
     }
-    await (ClaimRequest as unknown as { create: Function }).create({
+    const selfie = await buildSelfieClaimFields(String(claimed._id), userId, draft);
+    await (ClaimRequest as unknown as Loose).create({
       doctorId: claimed._id,
       requestedBy: userId,
       bmdcNumberProvided: bmdc,
-      documentsUploaded: docs,
-      notesFromDoctor:
-        docs.length > 0
-          ? "Claimed via public profile link. Verification documents attached."
-          : "Claimed via public profile link.",
+      ...selfie,
+      notesFromDoctor: "Claimed via public profile link. Live selfie attached for verification.",
       status: "pending",
     });
   } else {
@@ -458,13 +523,13 @@ async function materializeRegistration(args: {
       claimRequestedBy: userId,
       status: "draft",
     });
-    await (ClaimRequest as unknown as { create: Function }).create({
+    const selfie = await buildSelfieClaimFields(String(doctor._id), userId, draft);
+    await (ClaimRequest as unknown as Loose).create({
       doctorId: doctor._id,
       requestedBy: userId,
       bmdcNumberProvided: bmdc,
-      documentsUploaded: docs,
-      notesFromDoctor:
-        docs.length > 0 ? "Verification documents attached at registration." : null,
+      ...selfie,
+      notesFromDoctor: "Live selfie attached at registration.",
       status: "pending",
     });
   }

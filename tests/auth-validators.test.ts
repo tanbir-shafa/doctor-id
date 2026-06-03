@@ -6,6 +6,7 @@ const VALID_REGISTER = {
   phone: "01712345678",
   firstName: "Karim",
   lastName: "Rahman",
+  selfieS3Key: "dev/doctor/identity/selfie/registration/2026-06-03/abc123/selfie.jpg",
   agreeTerms: true,
 };
 
@@ -23,11 +24,10 @@ describe("auth Zod validators", () => {
     expect(result.success).toBe(true);
   });
 
-  it("RegisterSchema accepts optional email + documentS3Keys", () => {
+  it("RegisterSchema accepts an optional email", () => {
     const result = RegisterSchema.safeParse({
       ...VALID_REGISTER,
       email: "karim@example.com",
-      documentS3Keys: ["registration-docs/2026-05-29/abc/file1.pdf"],
     });
     expect(result.success).toBe(true);
   });
@@ -62,11 +62,13 @@ describe("auth Zod validators", () => {
     expect(result.success).toBe(false);
   });
 
-  it("RegisterSchema caps documentS3Keys at 5", () => {
-    const result = RegisterSchema.safeParse({
-      ...VALID_REGISTER,
-      documentS3Keys: Array.from({ length: 6 }, (_, i) => `k${i}`),
-    });
+  it("RegisterSchema rejects a missing selfieS3Key", () => {
+    const result = RegisterSchema.safeParse({ ...VALID_REGISTER, selfieS3Key: undefined });
+    expect(result.success).toBe(false);
+  });
+
+  it("RegisterSchema rejects an empty selfieS3Key", () => {
+    const result = RegisterSchema.safeParse({ ...VALID_REGISTER, selfieS3Key: "" });
     expect(result.success).toBe(false);
   });
 

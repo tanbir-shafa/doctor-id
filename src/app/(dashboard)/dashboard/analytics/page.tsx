@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
@@ -16,12 +17,13 @@ export default async function AnalyticsPage() {
   if (!doctorRaw) return <p>No profile found.</p>;
   const doctor = doctorRaw as unknown as { _id: unknown; slug: string; profileViews?: number };
 
+  // eslint-disable-next-line react-hooks/purity
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   // Aggregate daily counts + top referrers in one pipeline so we make a single
   // round trip instead of two.
   const [dailyResult, referrers] = await Promise.all([
-    (ProfileView as unknown as { aggregate: Function }).aggregate([
+    (ProfileView as unknown as Loose).aggregate([
       { $match: { doctorId: doctor._id, viewedAt: { $gte: since } } },
       {
         $group: {
@@ -31,7 +33,7 @@ export default async function AnalyticsPage() {
       },
       { $sort: { _id: 1 } },
     ]),
-    (ProfileView as unknown as { aggregate: Function }).aggregate([
+    (ProfileView as unknown as Loose).aggregate([
       { $match: { doctorId: doctor._id, viewedAt: { $gte: since }, referrer: { $ne: null } } },
       { $group: { _id: "$referrer", count: { $sum: 1 } } },
       { $sort: { count: -1 } },

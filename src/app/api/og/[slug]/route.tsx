@@ -76,6 +76,7 @@ export async function GET(
         {/* Main row */}
         <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 40 }}>
           {doc.photo?.url ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={doc.photo.url}
               alt=""

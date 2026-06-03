@@ -1,38 +1,76 @@
 /**
- * Homepage. Step 5 replaces this with the real hero + specialty grid + stats.
- * Kept lean during Step 1 so the smoke test (npm run dev → 200) just works.
+ * Home page — "two faces, one URL".
+ *
+ * Logged-out: a claim-and-trust acquisition funnel (claim-mirror hero → BMDC
+ * trust → social proof → "your prescription is your billboard" → specialty grid
+ * → why-free/EMR band). Logged-in doctor: a weekly scoreboard, swapped in
+ * client-side by <HomeTop>.
+ *
+ * This file is the SEO surface, so it stays ISR-cacheable and never calls
+ * auth() — the per-visitor branch lives in <HomeTop> (a client overlay calling
+ * a server action). See .claude/plans for the rationale.
  */
-import Link from "next/link";
+import type { Metadata } from "next";
+import { unstable_cache } from "next/cache";
+import {
+  getStats,
+  listActiveSpecialties,
+  listCities,
+  listFeaturedVerifiedDoctors,
+  getProfileViewsLast30Days,
+} from "@/lib/db/queries/doctors";
+import { HomeTop } from "@/components/home/home-top";
+import { TrustBand } from "@/components/home/trust-band";
+import { ProofStrip } from "@/components/home/proof-strip";
+import { BillboardShowcase } from "@/components/home/billboard-showcase";
+import { SpecialtyGrid } from "@/components/home/specialty-grid";
+import { WhyFreeBand } from "@/components/home/why-free-band";
 
-export default function HomePage() {
+export const metadata: Metadata = {
+  title: { absolute: "doctor.id.bd — Claim your verified doctor profile in Bangladesh" },
+  description:
+    "Your patients are already searching for you. Claim your free, BMDC-verified profile on doctor.id.bd — shareable on WhatsApp, your prescription pad, and Google.",
+  alternates: { canonical: "/" },
+};
+
+// This route renders dynamically because the shared <SiteHeader> (in the
+// (public) layout) reads the session via auth() — that's true of every public
+// page, not just this one. We deliberately keep auth() OUT of this page so it
+// carries no per-user variance, and the per-doctor scoreboard is a client-side
+// swap (<HomeTop>) so it never blocks the response. SEO is unaffected: dynamic
+// rendering still emits full server-rendered HTML with all content + links.
+export const revalidate = 3600;
+
+// Even though the route is dynamic, the shared public landing data is read-heavy
+// (counts + aggregations). Wrapping it in unstable_cache serves it from cache for
+// an hour instead of hitting Mongo on every request — one entry for the whole
+// dataset. (Non-fetch/Mongoose reads are uncached by default in Next 16.)
+const getHomeData = unstable_cache(
+  async () => {
+    const [stats, specialties, cities, featured, views30d] = await Promise.all([
+      getStats(),
+      listActiveSpecialties(),
+      listCities(),
+      listFeaturedVerifiedDoctors(6),
+      getProfileViewsLast30Days(),
+    ]);
+    return { stats, specialties, cities, featured, views30d };
+  },
+  ["home:landing-data"],
+  { revalidate: 3600, tags: ["home"] },
+);
+
+export default async function HomePage() {
+  const { stats, specialties, cities, featured, views30d } = await getHomeData();
+
   return (
-    <section className="mx-auto max-w-6xl px-4 py-16">
-      <div className="text-center">
-        <p className="text-sm font-medium uppercase tracking-wider text-primary">
-          Bangladesh's verified doctor directory
-        </p>
-        <h1 className="mt-3 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
-          Find a doctor you can trust.
-        </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-balance text-muted-foreground">
-          Verified specialists across Bangladesh — chambers, schedules, qualifications, contact.
-          One profile, shareable everywhere.
-        </p>
-        <div className="mt-8 flex justify-center gap-3">
-          <Link
-            href="/search"
-            className="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-          >
-            Browse doctors
-          </Link>
-          <Link
-            href="/auth/register"
-            className="rounded-md border border-border px-5 py-2.5 text-sm font-medium hover:bg-accent"
-          >
-            Are you a doctor? Claim your profile
-          </Link>
-        </div>
-      </div>
-    </section>
+    <>
+      <HomeTop totalDoctors={stats.totalDoctors} />
+      <TrustBand />
+      <ProofStrip stats={stats} views30d={views30d} featured={featured} />
+      <BillboardShowcase />
+      <SpecialtyGrid specialties={specialties} cities={cities} />
+      <WhyFreeBand />
+    </>
   );
 }

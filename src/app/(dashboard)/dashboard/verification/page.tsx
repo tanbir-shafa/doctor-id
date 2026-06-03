@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
@@ -18,7 +19,7 @@ export default async function VerificationPage() {
   if (!doctorDoc) return <p>No profile found.</p>;
   const doctor = JSON.parse(JSON.stringify(doctorDoc)) as DoctorDocLike;
 
-  const latest = await (ClaimRequest as unknown as { findOne: Function })
+  const latest = await (ClaimRequest as unknown as Loose)
     .findOne({ doctorId: doctor._id })
     .sort({ createdAt: -1 })
     .lean();
@@ -63,9 +64,9 @@ export default async function VerificationPage() {
         </CardContent>
       </Card>
 
-      {latest && (latest as { status: string }).status === "pending" ? (
+      {latest && (latest as unknown as { status: string }).status === "pending" ? (
         (() => {
-          const latestTyped = latest as {
+          const latestTyped = latest as unknown as {
             createdAt: Date;
             slaExpiresAt: Date | null;
             status: string;

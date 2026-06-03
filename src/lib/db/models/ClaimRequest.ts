@@ -13,6 +13,7 @@
  * audit trail consistent if review-but-don't-approve flows are added later).
  */
 
+import type { Loose } from "@/lib/db/models/loose";
 import { Schema, model, models, type Model } from "mongoose";
 import { VERIFICATION_SLA_MS } from "@/lib/sla";
 
@@ -23,8 +24,16 @@ const ClaimRequestSchema = new Schema(
     doctorId: { type: Schema.Types.ObjectId, ref: "Doctor", required: true, index: true },
     requestedBy: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     bmdcNumberProvided: { type: String, default: null },
-    // S3 keys of uploaded verification docs (BMDC cert, NID, etc.)
+    // Legacy: raw S3 keys of uploaded verification docs (pre File-doc migration).
     documentsUploaded: { type: [String], default: [] },
+    // File-doc refs for verification documents (private bucket, read via presigned GET).
+    documentFileIds: { type: [{ type: Schema.Types.ObjectId, ref: "File" }], default: [] },
+    // Mandatory registration selfie (private bucket). `selfieFileId` is the
+    // authoritative File doc; `selfieKey`/`selfieBucket` are cached so admin
+    // review can presign a GET without a populate round-trip.
+    selfieFileId: { type: Schema.Types.ObjectId, ref: "File", default: null },
+    selfieKey: { type: String, default: null },
+    selfieBucket: { type: String, default: null },
     notesFromDoctor: { type: String, default: null, maxlength: 1000 },
 
     status: {
@@ -62,13 +71,13 @@ ClaimRequestSchema.index({ status: 1, slaExpiresAt: 1 });
 // `this: any` keeps the hook compatible with the loosely-typed
 // `Model<unknown>` export used by the rest of the codebase; the schema
 // owns the field-level validation.
-(ClaimRequestSchema as unknown as { pre: Function }).pre("validate", async function (this: any) {
+(ClaimRequestSchema as unknown as Loose).pre("validate", async function (this: { isNew?: boolean; get(path: string): unknown; set(path: string, value: unknown): unknown }) {
   if (this.isNew && !this.get("slaExpiresAt")) {
     this.set("slaExpiresAt", new Date(Date.now() + VERIFICATION_SLA_MS));
   }
 });
 
-(ClaimRequestSchema as unknown as { pre: Function }).pre("save", async function (this: any) {
+(ClaimRequestSchema as unknown as Loose).pre("save", async function (this: { isNew?: boolean; get(path: string): unknown; set(path: string, value: unknown): unknown }) {
   if (!this.get("slaExpiresAt")) {
     const created = (this.get("createdAt") as Date | undefined) ?? new Date();
     this.set("slaExpiresAt", new Date(created.getTime() + VERIFICATION_SLA_MS));

@@ -4,9 +4,10 @@
  * (e.g., moving to Atlas Search) only touch one file.
  */
 
+import type { Loose } from "@/lib/db/models/loose";
 import { dbConnect } from "@/lib/db/mongoose";
-import { Doctor } from "@/lib/db/models";
-import type { DoctorDocLike } from "@/types/doctor";
+import { Doctor, Specialty, ProfileView } from "@/lib/db/models";
+import type { DoctorDocLike, VerificationLevel } from "@/types/doctor";
 
 export interface DoctorSearchParams {
   q?: string;
@@ -115,13 +116,13 @@ export async function searchDoctors(params: DoctorSearchParams): Promise<DoctorS
   const projection = {};
 
   const [rawDocs, total] = await Promise.all([
-    (Doctor as unknown as { find: Function })
+    (Doctor as unknown as Loose)
       .find(filter, projection)
       .sort(sort)
       .skip(skip)
       .limit(pageSize)
       .lean(),
-    (Doctor as unknown as { countDocuments: Function }).countDocuments(filter),
+    (Doctor as unknown as Loose).countDocuments(filter),
   ]);
 
   const doctors = (rawDocs as unknown[]).map((d) => JSON.parse(JSON.stringify(d))) as DoctorDocLike[];
@@ -141,7 +142,7 @@ export async function searchDoctors(params: DoctorSearchParams): Promise<DoctorS
  */
 export async function listCities(): Promise<string[]> {
   await dbConnect();
-  const cities = (await (Doctor as unknown as { distinct: Function }).distinct(
+  const cities = (await (Doctor as unknown as Loose).distinct(
     "chambers.city",
     { status: "published" },
   )) as string[];
@@ -154,14 +155,14 @@ export async function listCities(): Promise<string[]> {
 export async function getStats(): Promise<{ totalDoctors: number; specialties: number; cities: number; verifiedDoctors: number }> {
   await dbConnect();
   const [totalDoctors, verifiedDoctors, cities] = await Promise.all([
-    (Doctor as unknown as { countDocuments: Function }).countDocuments({ status: "published" }),
-    (Doctor as unknown as { countDocuments: Function }).countDocuments({
+    (Doctor as unknown as Loose).countDocuments({ status: "published" }),
+    (Doctor as unknown as Loose).countDocuments({
       status: "published",
       verificationLevel: { $ne: "unverified" },
     }),
     listCities(),
   ]);
-  const specialtyNames = (await (Doctor as unknown as { distinct: Function }).distinct("specialties.name", {
+  const specialtyNames = (await (Doctor as unknown as Loose).distinct("specialties.name", {
     status: "published",
   })) as string[];
   return {
@@ -170,6 +171,78 @@ export async function getStats(): Promise<{ totalDoctors: number; specialties: n
     cities: cities.length,
     specialties: specialtyNames.length,
   };
+}
+
+/**
+ * Active specialties for the homepage grid + /search facet, sorted by the
+ * curated sortOrder. Single source so the homepage and search never drift.
+ */
+export async function listActiveSpecialties(): Promise<{ name: string; slug: string }[]> {
+  await dbConnect();
+  const rows = await (Specialty as unknown as Loose)
+    .find({ active: true })
+    .select("name slug")
+    .sort({ sortOrder: 1 })
+    .lean();
+  // Map to plain {name, slug} (drop _id ObjectId) so the result is safe to
+  // store in unstable_cache without serialization surprises.
+  return (rows as unknown as { name: string; slug: string }[]).map((r) => ({
+    name: r.name,
+    slug: r.slug,
+  }));
+}
+
+/**
+ * Total profile views across all published profiles in the last 30 days.
+ * Powers the homepage "patients viewed profiles N× in the last 30 days" hook —
+ * a real demand signal, never a bare vanity counter.
+ */
+export async function getProfileViewsLast30Days(): Promise<number> {
+  await dbConnect();
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  return (await (ProfileView as unknown as Loose).countDocuments({
+    viewedAt: { $gte: since },
+  })) as number;
+}
+
+export interface FeaturedDoctor {
+  slug: string;
+  name: string;
+  specialty: string | null;
+  city: string | null;
+  photo: string | null;
+  verificationLevel: VerificationLevel;
+}
+
+/**
+ * A few recently-updated, claimed, verified profiles (with a photo) for the
+ * homepage social-proof strip. Strictly published + claimed + verified — never
+ * surfaces unclaimed or unpublished rows.
+ */
+export async function listFeaturedVerifiedDoctors(limit = 6): Promise<FeaturedDoctor[]> {
+  await dbConnect();
+  const rows = await (Doctor as unknown as Loose)
+    .find({
+      status: "published",
+      isClaimed: true,
+      verificationLevel: { $ne: "unverified" },
+      "photo.url": { $exists: true, $ne: null },
+    })
+    .select("slug name specialties chambers photo verificationLevel")
+    .sort({ verificationLevel: -1, updatedAt: -1 })
+    .limit(limit)
+    .lean();
+  return (rows as unknown[]).map((raw) => {
+    const d = JSON.parse(JSON.stringify(raw)) as DoctorDocLike;
+    return {
+      slug: d.slug,
+      name: d.name.displayName,
+      specialty: d.specialties?.find((s) => s.isPrimary)?.name ?? d.specialties?.[0]?.name ?? null,
+      city: d.chambers?.find((c) => c.isPrimary)?.city ?? d.chambers?.[0]?.city ?? null,
+      photo: d.photo?.url ?? null,
+      verificationLevel: d.verificationLevel,
+    };
+  });
 }
 
 function escapeRegex(s: string): string {

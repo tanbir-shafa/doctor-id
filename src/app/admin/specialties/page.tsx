@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Specialty } from "@/lib/db/models";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminSpecialtiesPage() {
   await dbConnect();
-  const rows = (await (Specialty as unknown as { find: Function })
+  const rows = (await (Specialty as unknown as Loose)
     .find({})
     .sort({ sortOrder: 1, name: 1 })
     .lean()) as {

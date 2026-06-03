@@ -4,44 +4,28 @@ import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { presignProfileUpload, confirmProfilePhoto } from "@/server/actions/photo";
+import { uploadProfilePhotoAction } from "@/server/actions/photo";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
 
-type PresignResult =
-  | { ok: true; data?: { uploadUrl: string; publicUrl: string; key: string } }
-  | { ok: false; error: string };
-type ConfirmResult = { ok: true } | { ok: false; error: string };
-
-type PresignAction = (input: {
-  kind: "profile" | "cover" | "verification";
-  contentType: string;
-  contentLength: number;
-}) => Promise<PresignResult>;
-type ConfirmAction = (input: {
-  kind: "profile" | "cover";
-  url: string;
-  key: string;
-}) => Promise<ConfirmResult>;
+type UploadResult = { ok: true; data?: { url: string } } | { ok: false; error: string };
+type UploadAction = (formData: FormData) => Promise<UploadResult>;
 
 /**
- * Presigned-PUT photo uploader.
- *
- * Skips the react-easy-crop cropper for MVP — Step 7 polish adds it. The
- * server's content-type + content-length validation in presignProfileUpload
- * keeps the upload safe even without client-side cropping.
+ * Photo uploader. POSTs the file to a server action that uploads to S3 and
+ * writes the File doc + Doctor.photo cache. The dashboard uses the default
+ * action; the admin section passes its own `uploadAction`. Skips the
+ * react-easy-crop cropper for MVP.
  */
 export function PhotoUploader({
   kind,
   currentUrl,
-  presignAction,
-  confirmAction,
+  uploadAction,
 }: {
   kind: "profile" | "cover";
   currentUrl: string | null;
-  presignAction?: PresignAction;
-  confirmAction?: ConfirmAction;
+  uploadAction?: UploadAction;
 }) {
   const ref = useRef<HTMLInputElement | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl);
@@ -67,39 +51,17 @@ export function PhotoUploader({
     setPreviewUrl(localUrl);
 
     startTransition(async () => {
-      const presign = presignAction ?? presignProfileUpload;
-      const confirm = confirmAction ?? confirmProfilePhoto;
-
-      const presigned = await presign({
-        kind,
-        contentType: file.type,
-        contentLength: file.size,
-      });
-      if (!presigned.ok || !presigned.data) {
-        setError(!presigned.ok ? presigned.error : "Failed to prepare upload");
+      // One POST; the file streams server-side to S3 (File doc + cache written there).
+      const fd = new FormData();
+      fd.set("kind", kind);
+      fd.set("file", file);
+      const action = uploadAction ?? uploadProfilePhotoAction;
+      const res = await action(fd);
+      if (!res.ok) {
+        setError(res.error);
         return;
       }
-
-      const put = await fetch(presigned.data.uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
-      });
-      if (!put.ok) {
-        setError(`Upload failed (HTTP ${put.status}). Try again.`);
-        return;
-      }
-
-      const confirmed = await confirm({
-        kind,
-        url: presigned.data.publicUrl,
-        key: presigned.data.key,
-      });
-      if (!confirmed.ok) {
-        setError(confirmed.error);
-        return;
-      }
-      setPreviewUrl(presigned.data.publicUrl);
+      if (res.data?.url) setPreviewUrl(res.data.url);
     });
   }
 

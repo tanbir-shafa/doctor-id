@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { dbConnect } from "@/lib/db/mongoose";
@@ -15,7 +16,7 @@ type SP = Promise<Record<string, string | string[] | undefined>>;
 async function loadSpecialty(slug: string) {
   await dbConnect();
   return (
-    ((await (Specialty as unknown as { findOne: Function })
+    ((await (Specialty as unknown as Loose)
       .findOne({ slug: slug.toLowerCase(), active: true })
       .select("name")
       .lean()) as { name: string } | null) ?? null

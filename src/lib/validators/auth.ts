@@ -12,11 +12,10 @@ import { isValidBmdcFormat } from "@/lib/utils/bmdc";
 /**
  * Doctor registration — phone-first.
  *
- * BMDC + phone + name are required. Email is optional (used later for
- * notifications). `claimSlug` is only set when registration is launched from
- * the "Claim this profile" CTA on `/[slug]`. `documentS3Keys` carries the
- * already-uploaded NID / selfie / supporting-doc S3 keys (uploads happen
- * client-side via a presigned PUT before the form is submitted).
+ * BMDC + phone + name are required, plus a mandatory live `selfieS3Key` (the
+ * S3 key returned by the live-camera capture upload). Email stays optional
+ * (used later for notifications). `claimSlug` is only set when registration is
+ * launched from the "Claim this profile" CTA on `/[slug]`.
  *
  * No password. Doctors authenticate by phone + SMS OTP only — admins keep
  * the email + password flow on `/auth/admin/login`.
@@ -33,7 +32,7 @@ export const RegisterSchema = z.object({
   lastName: z.string().min(1, "Last name is required").max(80),
   email: z.string().email("Enter a valid email").optional().or(z.literal("")),
   claimSlug: z.string().min(1).max(160).optional().or(z.literal("")),
-  documentS3Keys: z.array(z.string().min(1)).max(5).optional().default([]),
+  selfieS3Key: z.string().min(1, "A live selfie is required"),
   agreeTerms: z
     .boolean()
     .refine((v) => v === true, { message: "You must agree to the terms to continue" }),

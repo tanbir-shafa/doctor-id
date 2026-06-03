@@ -13,6 +13,28 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  // A leading underscore marks an intentionally-unused binding (the common TS
+  // convention for "I know — it's deliberately unused").
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
+  // Tests + one-off scripts are non-production tooling; `any` is pragmatic there
+  // (mongoose/mock internals, ad-hoc data munging) and not worth the ceremony.
+  {
+    files: ["tests/**", "scripts/**"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import Link from "next/link";
 import { Stethoscope, LogOut } from "lucide-react";
 import { auth } from "@/lib/auth/config";
@@ -28,7 +29,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .lean<{ _id: unknown } | null>();
   const pendingRequestCount = doctorMini
     ? await (
-        AppointmentRequest as unknown as { countDocuments: Function }
+        AppointmentRequest as unknown as Loose
       ).countDocuments({ doctorId: doctorMini._id, status: "pending" })
     : 0;
 

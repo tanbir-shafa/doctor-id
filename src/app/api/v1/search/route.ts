@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
           specialty: d.specialties.find((s) => s.isPrimary)?.name ?? d.specialties[0]?.name ?? null,
           city: d.chambers.find((c) => c.isPrimary)?.city ?? d.chambers[0]?.city ?? null,
           verificationLevel: d.verificationLevel,
+          isClaimed: d.isClaimed,
           photo: d.photo?.url ?? null,
           url: `/${d.slug}`,
         })),

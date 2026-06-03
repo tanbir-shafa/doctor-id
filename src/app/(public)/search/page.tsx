@@ -1,10 +1,15 @@
+import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { searchDoctors, listCities } from "@/lib/db/queries/doctors";
 import { Specialty } from "@/lib/db/models";
 import { dbConnect } from "@/lib/db/mongoose";
-import { DoctorCard } from "@/components/search/doctor-card";
+import { DoctorCard, type DoctorCardView } from "@/components/search/doctor-card";
+import { ViewToggle } from "@/components/search/view-toggle";
+import { SearchFilters } from "@/components/search/search-filters";
+import { ActiveFilters, countActiveFilters } from "@/components/search/active-filters";
 import { Pagination } from "@/components/search/pagination";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Find a doctor",
@@ -24,16 +29,17 @@ interface SearchParamsRaw {
   language?: string;
   gender?: string;
   sort?: string;
+  view?: string;
 }
 
 async function getSpecialties() {
   await dbConnect();
-  const rows = await (Specialty as unknown as { find: Function })
+  const rows = await (Specialty as unknown as Loose)
     .find({ active: true })
     .select("name slug")
     .sort({ sortOrder: 1 })
     .lean();
-  return rows as { name: string; slug: string }[];
+  return rows as unknown as { name: string; slug: string }[];
 }
 
 export default async function SearchPage({
@@ -42,6 +48,7 @@ export default async function SearchPage({
   searchParams: Promise<SearchParamsRaw>;
 }) {
   const sp = await searchParams;
+  const view: DoctorCardView = sp.view === "grid" ? "grid" : "list";
   const [{ doctors, total, page, totalPages }, specialties, cities] = await Promise.all([
     searchDoctors({
       q: sp.q,
@@ -67,14 +74,23 @@ export default async function SearchPage({
         </p>
       </header>
 
-      <form method="get" className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-4">
-        <input
-          type="search"
-          name="q"
-          defaultValue={sp.q ?? ""}
-          placeholder="Name, condition, hospital…"
-          className="col-span-2 h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
+      <form method="get" className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-4">
+        {/* preserve the chosen layout when filters are applied */}
+        {view === "grid" ? <input type="hidden" name="view" value="grid" /> : null}
+        <SearchFilters
+          activeCount={countActiveFilters(sp as Record<string, string | string[] | undefined>, {
+            excludeQuery: true,
+          })}
+          searchInput={
+            <input
+              type="search"
+              name="q"
+              defaultValue={sp.q ?? ""}
+              placeholder="Name, condition, hospital…"
+              className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:col-span-2"
+            />
+          }
+        >
         <select
           name="specialty"
           defaultValue={sp.specialty ?? ""}
@@ -134,20 +150,35 @@ export default async function SearchPage({
         >
           Search
         </button>
+        </SearchFilters>
       </form>
 
+      <div className="mt-6 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <ActiveFilters sp={sp as Record<string, string | string[] | undefined>} />
+        </div>
+        <ViewToggle current={view} params={sp as Record<string, string | string[] | undefined>} />
+      </div>
+
       {doctors.length === 0 ? (
-        <p className="mt-10 rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
+        <p className="mt-4 rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
           No doctors match those filters yet.{" "}
           <Link href="/search" className="text-primary hover:underline">
             Reset filters
           </Link>
         </p>
       ) : (
-        <ul className="mt-6 grid gap-3 sm:grid-cols-2">
+        <ul
+          className={cn(
+            "mt-4 grid gap-3",
+            view === "grid"
+              ? "grid-cols-1 sm:auto-rows-fr sm:grid-cols-2 lg:grid-cols-3"
+              : "grid-cols-1",
+          )}
+        >
           {doctors.map((d) => (
-            <li key={d.slug}>
-              <DoctorCard doctor={d} />
+            <li key={d.slug} className="h-full">
+              <DoctorCard doctor={d} view={view} />
             </li>
           ))}
         </ul>

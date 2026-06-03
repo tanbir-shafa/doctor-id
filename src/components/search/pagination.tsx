@@ -1,6 +1,33 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
+function Item({
+  label,
+  target,
+  isCurrent,
+  hrefForPage,
+}: {
+  label: string | number;
+  target?: number;
+  isCurrent?: boolean;
+  hrefForPage: (target: number) => string;
+}) {
+  const base =
+    "inline-flex h-9 min-w-9 items-center justify-center rounded-md border border-border px-3 text-sm";
+  if (!target || isCurrent) {
+    return (
+      <span aria-current={isCurrent ? "page" : undefined} className={cn(base, isCurrent ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+        {label}
+      </span>
+    );
+  }
+  return (
+    <Link href={hrefForPage(target)} className={cn(base, "hover:bg-accent")}>
+      {label}
+    </Link>
+  );
+}
+
 /**
  * Server-renderable pagination. Generates href URLs by spreading the current
  * search params + replacing `page`. No client JS — the buttons are real links
@@ -35,34 +62,17 @@ export function Pagination({
     window.push(i);
   }
 
-  function Item({ label, target, isCurrent }: { label: string | number; target?: number; isCurrent?: boolean }) {
-    const base =
-      "inline-flex h-9 min-w-9 items-center justify-center rounded-md border border-border px-3 text-sm";
-    if (!target || isCurrent) {
-      return (
-        <span aria-current={isCurrent ? "page" : undefined} className={cn(base, isCurrent ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
-          {label}
-        </span>
-      );
-    }
-    return (
-      <Link href={hrefForPage(target)} className={cn(base, "hover:bg-accent")}>
-        {label}
-      </Link>
-    );
-  }
-
   return (
     <nav aria-label="Pagination" className="mt-8 flex flex-wrap items-center justify-center gap-1">
-      <Item label="Prev" target={page > 1 ? page - 1 : undefined} />
-      <Item label={1} target={1} isCurrent={page === 1} />
-      {window[0] > 2 ? <Item label="…" /> : null}
+      <Item label="Prev" target={page > 1 ? page - 1 : undefined} hrefForPage={hrefForPage} />
+      <Item label={1} target={1} isCurrent={page === 1} hrefForPage={hrefForPage} />
+      {window[0] > 2 ? <Item label="…" hrefForPage={hrefForPage} /> : null}
       {window.map((p) => (
-        <Item key={p} label={p} target={p} isCurrent={p === page} />
+        <Item key={p} label={p} target={p} isCurrent={p === page} hrefForPage={hrefForPage} />
       ))}
-      {window.length > 0 && window[window.length - 1]! < totalPages - 1 ? <Item label="…" /> : null}
-      {totalPages > 1 ? <Item label={totalPages} target={totalPages} isCurrent={page === totalPages} /> : null}
-      <Item label="Next" target={page < totalPages ? page + 1 : undefined} />
+      {window.length > 0 && window[window.length - 1]! < totalPages - 1 ? <Item label="…" hrefForPage={hrefForPage} /> : null}
+      {totalPages > 1 ? <Item label={totalPages} target={totalPages} isCurrent={page === totalPages} hrefForPage={hrefForPage} /> : null}
+      <Item label="Next" target={page < totalPages ? page + 1 : undefined} hrefForPage={hrefForPage} />
     </nav>
   );
 }

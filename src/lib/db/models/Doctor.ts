@@ -105,6 +105,12 @@ const ChamberSchema = new Schema(
             lng: {type: Number, default: null},
         },
         phone: {type: String, default: null, trim: true},
+        // FK to the source-of-truth Chamber collection (facility identity). The
+        // name/address/area/city/division/phone above are a denormalized cache for
+        // joinless SSR reads — same pattern as PhotoSchema (CLAUDE.md #12).
+        chamberLocationId: {type: String, default: null, index: true},
+        floor: {type: String, default: null, trim: true},
+        room: {type: String, default: null, trim: true},
         schedule: {type: [ScheduleSlotSchema], default: []},
         consultationFee: {
             amount: {type: Number, default: 0, min: 0},
@@ -192,6 +198,12 @@ const DoctorSchema = new Schema(
         ownerId: {type: Schema.Types.ObjectId, required: true, index: true},
 
         slug: {type: String, required: true, trim: true, lowercase: true, index: {unique: true}},
+
+        // Ingestion provenance — enables idempotent re-seeds. Null for
+        // doctor-created / claimed profiles. (Indexed below as a partial-unique pair.)
+        sourceProvider: {type: String, default: null},
+        sourceProviderId: {type: String, default: null},
+        sourceUrl: {type: String, default: null},
 
         bmdcNumber: {
             type: String,
@@ -307,7 +319,19 @@ DoctorSchema.index(
 // arrays error). We split the category-page index into two single-field
 // indexes — the planner intersects them efficiently for /[specialty]/[city].
 DoctorSchema.index({"specialties.name": 1});
+// `chambers.city` holds the canonical 64-district (location query key);
+// `chambers.chamberLocationId` is indexed field-level on ChamberSchema (reverse lookup).
 DoctorSchema.index({"chambers.city": 1});
+// Idempotent ingestion key — partial so manual/claimed docs (no provenance) don't
+// collide on null. Its absence is why prior re-ingests duplicated the collection.
+DoctorSchema.index(
+    {sourceProvider: 1, sourceProviderId: 1},
+    {
+        unique: true,
+        partialFilterExpression: {sourceProviderId: {$type: "string"}},
+        name: "source_provenance_idx",
+    },
+);
 // Sparse so admin "Pending duplicate review" lookups don't scan the whole
 // collection — only the few hundred flagged rows.
 DoctorSchema.index({dupReviewGroup: 1}, {sparse: true});

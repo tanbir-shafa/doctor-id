@@ -24,7 +24,8 @@ interface Props {
     _id: string;
     status: string;
     bmdcNumberProvided: string | null;
-    documentsUploaded: string[];
+    documents: { name: string; url: string | null; mimeType: string | null }[];
+    selfieUrl: string | null;
     notesFromDoctor: string | null;
     createdAt: string;
     slaExpiresAt: string | null;
@@ -198,25 +199,49 @@ export function ReviewRow({ claim, nowIso }: Props) {
           </p>
         ) : null}
 
-        {/* Document attachments */}
-        {claim.documentsUploaded.length > 0 ? (
+        {/* Identity selfie — presigned GET (private bucket). */}
+        {claim.selfieUrl ? (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-foreground">Identity selfie</p>
+            <a href={claim.selfieUrl} target="_blank" rel="noopener noreferrer">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={claim.selfieUrl}
+                alt="Registration selfie"
+                className="size-28 rounded-md border border-border object-cover"
+              />
+            </a>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground italic">No selfie on file.</p>
+        )}
+
+        {/* Document attachments — presigned GET URLs (private bucket). */}
+        {claim.documents.length > 0 ? (
           <div className="space-y-1">
             <p className="text-xs font-medium text-foreground">
-              {claim.documentsUploaded.length} document
-              {claim.documentsUploaded.length === 1 ? "" : "s"} attached
+              {claim.documents.length} document
+              {claim.documents.length === 1 ? "" : "s"} attached
             </p>
             <ul className="space-y-1">
-              {claim.documentsUploaded.map((k) => (
-                <li key={k} className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              {claim.documents.map((doc, i) => (
+                <li
+                  key={`${doc.name}-${i}`}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+                >
                   <FileText className="size-3.5" aria-hidden="true" />
-                  <a
-                    href={`https://${process.env.S3_BUCKET ?? "doctor-id-uploads"}.s3.amazonaws.com/${k}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline"
-                  >
-                    {k}
-                  </a>
+                  {doc.url ? (
+                    <a
+                      href={doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline"
+                    >
+                      {doc.name}
+                    </a>
+                  ) : (
+                    <span>{doc.name}</span>
+                  )}
                 </li>
               ))}
             </ul>

@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import type { MetadataRoute } from "next";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor, Specialty } from "@/lib/db/models";
@@ -18,13 +19,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   await dbConnect();
 
   const [doctors, specialties, cities] = await Promise.all([
-    (Doctor as unknown as { find: Function })
+    (Doctor as unknown as Loose)
       .find({ status: "published" })
       .select("slug updatedAt")
       .sort({ updatedAt: -1 })
       .limit(40_000)
       .lean(),
-    (Specialty as unknown as { find: Function }).find({ active: true }).select("slug name").lean(),
+    (Specialty as unknown as Loose).find({ active: true }).select("slug name").lean(),
     listCities(),
   ]);
 
@@ -36,7 +37,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/auth/register`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
   ];
 
-  const doctorEntries: MetadataRoute.Sitemap = (doctors as { slug: string; updatedAt: Date }[]).map(
+  const doctorEntries: MetadataRoute.Sitemap = (doctors as unknown as { slug: string; updatedAt: Date }[]).map(
     (d) => ({
       url: `${base}/${d.slug}`,
       lastModified: d.updatedAt ?? now,
@@ -45,7 +46,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
   );
 
-  const specialtyEntries: MetadataRoute.Sitemap = (specialties as { slug: string }[]).map((s) => ({
+  const specialtyEntries: MetadataRoute.Sitemap = (specialties as unknown as { slug: string }[]).map((s) => ({
     url: `${base}/${s.slug}`,
     lastModified: now,
     changeFrequency: "weekly",
@@ -54,7 +55,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Specialty × city combos — high-intent SEO landing pages.
   const cityComboEntries: MetadataRoute.Sitemap = [];
-  for (const s of specialties as { slug: string }[]) {
+  for (const s of specialties as unknown as { slug: string }[]) {
     for (const c of cities) {
       cityComboEntries.push({
         url: `${base}/${s.slug}/${encodeURIComponent(c.toLowerCase())}`,

@@ -1,5 +1,6 @@
 "use client";
 
+import type { Loose } from "@/lib/db/models/loose";
 import { useEffect, useRef } from "react";
 
 /**
@@ -41,7 +42,9 @@ export default function LeafletMap({
     marker: { setLatLng: (...args: unknown[]) => void } | null;
   }>({ map: null, marker: null });
   const cbRef = useRef(onLocationChange);
-  cbRef.current = onLocationChange;
+  useEffect(() => {
+    cbRef.current = onLocationChange;
+  });
 
   useEffect(() => {
     if (initialized.current || !ref.current) return;
@@ -74,11 +77,11 @@ export default function LeafletMap({
       // and emit on dragend. We read the live callback from `cbRef` so prop
       // changes don't require rebinding handlers.
       if (cbRef.current) {
-        (map as unknown as { on: Function }).on("click", (e: { latlng: { lat: number; lng: number } }) => {
+        (map as unknown as Loose).on("click", (e: { latlng: { lat: number; lng: number } }) => {
           marker.setLatLng(e.latlng);
           cbRef.current?.(e.latlng.lat, e.latlng.lng);
         });
-        (marker as unknown as { on: Function }).on("dragend", () => {
+        (marker as unknown as Loose).on("dragend", () => {
           const ll = (marker as unknown as { getLatLng: () => { lat: number; lng: number } }).getLatLng();
           cbRef.current?.(ll.lat, ll.lng);
         });

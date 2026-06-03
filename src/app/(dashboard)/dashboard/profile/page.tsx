@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
@@ -28,12 +29,12 @@ export default async function EditProfilePage() {
 
   // Specialty catalog — feeds the quick-pick chip palette in
   // <SpecialtiesEditor>. Active rows only, sorted by curated sortOrder.
-  const specialtyDocs = await (Specialty as unknown as { find: Function })
+  const specialtyDocs = await (Specialty as unknown as Loose)
     .find({ active: true })
     .sort({ sortOrder: 1, name: 1 })
     .select("name")
     .lean();
-  const specialtyCatalog = (specialtyDocs as { name: string }[]).map((s) => s.name);
+  const specialtyCatalog = (specialtyDocs as unknown as { name: string }[]).map((s) => s.name);
 
   return (
     <div className="space-y-6">

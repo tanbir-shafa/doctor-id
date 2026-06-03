@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -37,7 +38,7 @@ async function getDoctor(slug: string): Promise<DoctorDocLike | null> {
 
 async function findSpecialtyBySlug(slug: string): Promise<{ name: string; slug: string } | null> {
   await dbConnect();
-  const sp = await (Specialty as unknown as { findOne: Function })
+  const sp = await (Specialty as unknown as Loose)
     .findOne({ slug: slug.toLowerCase(), active: true })
     .select("name slug")
     .lean();

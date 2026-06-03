@@ -47,4 +47,8 @@ yarn-error.log*
 next-env.d.ts
 
 # offline data snapshots (scripts/fetch-popular-diagnostic.ts etc.)
-/data/
+# Ignore each snapshot dir individually (so a negation can re-include one).
+/data/*
+# ...except the curated chamber-location catalog — small reference data (47 rows),
+# committed and seeded into the Chamber collection by scripts/seed.ts.
+!/data/chambers/

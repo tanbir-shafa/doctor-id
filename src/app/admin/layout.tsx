@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
@@ -21,10 +22,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   await dbConnect();
   const [pendingClaimCount, pendingEmrCount] = await Promise.all([
-    (ClaimRequest as unknown as { countDocuments: Function }).countDocuments({
+    (ClaimRequest as unknown as Loose).countDocuments({
       status: "pending",
     }),
-    (User as unknown as { countDocuments: Function }).countDocuments({
+    (User as unknown as Loose).countDocuments({
       "emr.requested": true,
       "emr.seatStatus": "pending",
     }),

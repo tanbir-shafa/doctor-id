@@ -4,11 +4,13 @@ import crypto from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { dbConnect } from "@/lib/db/mongoose";
-import { Doctor, ProfileView, User } from "@/lib/db/models";
+import { Doctor, ProfileView, User, AppointmentRequest } from "@/lib/db/models";
+import type { Loose } from "@/lib/db/models/loose";
 import { profileViewRateLimiter } from "@/lib/redis/ratelimit";
 import { auth } from "@/lib/auth/config";
 import { computeCompleteness } from "@/lib/utils/completeness";
 import type { DoctorDocLike } from "@/types/doctor";
+import type { HomeScoreboard } from "@/types/home";
 import bcrypt from "bcryptjs";
 import {
   ProfileBasicSchema,
@@ -456,4 +458,54 @@ export async function softDeleteAccountAction(): Promise<ActionResult> {
   await doctor.save();
   await User.updateOne({ _id: userId }, { $set: { deletedAt: new Date() } });
   return { ok: true };
+}
+
+/**
+ * Read-only scoreboard for the logged-in-doctor home page overlay
+ * (`<HomeTop>` calls this on mount). Returns `{ ok: false }` for anonymous
+ * visitors and non-doctor accounts (e.g. admins have no Doctor doc), which the
+ * client treats as "render the marketing hero instead". No mutation, so it
+ * skips the Zod/rate-limit steps of the write-action pattern, but keeps the
+ * auth + ownership guard via `loadMyDoctor()`.
+ */
+export async function loadHomeScoreboardAction(): Promise<ActionResult<HomeScoreboard>> {
+  const ctx = await loadMyDoctor();
+  if (!ctx.ok) return ctx;
+  const { doctor, userId } = ctx;
+
+  const plain = JSON.parse(JSON.stringify(doctor.toObject())) as DoctorDocLike;
+  const { score, sections } = computeCompleteness(plain);
+  // Same single-CTA nudge rule as the dashboard: highest-weight unfinished
+  // section, ties broken by section order. Null at 100%.
+  const nextSection =
+    score < 100
+      ? [...sections].filter((s) => !s.done).sort((a, b) => b.weight - a.weight)[0] ?? null
+      : null;
+
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [views30d, pendingRequests, userRow] = await Promise.all([
+    (ProfileView as unknown as Loose).countDocuments({
+      doctorId: doctor._id,
+      viewedAt: { $gte: since },
+    }) as Promise<number>,
+    AppointmentRequest.countDocuments({ doctorId: doctor._id, status: "pending" }),
+    User.findById(userId)
+      .select("emr")
+      .lean<{ emr?: { seatStatus?: "pending" | "ready" | "declined" } } | null>(),
+  ]);
+
+  return {
+    ok: true,
+    data: {
+      firstName: plain.name.first,
+      slug: plain.slug,
+      published: plain.status === "published",
+      views30d,
+      viewsAllTime: plain.profileViews ?? 0,
+      pendingRequests,
+      completeness: score,
+      nextAction: nextSection ? { label: nextSection.label, weight: nextSection.weight } : null,
+      emrSeatStatus: userRow?.emr?.seatStatus ?? null,
+    },
+  };
 }

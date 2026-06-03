@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Users, ShieldCheck, FileCheck2, Hourglass, ExternalLink } from "lucide-react";
@@ -38,18 +39,18 @@ export default async function AdminOverview() {
 
   const [doctors, published, pendingClaims, doctorUsers, recentClaimsRaw, recentDoctorsRaw] =
     await Promise.all([
-      (Doctor as unknown as { countDocuments: Function }).countDocuments({}),
-      (Doctor as unknown as { countDocuments: Function }).countDocuments({ status: "published" }),
-      (ClaimRequest as unknown as { countDocuments: Function }).countDocuments({ status: "pending" }),
-      (User as unknown as { countDocuments: Function }).countDocuments({ role: "doctor" }),
-      (ClaimRequest as unknown as { find: Function })
+      (Doctor as unknown as Loose).countDocuments({}),
+      (Doctor as unknown as Loose).countDocuments({ status: "published" }),
+      (ClaimRequest as unknown as Loose).countDocuments({ status: "pending" }),
+      (User as unknown as Loose).countDocuments({ role: "doctor" }),
+      (ClaimRequest as unknown as Loose)
         .find({ status: "pending" })
         .sort({ createdAt: -1 })
         .limit(5)
         .populate("doctorId", "slug name")
         .populate("requestedBy", "phone email")
         .lean(),
-      (Doctor as unknown as { find: Function })
+      (Doctor as unknown as Loose)
         .find({})
         .sort({ createdAt: -1 })
         .limit(5)

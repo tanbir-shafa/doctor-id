@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ExternalLink, ArrowRight, CheckCircle2, Circle } from "lucide-react";
@@ -43,8 +44,9 @@ export default async function DashboardOverview({ searchParams }: PageProps) {
           .sort((a, b) => b.weight - a.weight)[0] ?? null
       : null;
 
+  // eslint-disable-next-line react-hooks/purity
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const last30 = await (ProfileView as unknown as { countDocuments: Function }).countDocuments({
+  const last30 = await (ProfileView as unknown as Loose).countDocuments({
     doctorId: doctor._id,
     viewedAt: { $gte: since },
   });

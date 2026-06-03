@@ -11,8 +11,9 @@ data model is FHIR-Practitioner-aligned so it feeds the future EMR without a
 rewrite.
 
 **Status**: MVP shipped + **Sprint A complete** (all 8 features Day 1–30
-of the 60-day acquisition plan). Production `next build` green. **148
-Vitest tests passing**. Real public-Bangladesh data ingested (Popular
+of the 60-day acquisition plan) + **S3 re-platform & mandatory live-selfie
+registration** (see #17). Production `next build` green. **428
+Vitest tests passing** (`npm run lint` clean). Real public-Bangladesh data ingested (Popular
 Diagnostic, 3,237 doctors). See [`.claude/progress/mvp-progress.md`](./.claude/progress/mvp-progress.md)
 for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-started.md).
 
@@ -28,6 +29,7 @@ for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-st
 | Auth driver | NextAuth v5 (`next-auth@5.0.0-beta.31`) | JWT sessions (Credentials provider requires JWT) |
 | Mongo driver | `mongodb@6.21.0` *pinned to 6.x* | `@auth/mongodb-adapter@3.11.2` peer-requires Mongo 6; Mongoose has its own bundled driver and is independent |
 | Email | AWS SES v2 | No-ops to console.log when AWS creds absent |
+| **Storage / uploads** | **AWS S3, server-side** (`@aws-sdk/client-s3` + `s3-request-presigner` + `credential-providers`) | Port of shafa `apps/api`. Creds resolve by `NODE_ENV`: prod → cross-account STS role, else → static keys. **Public** bucket (profile/cover, stable URLs) + **private** bucket (selfie/verification, presigned-GET). See #17. |
 | **SMS** | **MDL gateway** (in-house axios-shaped wrapper) | Same dev-mode no-op pattern as SES. Bulk send caps at **20 numbers per call**. |
 | Shared state | Upstash Redis (`@upstash/redis` + `@upstash/ratelimit`) | Limiters degrade to "allow everything" without creds |
 | Styling | Tailwind v4 + shadcn-style primitives (copied, not packaged) | Tokens in [`src/app/globals.css`](src/app/globals.css) |
@@ -50,7 +52,8 @@ src/
                      /[specialty]/[city], /[slug]/[city]
     (auth)/
       auth/login              doctor phone+OTP sign-in
-      auth/register           doctor 2-step register (BMDC + phone + OTP)
+      auth/register           doctor register: BMDC + phone + name + mandatory
+                              live selfie (selfie-capture.tsx, getUserMedia) → OTP
       auth/admin/login        admin email+password sign-in (new)
       auth/{forgot,reset,verify-email}
     (dashboard)/     /dashboard/* (auth-gated by proxy + layout guard)
@@ -83,9 +86,14 @@ src/
     pdf/             RxPad component (A.2 — @react-pdf/renderer JSX)
     admin/           AdminShell, AdminSidebar, StatBox, PageHeader (AdminLTE-style)
   lib/
-    db/              mongoose.ts (cached conn), models/, queries/{doctors,admin}.ts
+    db/              mongoose.ts (cached conn), models/ (loosely-typed `Model<unknown>`
+                     exports + `loose.ts` = lint-safe cast surface), queries/{doctors,admin}.ts
     auth/            config.ts (node), edge-config.ts (edge-safe), handlers.ts
-    s3/              client + presign + upload (server-side PutObject)
+    s3/              client.ts (S3Client; creds by NODE_ENV — STS role prod / static keys else)
+                     + aws-credentials.ts (STS provider) + s3-service.ts (computeSha256/
+                     buildS3Key/uploadBufferToS3/getPresignedUrl — port of shafa apps/api)
+                     + buckets.ts (public/private routing + UPLOAD_PURPOSE) + file-doc.ts
+                     + doctor-photo.ts + upload-doc.ts. See #17.
     email/           ses.ts + templates.ts (inline HTML)
     sms/             client.ts (MDL) — sendSms() + sendSmsBatch() (body-grouped)
     redis/           client + ratelimit factories (login + OTP + appointment + outbound limiters)
@@ -105,8 +113,8 @@ src/
                      resetPassword, logoutAction
     doctor.ts        loadMyDoctor, updateProfile*, updateChambersAction (A.6),
                      setPublishStatus, recordProfileView, reportProfile
-    photo.ts         presignProfileUpload, confirmProfilePhoto,
-                     presignRegistrationDocAction (unauth, A.5 docs)
+    photo.ts         uploadProfilePhotoAction, uploadVerificationDocAction,
+                     uploadRegistrationSelfieAction (unauth live selfie) — server-side S3 (#17)
     verification.ts  requestVerification, approve/reject claim (flips User.approved)
     appointment.ts   createAppointmentRequestAction (public), updateStatus (A.3)
     emr.ts           markEmrReadyAction (admin), declineEmrAction (doctor) — A.5
@@ -120,7 +128,7 @@ scripts/
   fetch-*.ts         one-shot snapshot scripts (Popular, Ibn Sina)
 data/
   popular-diagnostic/{doctor-ids,details,photos,meta}.json   (3,237 doctors)
-tests/               22 files, 148 tests — Vitest, DB-less
+tests/               42 files, 428 tests — Vitest, DB-less
 doc/                 developer guides (getting-started.md)
 .claude/
   plans/             roadmaps + plan files
@@ -152,7 +160,7 @@ the public header bounces signed-in users back to their dashboard instead of
 showing a stale login form.
 
 ### 1b. Doctor auth is phone + SMS OTP, *not* password
-- **Registration** ([startRegistrationAction → completeRegistrationAction](src/server/actions/auth.ts)): doctor submits BMDC + phone + name + optional NID/selfie docs → OTP sent → OTP verified → User + Doctor + ClaimRequest materialized atomically inside `completeRegistrationAction`. **No password is ever set on a doctor User row.**
+- **Registration** ([startRegistrationAction → completeRegistrationAction](src/server/actions/auth.ts)): doctor submits BMDC + phone + name + **a mandatory live-camera selfie** (email optional) → OTP sent → OTP verified → User + Doctor + ClaimRequest materialized atomically inside `completeRegistrationAction` (which also mints the selfie's `File` doc). **No password is ever set on a doctor User row.** See #17 for the selfie upload/storage path.
 - **Login** ([requestLoginOtpAction + NextAuth `sms-otp` provider](src/server/actions/auth.ts)): phone → OTP → signed in. NextAuth's `sms-otp` Credentials provider in [auth/config.ts](src/lib/auth/config.ts) is the trust boundary — it re-validates the OTP hash, enforces the approval gate, and clears OTP state on success.
 - **Admin auth** unchanged: email + bcrypt password via the original Credentials provider, at `/auth/admin/login`.
 - Sessions persist for **30 days** via explicit cookie `maxAge` (see [auth/config.ts](src/lib/auth/config.ts) `cookies.sessionToken.options.maxAge`). Without this, NextAuth falls back to a session cookie that drops on browser close.
@@ -256,8 +264,10 @@ every profile load. The authoritative record lives in the `File` collection
 the ObjectId ref. **When a photo is replaced, both the File doc and the
 cached PhotoSchema fields must be updated atomically** (write the new File
 doc first, then update Doctor.photo to point at it; soft-delete the old File
-via `deletedAt`). Linked-entity types currently supported:
-`USER | ADMIN | DOCTOR`.
+via `deletedAt`). This is **now implemented** for profile + cover uploads via
+the shared [`uploadDoctorPhotoFromForm`](src/lib/s3/doctor-photo.ts) helper
+(used by both the dashboard and admin actions) — `photo.file` is populated, no
+longer null. Linked-entity types currently supported: `USER | ADMIN | DOCTOR`.
 
 ### 13. SES is in sandbox by default
 New AWS accounts can only send to verified addresses until SES production
@@ -288,13 +298,24 @@ the doctor dashboard banner. When the real EMR API lands, replace
 
 ### 16. Registration uses a server-side `regDraft` subdoc for two-step OTP
 [`startRegistrationAction`](src/server/actions/auth.ts) stashes the
-registration payload (BMDC, name, doc S3 keys, claim slug) in
-`User.regDraft` and sends an OTP. [`completeRegistrationAction`](src/server/actions/auth.ts)
+registration payload (BMDC, name, **selfie key + sha256/size/mime**, claim slug)
+in `User.regDraft` and sends an OTP. [`completeRegistrationAction`](src/server/actions/auth.ts)
 re-validates the OTP, then atomically materializes Doctor + ClaimRequest
-from `regDraft` and clears it. **An abandoned registration (OTP never
+from `regDraft` (minting the selfie `File` doc from the stashed metadata — no
+S3 re-read) and clears it. **An abandoned registration (OTP never
 verified) leaves no half-bound profile** — the `regDraft.expiresAt` field
 gates materialization, and the User row is harmless without an attached
 Doctor.
+
+### 17. S3 uploads are server-side, credential-by-`NODE_ENV`, two-bucket
+A TypeScript port of `shafa-monorepo/apps/api`'s S3 service (the two apps can
+share one S3 setup). Rules that will bite if forgotten:
+- **All uploads stream server-side** through a Server Action → [`uploadBufferToS3`](src/lib/s3/s3-service.ts) (SSE-AES256) → authoritative `File` doc. The old browser presigned-PUT path is **gone**. Because files now pass through Server Actions, [next.config.ts](next.config.ts) raises `experimental.serverActions.bodySizeLimit` to `12mb`.
+- **Credentials resolve strictly by `NODE_ENV`** in [`getS3()`](src/lib/s3/client.ts): `production` → cross-account STS role (`AWS_ASSUME_ROLE_ARN` + `AWS_S3_EXTERNAL_ID`, base creds from the ECS task role via the default chain); any other env → static keys (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`). `getS3()` returns `null` when the selected mode's creds are absent → actions surface a "not configured" error (no silent dev no-op — uploads genuinely require S3).
+- **Two buckets** ([`buckets.ts`](src/lib/s3/buckets.ts)): `AWS_PUBLIC_BUCKET_NAME` (profile/cover photos → stable region-qualified URL, so SSR/OG/`next/image` keep working) and `AWS_PRIVATE_BUCKET_NAME` (identity docs — selfie, verification — **read only via presigned GET**). Public falls back to `S3_BUCKET`; the **private bucket has no fallback** (selfie/verification uploads need it set, including in local dev).
+- **`File`-doc persistence** via [`createFileDoc`](src/lib/s3/file-doc.ts). Admin claim review reads private objects through `getPresignedUrl` (inline disposition) in [admin.ts](src/lib/db/queries/admin.ts) — never reconstruct an S3 URL client-side.
+- **Loose model casts**: the deliberately-untyped `Model<unknown>` exports are reached via `(X as unknown as Loose)` ([`loose.ts`](src/lib/db/models/loose.ts)) — **not** the old `{ method: Function }` shape (which trips `@typescript-eslint/no-unsafe-function-type`).
+- **ESLint**: `no-explicit-any` is off for `tests/**` + `scripts/**`; `no-unused-vars` ignores `^_`-prefixed bindings (see [eslint.config.mjs](eslint.config.mjs)). New AWS env vars are in `.env.example`.
 
 ---
 
@@ -347,13 +368,13 @@ finished yet, but the integration seam exists:
 ## How to make good changes here
 
 - **Read the plan first**: [`.claude/plans/`](./.claude/plans/) explains *why* the architecture is the way it is. The progress file ([`.claude/progress/mvp-progress.md`](./.claude/progress/mvp-progress.md)) is the authoritative status board — update it in the same commit that completes a step.
-- **Don't add new dependencies casually**: the brief is strict about the tech stack. Mongoose, NextAuth v5, Tailwind v4, shadcn-style (copied, not packaged), Zod, `@react-pdf/renderer`, MDL SMS. Adding e.g. React Query or a different ORM needs user approval.
+- **Don't add new dependencies casually**: the brief is strict about the tech stack. Mongoose, NextAuth v5, Tailwind v4, shadcn-style (copied, not packaged), Zod, `@react-pdf/renderer`, MDL SMS, `@aws-sdk/{client-s3,s3-request-presigner,credential-providers}`. Adding e.g. React Query or a different ORM needs user approval.
 - **Don't introduce client-side state libraries**: React Server Components + Server Actions are the default. Client components are for interactivity only.
 - **Don't bypass the Server Action pattern**: even one-line updates should route through a Server Action with auth + Zod + ownership check.
 - **Don't write FHIR mapping inline**: it goes through [`lib/fhir/practitioner.ts`](src/lib/fhir/practitioner.ts).
 - **Don't break SEO on `/[slug]`**: the public profile is the product's marketing surface. SSR, JSON-LD, OG meta, and `metadataBase` must stay intact.
 - **Don't bypass `sendSmsBatch` for outbound**: any cohort-scale send must go through the batcher so the 20-per-call rule is honored.
-- **Run `npm test` + `npm run typecheck` + `npm run build`** before declaring a change done. All three are fast (<90s combined).
+- **Run `npm test` + `npm run typecheck` + `npm run build` + `npm run lint`** before declaring a change done. All are fast (<90s combined) and currently green (428 tests, lint 0/0).
 
 ---
 

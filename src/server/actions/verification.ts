@@ -1,5 +1,6 @@
 "use server";
 
+import type { Loose } from "@/lib/db/models/loose";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
@@ -19,7 +20,7 @@ export async function requestVerificationAction(form: FormData): Promise<ActionR
   }
   const bmdc = normalizeBmdc(bmdcRaw);
   const notes = String(form.get("notes") ?? "").slice(0, 1000);
-  const documents = form.getAll("documentKey").map(String).filter(Boolean);
+  const documentFileIds = form.getAll("documentFileId").map(String).filter(Boolean);
 
   await dbConnect();
   const doctor = await Doctor.findOne({ ownerId: session.user.id });
@@ -35,11 +36,11 @@ export async function requestVerificationAction(form: FormData): Promise<ActionR
   // Create the claim/verification request. The same model handles both
   // "claim this unclaimed profile" and "verify my BMDC" — distinguished by
   // whether `isClaimed` was already true.
-  await (ClaimRequest as unknown as { create: Function }).create({
+  await (ClaimRequest as unknown as Loose).create({
     doctorId: doctor._id,
     requestedBy: session.user.id,
     bmdcNumberProvided: bmdc,
-    documentsUploaded: documents,
+    documentFileIds,
     notesFromDoctor: notes || null,
     status: "pending",
   });
@@ -67,7 +68,7 @@ export async function approveClaimAction(claimId: string): Promise<ActionResult>
   const guard = await requireAdmin();
   if (!guard.ok) return guard;
   await dbConnect();
-  const claim = await (ClaimRequest as unknown as { findById: Function }).findById(claimId);
+  const claim = await (ClaimRequest as unknown as Loose).findById(claimId);
   if (!claim) return { ok: false, error: "Request not found." };
   if (claim.get("status") !== "pending") return { ok: false, error: "Already reviewed." };
 
@@ -104,7 +105,7 @@ export async function approveClaimAction(claimId: string): Promise<ActionResult>
   await recordAuditLog({
     type: "claim.approved",
     entityType: "ClaimRequest",
-    entityId: claim._id,
+    entityId: claim._id as string,
     actorId: guard.userId,
     actorRole: "admin",
     actorEmail: guard.email,
@@ -124,7 +125,7 @@ export async function rejectClaimAction(claimId: string, notes: string): Promise
   const guard = await requireAdmin();
   if (!guard.ok) return guard;
   await dbConnect();
-  const claim = await (ClaimRequest as unknown as { findById: Function }).findById(claimId);
+  const claim = await (ClaimRequest as unknown as Loose).findById(claimId);
   if (!claim) return { ok: false, error: "Request not found." };
   if (claim.get("status") !== "pending") return { ok: false, error: "Already reviewed." };
 
@@ -138,7 +139,7 @@ export async function rejectClaimAction(claimId: string, notes: string): Promise
   await recordAuditLog({
     type: "claim.rejected",
     entityType: "ClaimRequest",
-    entityId: claim._id,
+    entityId: claim._id as string,
     actorId: guard.userId,
     actorRole: "admin",
     actorEmail: guard.email,

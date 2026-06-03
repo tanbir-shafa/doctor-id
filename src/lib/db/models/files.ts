@@ -33,6 +33,12 @@ export const FILE_SECURITY_CLASS = Object.freeze({
   INTERNAL: "internal",
 });
 
+export type FileLinkedEntityType =
+  (typeof FILE_LINKED_ENTITY_TYPE)[keyof typeof FILE_LINKED_ENTITY_TYPE];
+export type FileVisibility = (typeof FILE_VISIBILITY)[keyof typeof FILE_VISIBILITY];
+export type FileSecurityClass =
+  (typeof FILE_SECURITY_CLASS)[keyof typeof FILE_SECURITY_CLASS];
+
 const FileSchema = new Schema(
   {
     linkedEntityType: {
