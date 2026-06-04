@@ -20,11 +20,13 @@ export function AdminShell({
   children,
   userEmail,
   pendingClaimCount,
+  pendingIdentityCount,
   pendingEmrCount,
 }: {
   children: React.ReactNode;
   userEmail: string;
   pendingClaimCount: number;
+  pendingIdentityCount: number;
   pendingEmrCount: number;
 }) {
   const [open, setOpen] = useState(false);
@@ -50,7 +52,11 @@ export function AdminShell({
     <div className="min-h-screen bg-slate-100">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block">
-        <AdminSidebar pendingClaimCount={pendingClaimCount} pendingEmrCount={pendingEmrCount} />
+        <AdminSidebar
+          pendingClaimCount={pendingClaimCount}
+          pendingIdentityCount={pendingIdentityCount}
+          pendingEmrCount={pendingEmrCount}
+        />
       </aside>
 
       {/* Mobile drawer */}
@@ -63,7 +69,11 @@ export function AdminShell({
             onClick={() => setOpen(false)}
           />
           <aside className="absolute inset-y-0 left-0 w-64 shadow-xl">
-            <AdminSidebar pendingClaimCount={pendingClaimCount} pendingEmrCount={pendingEmrCount} />
+            <AdminSidebar
+              pendingClaimCount={pendingClaimCount}
+              pendingIdentityCount={pendingIdentityCount}
+              pendingEmrCount={pendingEmrCount}
+            />
           </aside>
         </div>
       ) : null}

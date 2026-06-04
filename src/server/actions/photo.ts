@@ -79,6 +79,35 @@ export async function uploadVerificationDocAction(
   return { ok: true, data: { fileId: result.fileId } };
 }
 
+/**
+ * Server-side identity-document upload (Gov photo ID — NID/Passport/Driving
+ * License) for account verification. Stores the file in the PRIVATE bucket and
+ * returns the new File doc id; requestAccountVerificationAction then attaches it
+ * to the IdentityVerificationRequest. Admins read it back via a presigned GET URL.
+ */
+export async function uploadIdentityDocAction(
+  formData: FormData,
+): Promise<ActionResult<{ fileId: string }>> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Not signed in." };
+
+  await dbConnect();
+  const doctor = await Doctor.findOne({ ownerId: session.user.id });
+  if (!doctor) return { ok: false, error: "No profile found." };
+
+  const result = await uploadDocForPurpose({
+    purposeKey: "doctor_identity",
+    ownerFolderId: session.user.id,
+    file: formData.get("file"),
+    allowed: DOC_MIME_TYPES,
+    linkedEntityId: doctor._id as Types.ObjectId,
+    uploadedBy: session.user.id,
+    title: "Government photo ID",
+  });
+  if (!result.ok) return result;
+  return { ok: true, data: { fileId: result.fileId } };
+}
+
 const SELFIE_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 
 /**

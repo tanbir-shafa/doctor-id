@@ -166,6 +166,7 @@ function buildExtensions(doc: DoctorDocLike): FhirExtension[] {
     { url: `${EXT_PREFIX}/verificationLevel`, valueString: doc.verificationLevel },
     { url: `${EXT_PREFIX}/isClaimed`, valueBoolean: doc.isClaimed },
     { url: `${EXT_PREFIX}/bmdcVerified`, valueBoolean: doc.bmdcVerified },
+    { url: `${EXT_PREFIX}/nidVerified`, valueBoolean: doc.nidVerified },
   ];
 
   if (doc.designation) {

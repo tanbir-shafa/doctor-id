@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor } from "@/lib/db/models";
 import { computeCompleteness } from "@/lib/utils/completeness";
+import { resolveVerifiedNameUpdate } from "@/lib/utils/verification";
 import { uploadDoctorPhotoFromForm } from "@/lib/s3/doctor-photo";
 import { recordAuditLog } from "@/lib/audit/log";
 import type { DoctorDocLike } from "@/types/doctor";
@@ -102,10 +103,27 @@ export async function adminUpdateProfileBasicAction(
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
   const { doctor } = ctx;
+  // Same account-verification name binding as the doctor self-edit
+  // (updateProfileBasicAction) — editing first/last away from the verified
+  // NID name revokes the identity badge, even from the admin editor.
+  const nameDecision = resolveVerifiedNameUpdate({
+    prefix: parsed.data.prefix,
+    firstName: parsed.data.firstName,
+    lastName: parsed.data.lastName,
+    submittedDisplayName: parsed.data.displayName,
+    currentNidVerified: Boolean(doctor.get("nidVerified")),
+    bmdcVerified: Boolean(doctor.get("bmdcVerified")),
+    legalName: doctor.get("legalName") as { first?: string | null; last?: string | null } | null,
+  });
   doctor.set("name.prefix", parsed.data.prefix);
   doctor.set("name.first", parsed.data.firstName);
   doctor.set("name.last", parsed.data.lastName);
-  doctor.set("name.displayName", parsed.data.displayName);
+  doctor.set("name.displayName", nameDecision.displayName);
+  if (nameDecision.revoked) {
+    doctor.set("nidVerified", false);
+    doctor.set("nidVerifiedAt", null);
+  }
+  doctor.set("verificationLevel", nameDecision.verificationLevel);
   if (parsed.data.gender) doctor.set("gender", parsed.data.gender);
   if (parsed.data.languages) doctor.set("languages", parsed.data.languages);
   if (typeof parsed.data.bio === "string") doctor.set("bio", parsed.data.bio);
@@ -114,12 +132,15 @@ export async function adminUpdateProfileBasicAction(
   await doctor.save();
 
   await logAdminEdit({
-    type: "doctor.profile_basic.updated",
+    type: nameDecision.revoked
+      ? "doctor.profile_basic.updated.identity_revoked"
+      : "doctor.profile_basic.updated",
     doctorId: doctor._id,
     adminId: ctx.adminId,
     adminEmail: ctx.adminEmail,
     metadata: {
-      displayName: parsed.data.displayName,
+      displayName: nameDecision.displayName,
+      identityRevoked: nameDecision.revoked,
     },
   });
 

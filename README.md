@@ -30,7 +30,7 @@ EMR without a schema rewrite.
 | Maps | Leaflet + OpenStreetMap (no API key) |
 | OG images | `next/og` (Satori) — 1200 × 630, day-long CDN cache |
 | i18n | `next-intl` patterns, English-only catalog at launch |
-| Tests | Vitest + Testing Library — 454 tests (DB-less) |
+| Tests | Vitest + Testing Library — 467 tests (DB-less) |
 | Deployment | Docker (multi-stage standalone) → AWS ECS Fargate behind ALB |
 
 ---
@@ -150,7 +150,7 @@ tests/               # Vitest
 `lib/fhir/practitioner.ts` is the **single seam** between our internal schema
 and FHIR R4 Practitioner. Anything that exports to an EMR — `/api/v1` consumers
 today, Shafa's HMS later — goes through this mapper. BD-specific fields
-(WhatsApp, BMDC verification level, isClaimed) live on
+(WhatsApp, verification level (BMDC + identity), isClaimed) live on
 `Practitioner.extension` entries under `https://doctor.id.bd/fhir/`. Specialty
 codes are SNOMED CT where one exists.
 
@@ -202,6 +202,17 @@ Each chamber stores `division` + `district` (the canonical 64-district key,
 renamed from `city`), edited via cascading dropdowns sourced from
 `lib/geo/bd-districts.ts`. Location search is `/search?district=` and
 `/[specialty]/[district]`.
+
+### Verification: two axes + the blue tick
+A profile carries two independent verifications: **BMDC** (professional registration →
+`bmdcVerified`; its admin approval also unlocks doctor sign-in) and **account/identity**
+(government photo ID + legal name → `nidVerified`). `verificationLevel` is derived via
+`computeVerificationLevel(bmdc, nid)`, and the blue **"Verified"** tick requires **both** —
+partial states show a lesser chip. Each axis is reviewed in its own admin queue
+(`/admin/verifications`, `/admin/account-verifications`). Account approval binds the profile
+name to the ID's legal name and locks the display name to "prefix first last"; editing
+first/last later **revokes** identity verification. On the public profile the badge is
+click-to-explain (a popover breaks down what's verified). See CLAUDE.md #20.
 
 ---
 
@@ -261,9 +272,9 @@ the SES console.
 
 - **Image cropper**: `react-easy-crop` is installed but not yet wired into
   `PhotoUploader` — uploads happen at the file's natural dimensions for now.
-- **BMDC verification is manual**: there's no public BMDC API. Admin reviews
-  uploaded certificates. Automation is a v2 candidate once an API or scraping
-  partnership is in place.
+- **Verification is manual**: both the BMDC certificate and the account/identity
+  Gov-ID review are done by an admin — there's no public BMDC or NID API. Automation
+  is a v2 candidate once an API or scraping partnership is in place.
 - **Search**: Mongo `$text` index serves us up to ~50k profiles; swap to
   Atlas Search past that.
 - **Reviews & ratings**: out-of-scope until legal review.

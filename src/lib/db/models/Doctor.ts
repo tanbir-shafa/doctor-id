@@ -215,10 +215,31 @@ const DoctorSchema = new Schema(
         },
         bmdcVerified: {type: Boolean, default: false},
         bmdcVerifiedAt: {type: Date, default: null},
+        // Account / identity verification (Gov photo ID + legal name). Set by
+        // approveAccountVerificationAction; revoked if the doctor later edits
+        // their first/last name away from the NID-matched `legalName` snapshot.
         nidVerified: {type: Boolean, default: false},
+        nidVerifiedAt: {type: Date, default: null},
+        // NID-matched legal name snapshot — PRIVATE, never rendered publicly
+        // (treated like `dateOfBirth`). Used only to detect later name edits.
+        legalName: {
+            type: new Schema(
+                {
+                    first: {type: String, default: null, trim: true},
+                    last: {type: String, default: null, trim: true},
+                },
+                {_id: false},
+            ),
+            default: null,
+        },
+        idDocumentType: {
+            type: String,
+            enum: ["nid", "passport", "driving_license", null],
+            default: null,
+        },
         verificationLevel: {
             type: String,
-            enum: ["unverified", "bmdc_verified", "fully_verified"],
+            enum: ["unverified", "bmdc_verified", "identity_verified", "fully_verified"],
             default: "unverified",
             index: true,
         },

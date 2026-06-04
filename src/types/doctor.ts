@@ -11,7 +11,19 @@
  * to Mongoose document types.
  */
 
-export type VerificationLevel = "unverified" | "bmdc_verified" | "fully_verified";
+export type VerificationLevel =
+  | "unverified"
+  | "bmdc_verified"
+  | "identity_verified"
+  | "fully_verified";
+
+export type IdDocumentType = "nid" | "passport" | "driving_license";
+
+/** The NID-matched legal name snapshot, captured at account-verification approval. */
+export interface DoctorLegalName {
+  first: string;
+  last: string;
+}
 export type DoctorStatus = "draft" | "published" | "suspended";
 export type OwnerType = "doctor" | "clinic";
 export type Gender = "male" | "female" | "other" | "prefer_not_to_say";
@@ -151,6 +163,11 @@ export interface DoctorDocLike {
   bmdcVerified: boolean;
   bmdcVerifiedAt?: Date | string | null;
   nidVerified: boolean;
+  nidVerifiedAt?: Date | string | null;
+  /** NID-matched legal name snapshot (private). Drives the name-change guard. */
+  legalName?: DoctorLegalName | null;
+  /** Which Gov ID type was verified (private). */
+  idDocumentType?: IdDocumentType | null;
   verificationLevel: VerificationLevel;
 
   name: DoctorName;

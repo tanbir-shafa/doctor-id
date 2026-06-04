@@ -9,6 +9,7 @@ import type { Loose } from "@/lib/db/models/loose";
 import { profileViewRateLimiter } from "@/lib/redis/ratelimit";
 import { auth } from "@/lib/auth/config";
 import { computeCompleteness } from "@/lib/utils/completeness";
+import { resolveVerifiedNameUpdate } from "@/lib/utils/verification";
 import type { DoctorDocLike } from "@/types/doctor";
 import type { HomeScoreboard } from "@/types/home";
 import bcrypt from "bcryptjs";
@@ -156,10 +157,27 @@ export async function updateProfileBasicAction(form: FormData): Promise<ActionRe
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
   const { doctor } = ctx;
+  // Account verification binds the profile name to the NID legal name. Editing
+  // first/last away from the verified snapshot revokes the identity badge; the
+  // display name is locked to "prefix first last" while still verified.
+  const nameDecision = resolveVerifiedNameUpdate({
+    prefix: parsed.data.prefix,
+    firstName: parsed.data.firstName,
+    lastName: parsed.data.lastName,
+    submittedDisplayName: parsed.data.displayName,
+    currentNidVerified: Boolean(doctor.get("nidVerified")),
+    bmdcVerified: Boolean(doctor.get("bmdcVerified")),
+    legalName: doctor.get("legalName") as { first?: string | null; last?: string | null } | null,
+  });
   doctor.set("name.prefix", parsed.data.prefix);
   doctor.set("name.first", parsed.data.firstName);
   doctor.set("name.last", parsed.data.lastName);
-  doctor.set("name.displayName", parsed.data.displayName);
+  doctor.set("name.displayName", nameDecision.displayName);
+  if (nameDecision.revoked) {
+    doctor.set("nidVerified", false);
+    doctor.set("nidVerifiedAt", null);
+  }
+  doctor.set("verificationLevel", nameDecision.verificationLevel);
   if (parsed.data.gender) doctor.set("gender", parsed.data.gender);
   if (parsed.data.languages) doctor.set("languages", parsed.data.languages);
   if (typeof parsed.data.bio === "string") doctor.set("bio", parsed.data.bio);

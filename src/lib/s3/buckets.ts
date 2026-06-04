@@ -54,6 +54,11 @@ export const UPLOAD_PURPOSE = Object.freeze({
     bucketType: BUCKET_TYPE.PRIVATE,
     category: "doctor_verification",
   },
+  doctor_identity: {
+    folder: "doctor/identity/gov-id",
+    bucketType: BUCKET_TYPE.PRIVATE,
+    category: "doctor_identity",
+  },
   doctor_selfie: {
     folder: "doctor/identity/selfie",
     bucketType: BUCKET_TYPE.PRIVATE,

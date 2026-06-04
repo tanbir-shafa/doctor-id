@@ -4,8 +4,10 @@ import type { Loose } from "@/lib/db/models/loose";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
-import { Doctor, ClaimRequest, User } from "@/lib/db/models";
+import { Doctor, ClaimRequest, IdentityVerificationRequest, User } from "@/lib/db/models";
 import { normalizeBmdc, isValidBmdcFormat } from "@/lib/utils/bmdc";
+import { computeVerificationLevel } from "@/lib/utils/verification";
+import { AccountVerificationSchema } from "@/lib/validators/verification";
 import { recordAuditLog } from "@/lib/audit/log";
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
@@ -50,6 +52,56 @@ export async function requestVerificationAction(form: FormData): Promise<ActionR
   return { ok: true };
 }
 
+/**
+ * Account (identity) verification request — doctor submits a Gov photo ID +
+ * legal first/last name. Admin reviews in /admin/account-verifications. This
+ * is independent of the BMDC claim flow and never touches sign-in state.
+ */
+export async function requestAccountVerificationAction(form: FormData): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Not signed in." };
+
+  const parsed = AccountVerificationSchema.safeParse({
+    legalFirstName: form.get("legalFirstName"),
+    legalLastName: form.get("legalLastName"),
+    idDocumentType: form.get("idDocumentType"),
+    documentFileIds: form.getAll("documentFileId").map(String).filter(Boolean),
+    notes: String(form.get("notes") ?? "") || undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  await dbConnect();
+  const doctor = await Doctor.findOne({ ownerId: session.user.id });
+  if (!doctor) return { ok: false, error: "No profile found." };
+  if (doctor.get("nidVerified")) {
+    return { ok: false, error: "Your account is already verified." };
+  }
+
+  // One open request at a time — avoids duplicate queue entries.
+  const existing = await (IdentityVerificationRequest as unknown as Loose)
+    .findOne({ doctorId: doctor._id, status: "pending" })
+    .lean();
+  if (existing) {
+    return { ok: false, error: "You already have an account verification under review." };
+  }
+
+  await (IdentityVerificationRequest as unknown as Loose).create({
+    doctorId: doctor._id,
+    requestedBy: session.user.id,
+    legalName: { first: parsed.data.legalFirstName, last: parsed.data.legalLastName },
+    idDocumentType: parsed.data.idDocumentType,
+    documentFileIds: parsed.data.documentFileIds,
+    notesFromDoctor: parsed.data.notes || null,
+    status: "pending",
+  });
+
+  revalidatePath("/dashboard/verification");
+  revalidatePath("/admin/account-verifications");
+  return { ok: true };
+}
+
 // --- Admin review ---
 
 async function requireAdmin() {
@@ -80,7 +132,7 @@ export async function approveClaimAction(claimId: string): Promise<ActionResult>
   doctor.set("bmdcVerifiedAt", now);
   doctor.set(
     "verificationLevel",
-    doctor.get("nidVerified") ? "fully_verified" : "bmdc_verified",
+    computeVerificationLevel(true, Boolean(doctor.get("nidVerified"))),
   );
   if (!doctor.get("isClaimed")) {
     doctor.set("isClaimed", true);
@@ -150,6 +202,102 @@ export async function rejectClaimAction(claimId: string, notes: string): Promise
   });
 
   revalidatePath("/admin/verifications");
+  return { ok: true };
+}
+
+// --- Admin review: account (identity) verification ---
+
+export async function approveAccountVerificationAction(requestId: string): Promise<ActionResult> {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
+  await dbConnect();
+  const req = await (IdentityVerificationRequest as unknown as Loose).findById(requestId);
+  if (!req) return { ok: false, error: "Request not found." };
+  if (req.get("status") !== "pending") return { ok: false, error: "Already reviewed." };
+
+  const doctor = await Doctor.findById(req.get("doctorId"));
+  if (!doctor) return { ok: false, error: "Linked doctor not found." };
+
+  const legal = (req.get("legalName") ?? {}) as { first?: string; last?: string };
+  const first = String(legal.first ?? "").trim();
+  const last = String(legal.last ?? "").trim();
+  if (!first || !last) return { ok: false, error: "Request is missing the legal name." };
+
+  const now = new Date();
+  const prefix = String(doctor.get("name.prefix") ?? "Dr.");
+  // Bind the profile name to the verified NID legal name and lock the public
+  // display name to "prefix first last" (see the name-change guard).
+  doctor.set("name.first", first);
+  doctor.set("name.last", last);
+  doctor.set("name.displayName", `${prefix} ${first} ${last}`.replace(/\s+/g, " ").trim());
+  doctor.set("legalName", { first, last });
+  doctor.set("idDocumentType", req.get("idDocumentType"));
+  doctor.set("nidVerified", true);
+  doctor.set("nidVerifiedAt", now);
+  doctor.set(
+    "verificationLevel",
+    computeVerificationLevel(Boolean(doctor.get("bmdcVerified")), true),
+  );
+  await doctor.save();
+
+  req.set("status", "approved");
+  req.set("reviewedBy", guard.userId);
+  req.set("reviewedAt", now);
+  req.set("verifiedAt", now);
+  await req.save();
+
+  await recordAuditLog({
+    type: "identity.approved",
+    entityType: "IdentityVerificationRequest",
+    entityId: req._id as string,
+    actorId: guard.userId,
+    actorRole: "admin",
+    actorEmail: guard.email,
+    metadata: {
+      doctorId: String(doctor._id),
+      doctorSlug: doctor.get("slug"),
+      verificationLevel: doctor.get("verificationLevel"),
+      idDocumentType: req.get("idDocumentType"),
+    },
+  });
+
+  revalidatePath(`/${doctor.get("slug")}`);
+  revalidatePath("/admin/account-verifications");
+  return { ok: true };
+}
+
+export async function rejectAccountVerificationAction(
+  requestId: string,
+  notes: string,
+): Promise<ActionResult> {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
+  await dbConnect();
+  const req = await (IdentityVerificationRequest as unknown as Loose).findById(requestId);
+  if (!req) return { ok: false, error: "Request not found." };
+  if (req.get("status") !== "pending") return { ok: false, error: "Already reviewed." };
+
+  const trimmedNotes = String(notes || "").slice(0, 1000);
+  req.set("status", "rejected");
+  req.set("reviewedBy", guard.userId);
+  req.set("reviewedAt", new Date());
+  req.set("reviewerNotes", trimmedNotes);
+  await req.save();
+
+  await recordAuditLog({
+    type: "identity.rejected",
+    entityType: "IdentityVerificationRequest",
+    entityId: req._id as string,
+    actorId: guard.userId,
+    actorRole: "admin",
+    actorEmail: guard.email,
+    note: trimmedNotes || null,
+    metadata: {
+      doctorId: String(req.get("doctorId")),
+    },
+  });
+
+  revalidatePath("/admin/account-verifications");
   return { ok: true };
 }
 

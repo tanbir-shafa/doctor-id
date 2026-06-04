@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   ShieldCheck,
+  IdCard,
   Users,
   Tag,
   Stethoscope,
@@ -26,9 +27,11 @@ import { cn } from "@/lib/utils";
  */
 export function AdminSidebar({
   pendingClaimCount,
+  pendingIdentityCount,
   pendingEmrCount,
 }: {
   pendingClaimCount: number;
+  pendingIdentityCount: number;
   pendingEmrCount: number;
 }) {
   const pathname = usePathname();
@@ -61,7 +64,16 @@ export function AdminSidebar({
           badge={pendingClaimCount}
           badgeTone={pendingClaimCount > 0 ? "rose" : "slate"}
         >
-          Queue
+          BMDC queue
+        </NavItem>
+        <NavItem
+          href="/admin/account-verifications"
+          icon={IdCard}
+          active={pathname.startsWith("/admin/account-verifications")}
+          badge={pendingIdentityCount}
+          badgeTone={pendingIdentityCount > 0 ? "rose" : "slate"}
+        >
+          Account ID
         </NavItem>
         <NavItem
           href="/admin/emr-queue"

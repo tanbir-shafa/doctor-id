@@ -2,7 +2,7 @@ import type { Loose } from "@/lib/db/models/loose";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
-import { ClaimRequest, User } from "@/lib/db/models";
+import { ClaimRequest, IdentityVerificationRequest, User } from "@/lib/db/models";
 import { AdminShell } from "@/components/admin/shell";
 
 /**
@@ -21,8 +21,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (session.user.role !== "admin") redirect("/dashboard");
 
   await dbConnect();
-  const [pendingClaimCount, pendingEmrCount] = await Promise.all([
+  const [pendingClaimCount, pendingIdentityCount, pendingEmrCount] = await Promise.all([
     (ClaimRequest as unknown as Loose).countDocuments({
+      status: "pending",
+    }),
+    (IdentityVerificationRequest as unknown as Loose).countDocuments({
       status: "pending",
     }),
     (User as unknown as Loose).countDocuments({
@@ -35,6 +38,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <AdminShell
       userEmail={session.user.email ?? ""}
       pendingClaimCount={pendingClaimCount}
+      pendingIdentityCount={pendingIdentityCount}
       pendingEmrCount={pendingEmrCount}
     >
       {children}

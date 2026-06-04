@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Award, Building2, Eye, MapPin } from "lucide-react";
-import { VerifiedBadge } from "./verified-badge";
+import { VerifiedBadgeExplainer } from "./verified-badge-explainer";
 import type { DoctorDocLike } from "@/types/doctor";
 
 // 30-day view chip is hidden below this threshold — tiny numbers look bad.
@@ -36,7 +36,7 @@ export function ProfileHeader({ doctor }: { doctor: DoctorDocLike }) {
 
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <VerifiedBadge level={doctor.verificationLevel} />
+            <VerifiedBadgeExplainer level={doctor.verificationLevel} />
             {!doctor.isClaimed ? (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
                 Unclaimed profile

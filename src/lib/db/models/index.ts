@@ -4,6 +4,7 @@ export { Chamber } from "./Chamber";
 export { Doctor } from "./Doctor";
 export { ProfileView } from "./ProfileView";
 export { ClaimRequest } from "./ClaimRequest";
+export { IdentityVerificationRequest } from "./IdentityVerificationRequest";
 export { AppointmentRequest } from "./AppointmentRequest";
 export { OutboundMessage } from "./OutboundMessage";
 export { OptOut } from "./OptOut";

@@ -8,12 +8,13 @@
 
 import type { Loose } from "@/lib/db/models/loose";
 import { ClaimRequest } from "@/lib/db/models/ClaimRequest";
+import { IdentityVerificationRequest } from "@/lib/db/models/IdentityVerificationRequest";
 import { Doctor } from "@/lib/db/models";
 import { dbConnect } from "@/lib/db/mongoose";
 import { classifySla, VERIFICATION_SLA_MS } from "@/lib/sla";
 import { getPresignedUrl } from "@/lib/s3/s3-service";
 import { env } from "@/lib/env";
-import type { DoctorDocLike, VerificationLevel } from "@/types/doctor";
+import type { DoctorDocLike, VerificationLevel, IdDocumentType } from "@/types/doctor";
 
 export { classifySla, formatDuration, type SlaTone, type SlaClassification } from "@/lib/sla";
 
@@ -141,6 +142,98 @@ export async function listPendingClaimRequests(now: Date = new Date()): Promise<
 /** VERIFICATION_SLA_MS re-export so UIs can show the 24h promise without
  *  importing the model. */
 export const SLA_WINDOW_MS = VERIFICATION_SLA_MS;
+
+// --- Account (identity) verification queue ---
+
+export interface AdminIdentityItem {
+  _id: string;
+  status: "pending" | "approved" | "rejected";
+  legalName: { first: string; last: string };
+  idDocumentType: IdDocumentType;
+  /** Gov ID image(s) as presigned GET URLs (private bucket). */
+  documents: AdminVerificationDocument[];
+  notesFromDoctor: string | null;
+  createdAt: string;
+  slaExpiresAt: string | null;
+  verifiedAt: string | null;
+  doctorId: {
+    _id: string;
+    slug: string;
+    name: { displayName: string; prefix: string; first: string; last: string };
+    verificationLevel: VerificationLevel;
+  };
+  requestedBy: {
+    _id: string;
+    email: string;
+    phone: string | null;
+    phoneVerified: boolean;
+    approved: boolean;
+    role: "doctor" | "admin" | "patient";
+  } | null;
+}
+
+export interface AdminIdentityListResult {
+  items: AdminIdentityItem[];
+  buckets: { breached: number; lt6h: number; lt12h: number; gt12h: number };
+}
+
+/**
+ * List pending identity-verification requests ordered by SLA breach risk
+ * (oldest expiry first). Mirrors `listPendingClaimRequests`, but the documents
+ * are the Gov photo ID (no BMDC/selfie). The current profile name is populated
+ * so the reviewer can compare it against the submitted legal name.
+ */
+export async function listPendingIdentityRequests(
+  now: Date = new Date(),
+): Promise<AdminIdentityListResult> {
+  const pending = await (IdentityVerificationRequest as unknown as Loose)
+    .find({ status: "pending" })
+    .sort({ slaExpiresAt: 1, createdAt: 1 })
+    .populate("doctorId", "slug name verificationLevel")
+    .populate("requestedBy", "email phone phoneVerified approved role")
+    .populate("documentFileIds", "s3Bucket s3Key mimeType originalFileName")
+    .lean();
+
+  const raw = (pending as unknown[]).map(
+    (c) =>
+      JSON.parse(JSON.stringify(c)) as AdminIdentityItem & {
+        documentFileIds?: Array<{
+          s3Bucket?: string;
+          s3Key?: string;
+          mimeType?: string;
+          originalFileName?: string;
+        }>;
+      },
+  );
+
+  const items: AdminIdentityItem[] = await Promise.all(
+    raw.map(async (c) => {
+      const documents = await Promise.all(
+        (c.documentFileIds ?? []).map(async (f) => ({
+          name: f.originalFileName ?? (f.s3Key ?? "").split("/").pop() ?? "document",
+          mimeType: f.mimeType ?? null,
+          url:
+            f.s3Bucket && f.s3Key
+              ? await getPresignedUrl(f.s3Bucket, f.s3Key, 3600, {
+                  ResponseContentDisposition: "inline",
+                })
+              : null,
+        })),
+      );
+      return { ...c, documents };
+    }),
+  );
+
+  const buckets = { breached: 0, lt6h: 0, lt12h: 0, gt12h: 0 };
+  for (const c of items) {
+    const k = classifySla(c, now).bucket;
+    if (k === "breached" || k === "lt6h" || k === "lt12h" || k === "gt12h") {
+      buckets[k] += 1;
+    }
+  }
+
+  return { items, buckets };
+}
 
 // --- Admin doctor list ---
 

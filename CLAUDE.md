@@ -14,8 +14,11 @@ rewrite.
 of the 60-day acquisition plan) + **S3 re-platform & mandatory live-selfie
 registration** (#17) + **SSL Wireless SMS** (#14) + **contact-private-by-default
 & opt-in WhatsApp appointment button** (#18) + **chamber `city`→`district` rename
-with cascading division/district dropdowns** (#19). Production `next build` green.
-**454 Vitest tests passing** (`npm run lint` clean). Real public-Bangladesh data ingested (Popular
+with cascading division/district dropdowns** (#19) + **two verification axes
+(BMDC + account/identity) with combined blue tick, name binding & click-to-explain
+public badge** (#20).
+Production `next build` green.
+**467 Vitest tests passing** (`npm run lint` clean). Real public-Bangladesh data ingested (Popular
 Diagnostic, 3,237 doctors). See [`.claude/progress/mvp-progress.md`](./.claude/progress/mvp-progress.md)
 for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-started.md).
 
@@ -59,13 +62,15 @@ src/
       auth/admin/login        admin email+password sign-in (new)
       auth/{forgot,reset,verify-email}
     (dashboard)/     /dashboard/* (auth-gated by proxy + layout guard)
-      dashboard/{profile,chambers,photos,verification,analytics,settings}
+      dashboard/{profile,chambers,photos,analytics,settings}
+      dashboard/verification         BMDC + account (identity) request forms (#20)
       dashboard/requests             appointment inbox (A.3)
       dashboard/prescription-pad     Rx pad preview + download (A.2)
         download/route.ts            GET → application/pdf via @react-pdf/renderer
     admin/           /admin/* (role-gated — admin only)
       admin/{doctors,specialties}
-      admin/verifications            claim review queue (A.7)
+      admin/verifications            BMDC claim review queue (A.7)
+      admin/account-verifications    identity (Gov ID + legal name) review queue (#20)
       admin/emr-queue                manual EMR seat provisioning (A.5)
       admin/outbound                 campaign telemetry + opt-out roster (A.8)
     api/v1/          public REST API (doctors, doctors/[slug], specialties,
@@ -79,6 +84,7 @@ src/
     ui/              shadcn primitives: Button, Input, Label, Card
     profile/         ProfileHeader, ChamberCard, ScheduleGrid, ShareButton (QR),
                      WhatsappButton, ReportButton, VerifiedBadge,
+                     VerifiedBadgeExplainer (click-to-explain public badge — #20),
                      AppointmentRequestForm (A.3)
     search/          DoctorCard, Pagination, SpecialtyListing
     map/             LeafletMap (client, picker-aware) + LeafletLazy boundary
@@ -107,8 +113,9 @@ src/
     sla.ts           classifySla() + formatDuration() — A.7 (model-free; client-safe)
     seo/             jsonld.ts (Physician + MedicalBusiness) + meta.ts
     geo/             bd-districts.ts (8 divisions, 64 districts + canonicalize) — see #19
-    utils/           cn, slug, bmdc, sanitize, completeness, phone, name-parser, otp
-    validators/      Zod: auth, doctor, appointment — single source of truth
+    utils/           cn, slug, bmdc, sanitize, completeness, phone, name-parser, otp,
+                     verification (computeVerificationLevel + resolveVerifiedNameUpdate — #20)
+    validators/      Zod: auth, doctor, appointment, verification — single source of truth
     api/             withApiHandler() wrapper for /api/v1 routes
     env.ts           Zod-validated runtime env loader (lazy, fails fast)
   server/actions/
@@ -118,8 +125,10 @@ src/
     doctor.ts        loadMyDoctor, updateProfile*, updateChambersAction (A.6),
                      setPublishStatus, recordProfileView, reportProfile
     photo.ts         uploadProfilePhotoAction, uploadVerificationDocAction,
+                     uploadIdentityDocAction (Gov ID — #20),
                      uploadRegistrationSelfieAction (unauth live selfie) — server-side S3 (#17)
-    verification.ts  requestVerification, approve/reject claim (flips User.approved)
+    verification.ts  requestVerification + approve/reject claim (BMDC; flips User.approved),
+                     requestAccountVerification + approve/rejectAccountVerification (identity — #20)
     appointment.ts   createAppointmentRequestAction (public), updateStatus (A.3)
     emr.ts           markEmrReadyAction (admin), declineEmrAction (doctor) — A.5
     outbound.ts      addOptOutAction, removeOptOutAction — A.8
@@ -133,7 +142,7 @@ scripts/
   fetch-*.ts         one-shot snapshot scripts (Popular, Ibn Sina)
 data/
   popular-diagnostic/{doctor-ids,details,photos,meta}.json   (3,237 doctors)
-tests/               44 files, 454 tests — Vitest, DB-less
+tests/               46 files, 467 tests — Vitest, DB-less
 doc/                 developer guides (getting-started.md)
 .claude/
   plans/             roadmaps + plan files
@@ -376,6 +385,43 @@ reseed adopts the rename — the ingestion writers (`seed-unified.ts`,
 needed. When renaming chamber fields, always update those writers too — they
 write the embedded subdoc and Mongoose `required` would fail a stale key at save.
 
+### 20. Two verification axes + the "blue tick" + name binding
+A profile has **two independent verifications**, each with its own dashboard
+card, request model, and admin queue — never conflate them:
+- **BMDC** (professional) → `Doctor.bmdcVerified`, via `ClaimRequest` +
+  [`/admin/verifications`](src/app/admin/verifications/page.tsx). Approval also
+  flips `User.approved` (the **sign-in gate**).
+- **Account / identity** (Gov photo ID + legal name) → `Doctor.nidVerified`, via
+  the separate [`IdentityVerificationRequest`](src/lib/db/models/IdentityVerificationRequest.ts)
+  model + [`/admin/account-verifications`](src/app/admin/account-verifications/page.tsx).
+  Approval **never** touches `User.approved` — keep the identity flow off the
+  login gate.
+
+`verificationLevel` is a **derived** field, never set ad-hoc — always recompute
+via [`computeVerificationLevel(bmdc, nid)`](src/lib/utils/verification.ts):
+both→`fully_verified`, bmdc→`bmdc_verified`, nid→`identity_verified`,
+neither→`unverified`. The **blue "Verified" tick** = `fully_verified` (both
+axes); partial states show their own chip. The dashboard card for each axis
+hides its form based on the doctor's **own flag** (`bmdcVerified`/`nidVerified`),
+not on a stray pending request — that was the original BMDC bug.
+
+**Name binding (will bite if forgotten):** account approval sets the profile
+`name.first`/`last` to the verified NID legal name, locks the public
+`name.displayName` to `prefix + first + last`, and snapshots `Doctor.legalName
+{first,last}`. Any later edit of first/last **revokes** identity verification.
+This is enforced by the pure [`resolveVerifiedNameUpdate`](src/lib/utils/verification.ts),
+which **must** be called from every action that writes the name — currently
+both [`updateProfileBasicAction`](src/server/actions/doctor.ts) (doctor) and
+[`adminUpdateProfileBasicAction`](src/server/actions/admin-doctor.ts) (admin). A
+prefix-only change does not revoke. New name-write paths must route through it.
+
+On the **public profile** the badge is click-to-explain:
+[profile-header.tsx](src/components/profile/profile-header.tsx) renders
+[`VerifiedBadgeExplainer`](src/components/profile/verified-badge-explainer.tsx) — a
+client popover that breaks down the BMDC + identity state for that profile — instead of
+the bare `VerifiedBadge`. The badge stays **static everywhere else** (admin list, search
+cards, home, dashboard), so only the public surface pays for the client island.
+
 ---
 
 ## Scripts
@@ -437,7 +483,7 @@ finished yet, but the integration seam exists:
 - **Don't break SEO on `/[slug]`**: the public profile is the product's marketing surface. SSR, JSON-LD, OG meta, and `metadataBase` must stay intact.
 - **Don't bypass `sendSmsBatch` for outbound**: any cohort-scale send must go through the batcher so the active provider's per-call batching rules are honored. Don't call a provider directly — go through the `sendSms`/`sendSmsBatch` facade.
 - **Don't reintroduce `chambers[].city`**: the chamber location key is `district` (#19). Source it from [`bd-districts.ts`](src/lib/geo/bd-districts.ts); never hard-code a city/district free-text input.
-- **Run `npm test` + `npm run typecheck` + `npm run build` + `npm run lint`** before declaring a change done. All are fast (<90s combined) and currently green (454 tests, lint 0/0).
+- **Run `npm test` + `npm run typecheck` + `npm run build` + `npm run lint`** before declaring a change done. All are fast (<90s combined) and currently green (467 tests, lint 0/0).
 
 ---
 

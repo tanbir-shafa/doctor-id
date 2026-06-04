@@ -253,6 +253,12 @@ to your `npm run dev` console**. Walk through it:
 7. Click **"Approve & unlock login"** — flips `User.approved: true` and `Doctor.bmdcVerified: true`.
 8. In the doctor's browser, hit `/auth/login` and enter the same phone → OTP arrives in the console → enter it → land on `/dashboard?welcome=1`.
 
+> **Two verification axes.** `/dashboard/verification` now shows two cards: **BMDC** (what
+> you just approved — it's the one that unlocks login) and **Account verification** (a
+> government photo ID + legal name, reviewed separately at `/admin/account-verifications`).
+> The blue **"Verified"** tick appears only once *both* are approved; account approval does
+> **not** affect login. See CLAUDE.md #20.
+
 ### 7.2 Test the prescription-pad PDF
 
 After claiming, in the doctor dashboard click **Prescription pad** in the
@@ -318,7 +324,7 @@ personalized messages per `/send-sms/dynamic` call (MDL caps at 20). See
 Run the full quality-gate before committing:
 
 ```bash
-npm test           # Vitest (454 tests, DB-less, ~3s)
+npm test           # Vitest (467 tests, DB-less, ~3s)
 npm run typecheck  # tsc --noEmit
 npm run build      # production build (~10s)
 ```
@@ -341,6 +347,7 @@ The repo follows the App Router. High-level map (full version in
 | `src/app/(dashboard)/dashboard/` | Doctor dashboard |
 | `src/app/admin/` | Admin portal (AdminLTE-style shell) |
 | `src/lib/db/models/` | Mongoose schemas — start here when changing data |
+| `src/lib/utils/verification.ts` | Verification level + name-binding helpers; identity queue = `/admin/account-verifications`, model `IdentityVerificationRequest` (#20) |
 | `src/lib/sms/client.ts` | SMS provider facade (`sendSms`/`sendSmsBatch`) — SSL Wireless + MDL |
 | `src/lib/geo/bd-districts.ts` | 8 divisions + 64 districts (chamber dropdowns + canonicalize) |
 | `src/lib/rx-pad/dto.ts` + `src/components/pdf/rx-pad.tsx` | Rx pad pipeline (A.2) |
@@ -363,12 +370,19 @@ promote a different email, set `ADMIN_EMAILS=foo@example.com,bar@example.com`
 in `.env.local` before running the seed. Or update the User directly in
 Mongo (Compass: set `role: "admin"`, `approved: true`).
 
-### Approve a pending doctor
+### Approve a pending doctor (BMDC + login)
 
 Visit `/admin/verifications`. Each row shows the requester's phone/email +
 attached documents + a 24h SLA countdown. Click **Approve & unlock login**.
 That flips both `Doctor.bmdcVerified` and `User.approved` — the doctor can
-then sign in via phone-OTP.
+then sign in via phone-OTP. **This BMDC queue is the only one that unlocks login.**
+
+### Approve account / identity verification
+
+Visit `/admin/account-verifications` (a separate queue). Review the government
+photo ID + legal name, then click **Approve & grant verification** — this flips
+`Doctor.nidVerified` and, combined with BMDC, grants the blue **"Verified"** tick.
+It does **not** touch login. See CLAUDE.md #20.
 
 ### Mark an EMR seat ready
 
@@ -431,7 +445,7 @@ npm run seed:unified                 # or: npm run seed -- --source=popular-diag
 | Photos broken on `/[slug]` | Image host not whitelisted | Check `next.config.ts:images.remotePatterns`. Popular CDN is already in the list. |
 | `Cannot overwrite model once compiled` in dev | Old code shape on a model file | All models use `(models.X as Model<…>) ?? model("X", schema)` — make sure new models follow that pattern |
 | OTP never arrives | SMS creds unset (expected in dev) | Check the `npm run dev` console — the OTP prints there. If SSL creds **are** set but no SMS arrives, confirm your egress IP is whitelisted in the SSL portal (the server logs `[ssl SMS] … failed: …`). |
-| Claim succeeds but doctor can't log in | Admin approval gate (intentional) | Approve at `/admin/verifications` |
+| Claim succeeds but doctor can't log in | Admin approval gate (intentional); login is unlocked by the **BMDC** queue only | Approve at `/admin/verifications`. (Account/identity verification at `/admin/account-verifications` does **not** affect login.) |
 | `npm test` failing on seed dependencies | jsdom can't load server modules | Use `// @vitest-environment node` for any test touching `env()` / Mongoose |
 
 For deeper debugging, the progress log at
