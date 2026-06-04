@@ -13,8 +13,8 @@ type Step = "phone" | "otp";
 /**
  * Doctor login — phone + SMS OTP only.
  *
- * Step 1: enter phone → `requestLoginOtpAction` (silent no-op if the phone
- *   isn't a real account, so attackers can't enumerate).
+ * Step 1: enter phone → `requestLoginOtpAction` (returns a clear error if no
+ *   account exists for the number, so the user knows to register).
  * Step 2: enter the 6-digit OTP → `signIn("sms-otp")` mints the session.
  *
  * Admins use `/auth/admin/login` instead.
@@ -38,7 +38,7 @@ export function DoctorLoginForm({ defaultPhone = "", next }: { defaultPhone?: st
         setError(result.error);
         return;
       }
-      setInfo("If this phone is registered, we sent a 6-digit code. Expires in 10 minutes.");
+      setInfo("We sent a 6-digit code to your phone. It expires in 10 minutes.");
       setStep("otp");
     });
   }

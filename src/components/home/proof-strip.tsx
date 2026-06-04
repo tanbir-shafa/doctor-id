@@ -16,7 +16,7 @@ export function ProofStrip({
   views30d,
   featured,
 }: {
-  stats: { totalDoctors: number; verifiedDoctors: number; cities: number; specialties: number };
+  stats: { totalDoctors: number; verifiedDoctors: number; districts: number; specialties: number };
   views30d: number;
   featured: FeaturedDoctor[];
 }) {
@@ -26,7 +26,7 @@ export function ProofStrip({
         <div className="grid gap-6 sm:grid-cols-4">
           <Stat value={nf.format(stats.totalDoctors)} label="doctors listed" />
           <Stat value={nf.format(stats.verifiedDoctors)} label="verified profiles" />
-          <Stat value={nf.format(stats.cities)} label="cities" />
+          <Stat value={nf.format(stats.districts)} label="districts" />
           <Stat value={nf.format(stats.specialties)} label="specialties" />
         </div>
 
@@ -69,7 +69,7 @@ export function ProofStrip({
                         <VerifiedBadge level={d.verificationLevel} />
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {[d.specialty, d.city].filter(Boolean).join(" · ") || "Doctor"}
+                        {[d.specialty, d.district].filter(Boolean).join(" · ") || "Doctor"}
                       </span>
                     </span>
                   </Link>

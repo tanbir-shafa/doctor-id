@@ -266,7 +266,7 @@ export function normalizeDoctorBangladeshPost(
                   name: chamberName,
                   address: chamberName,
                   area: geo.area ?? geo.city,
-                  city: geo.city,
+                  district: geo.city,
                   division: geo.division,
                   coordinates: undefined,
                   phone: undefined,
@@ -288,10 +288,10 @@ export function normalizeDoctorBangladeshPost(
 
     const nameKey = normalizeNameForMatch(parsedName.displayName) ?? undefined;
     const primary = specialties[0]?.name?.toLowerCase();
-    const district = chambers[0]?.city?.toLowerCase();
+    const district = chambers[0]?.district?.toLowerCase();
     const specialtyDistrictKey = primary && district ? `${primary}|${district}` : undefined;
     const chamberAddressKeys = chambers
-        .map((c) => `${c.area}|${c.city}`.toLowerCase())
+        .map((c) => `${c.area}|${c.district}`.toLowerCase())
         .filter(Boolean);
 
     return {

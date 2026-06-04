@@ -157,7 +157,7 @@ export async function GET(
                         ) : null}
                         {chamber ? (
                             <div style={{fontSize: 18, color: "#64748b", display: "flex"}}>
-                                {chamber.area}, {chamber.city}
+                                {chamber.area}, {chamber.district}
                             </div>
                         ) : null}
                         {isVerified ? (

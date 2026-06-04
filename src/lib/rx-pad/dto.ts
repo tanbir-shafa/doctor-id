@@ -164,7 +164,7 @@ export function buildRxPadDto(
 
   const chambers: RxPadChamber[] = (doctor.chambers ?? []).map((c) => ({
     name: c.name,
-    address: [c.address, c.area, c.city].filter(Boolean).join(", "),
+    address: [c.address, c.area, c.district].filter(Boolean).join(", "),
     phone: c.phone ?? null,
     schedule: formatSchedule(c.schedule ?? []),
     consultationFee:

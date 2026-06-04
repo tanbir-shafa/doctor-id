@@ -21,7 +21,7 @@ const baseDoc: DoctorDocLike = {
       name: "Apollo",
       address: "100 Road",
       area: "Bashundhara",
-      city: "Dhaka",
+      district: "Dhaka",
       division: "Dhaka",
       coordinates: { lat: 23.81, lng: 90.42 },
       phone: "+8801711000000",

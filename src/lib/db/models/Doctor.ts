@@ -98,7 +98,7 @@ const ChamberSchema = new Schema(
         name: {type: String, required: true, trim: true},
         address: {type: String, required: true, trim: true},
         area: {type: String, required: true, trim: true},
-        city: {type: String, required: true, trim: true},
+        district: {type: String, required: true, trim: true},
         division: {type: String, required: true, trim: true},
         coordinates: {
             lat: {type: Number, default: null},
@@ -106,7 +106,7 @@ const ChamberSchema = new Schema(
         },
         phone: {type: String, default: null, trim: true},
         // FK to the source-of-truth Chamber collection (facility identity). The
-        // name/address/area/city/division/phone above are a denormalized cache for
+        // name/address/area/district/division/phone above are a denormalized cache for
         // joinless SSR reads — same pattern as PhotoSchema (CLAUDE.md #12).
         chamberLocationId: {type: String, default: null, index: true},
         floor: {type: String, default: null, trim: true},
@@ -279,9 +279,14 @@ const DoctorSchema = new Schema(
         seoTitle: {type: String, default: null},
         seoDescription: {type: String, default: null},
 
-        // Privacy toggles (hide phone/email from public profile).
-        privacyHidePhone: {type: Boolean, default: false},
-        privacyHideEmail: {type: Boolean, default: false},
+        // Privacy toggles (hide phone/email from public profile). Default to
+        // HIDDEN — a doctor opts in to showing contact details publicly.
+        privacyHidePhone: {type: Boolean, default: true},
+        privacyHideEmail: {type: Boolean, default: true},
+
+        // Show the "Chat on WhatsApp" appointment button on the public profile.
+        // Opt-in (default off); needs a WhatsApp (or non-hidden public phone) to render.
+        whatsappAppointmentEnabled: {type: Boolean, default: false},
 
         // Annotation set by the deterministic-dedup pipeline
         // (scripts/merge-dup-deterministic.ts) when a candidate group could
@@ -317,11 +322,11 @@ DoctorSchema.index(
 
 // MongoDB cannot index two array fields in a single compound index (parallel
 // arrays error). We split the category-page index into two single-field
-// indexes — the planner intersects them efficiently for /[specialty]/[city].
+// indexes — the planner intersects them efficiently for /[specialty]/[district].
 DoctorSchema.index({"specialties.name": 1});
-// `chambers.city` holds the canonical 64-district (location query key);
+// `chambers.district` holds the canonical 64-district (location query key);
 // `chambers.chamberLocationId` is indexed field-level on ChamberSchema (reverse lookup).
-DoctorSchema.index({"chambers.city": 1});
+DoctorSchema.index({"chambers.district": 1});
 // Idempotent ingestion key — partial so manual/claimed docs (no provenance) don't
 // collide on null. Its absence is why prior re-ingests duplicated the collection.
 DoctorSchema.index(

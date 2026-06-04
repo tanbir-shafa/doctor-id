@@ -28,7 +28,7 @@ function fixture(overrides: Partial<DoctorDocLike & { slug: string }> = {}): Doc
         name: "Popular Diagnostic — Dhanmondi",
         address: "House 16, Road 2",
         area: "Dhanmondi",
-        city: "Dhaka",
+        district: "Dhaka",
         division: "Dhaka",
         coordinates: { lat: null, lng: null },
         phone: "+8801711000000",

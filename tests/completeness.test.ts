@@ -46,7 +46,7 @@ describe("computeCompleteness", () => {
             name: "x",
             address: "y",
             area: "a",
-            city: "Dhaka",
+            district: "Dhaka",
             division: "Dhaka",
             schedule: [],
             isPrimary: true,
@@ -66,7 +66,7 @@ describe("computeCompleteness", () => {
         qualifications: [{ degree: "MBBS", institution: "DMC", year: 2010, country: "BD" }],
         experience: [{ role: "Consultant", organization: "DMC", from: new Date(), current: true }],
         chambers: [
-          { name: "x", address: "y", area: "a", city: "Dhaka", division: "Dhaka", schedule: [], isPrimary: true },
+          { name: "x", address: "y", area: "a", district: "Dhaka", division: "Dhaka", schedule: [], isPrimary: true },
         ],
         contact: { publicPhone: "+8801" },
         bmdcNumber: "123456",

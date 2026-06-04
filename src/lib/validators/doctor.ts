@@ -27,6 +27,7 @@ export const ProfileContactSchema = z.object({
   website: z.string().url().optional().or(z.literal("")),
   privacyHidePhone: z.boolean().optional(),
   privacyHideEmail: z.boolean().optional(),
+  whatsappAppointmentEnabled: z.boolean().optional(),
 });
 export type ProfileContactInput = z.infer<typeof ProfileContactSchema>;
 
@@ -92,9 +93,11 @@ export const ChamberSchema = z
     name: z.string().min(1, "Name is required").max(120),
     address: z.string().min(1, "Address is required").max(240),
     area: z.string().min(1, "Area is required").max(120),
-    city: z.string().min(1, "City is required").max(80),
+    district: z.string().min(1, "District is required").max(80),
     division: z.string().min(1, "Division is required").max(80),
     phone: z.string().max(40).optional().nullable(),
+    floor: z.string().trim().max(40).optional().nullable(),
+    room: z.string().trim().max(40).optional().nullable(),
     consultationFee: z
       .object({ amount: z.number().min(0).max(100000), currency: z.enum(["BDT", "USD"]) })
       .optional(),

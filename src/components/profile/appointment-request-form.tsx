@@ -20,7 +20,7 @@ interface ChamberOption {
   _id: string;
   name: string;
   area?: string;
-  city?: string;
+  district?: string;
   schedule?: ChamberScheduleSlot[];
 }
 
@@ -184,7 +184,7 @@ export function AppointmentRequestForm({
         >
           {chambers.map((c) => {
             const selected = chamberId === c._id;
-            const locationLine = [c.area, c.city].filter(Boolean).join(", ");
+            const locationLine = [c.area, c.district].filter(Boolean).join(", ");
             return (
               <label
                 key={c._id}

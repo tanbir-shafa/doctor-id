@@ -4,31 +4,31 @@ import { Pagination } from "./pagination";
 import type { DoctorDocLike } from "@/types/doctor";
 
 /**
- * Reusable listing layout for /[specialty] and /[specialty]/[city].
+ * Reusable listing layout for /[specialty] and /[specialty]/[district].
  *
  * SEO-critical surface — the H1 + intro paragraph are the strongest signals
- * for "[Specialty] in [City]" search queries.
+ * for "[Specialty] in [District]" search queries.
  */
 export function SpecialtyListing({
   specialtyName,
-  city,
+  district,
   doctors,
   total,
   page,
   totalPages,
-  cities,
+  districts,
   searchParams,
 }: {
   specialtyName: string;
-  city?: string;
+  district?: string;
   doctors: DoctorDocLike[];
   total: number;
   page: number;
   totalPages: number;
-  cities: string[];
+  districts: string[];
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const cityLabel = city ? ` in ${city}` : " in Bangladesh";
+  const districtLabel = district ? ` in ${district}` : " in Bangladesh";
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
@@ -37,24 +37,24 @@ export function SpecialtyListing({
           {specialtyName}
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          {specialtyName} doctors{cityLabel}
+          {specialtyName} doctors{districtLabel}
         </h1>
         <p className="mt-3 max-w-3xl text-muted-foreground">
           Browse {Intl.NumberFormat("en-IN").format(total)} verified {specialtyName.toLowerCase()}{" "}
-          doctors{cityLabel}. Filter by city, verification, or language. Every profile is BMDC-aligned.
+          doctors{districtLabel}. Filter by district, verification, or language. Every profile is BMDC-aligned.
         </p>
       </header>
 
-      {/* City pivot bar — links to /<specialty>/<city> */}
-      {!city && cities.length > 0 ? (
-        <nav className="mb-8 flex flex-wrap gap-2" aria-label={`${specialtyName} doctors by city`}>
-          {cities.map((c) => (
+      {/* District pivot bar — links to /<specialty>/<district> */}
+      {!district && districts.length > 0 ? (
+        <nav className="mb-8 flex flex-wrap gap-2" aria-label={`${specialtyName} doctors by district`}>
+          {districts.map((d) => (
             <Link
-              key={c}
-              href={`/${encodeURIComponent(specialtyName.toLowerCase())}/${encodeURIComponent(c.toLowerCase())}`}
+              key={d}
+              href={`/${encodeURIComponent(specialtyName.toLowerCase())}/${encodeURIComponent(d.toLowerCase())}`}
               className="rounded-full border border-border bg-card px-3 py-1 text-sm text-foreground hover:border-primary/40 hover:bg-accent"
             >
-              {c}
+              {d}
             </Link>
           ))}
         </nav>
@@ -62,7 +62,7 @@ export function SpecialtyListing({
 
       {doctors.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
-          No {specialtyName.toLowerCase()} doctors found{cityLabel}. Try widening your filters.
+          No {specialtyName.toLowerCase()} doctors found{districtLabel}. Try widening your filters.
         </p>
       ) : (
         <ul className="grid grid-cols-1 gap-3">

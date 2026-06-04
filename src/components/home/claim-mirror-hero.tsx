@@ -18,7 +18,7 @@ interface SearchResult {
   slug: string;
   name: string;
   specialty: string | null;
-  city: string | null;
+  district: string | null;
   verificationLevel: VerificationLevel;
   isClaimed: boolean;
   photo: string | null;
@@ -155,7 +155,7 @@ export function ClaimMirrorHero({ totalDoctors }: { totalDoctors: number }) {
                           />
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {[d.specialty, d.city].filter(Boolean).join(" · ") || "Doctor"}
+                          {[d.specialty, d.district].filter(Boolean).join(" · ") || "Doctor"}
                         </p>
                       </div>
                       {d.isClaimed ? (

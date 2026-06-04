@@ -51,14 +51,33 @@ export function ContactSectionForm({
       </div>
       <fieldset className="space-y-2 sm:col-span-2">
         <legend className="text-sm font-medium">Privacy</legend>
+        <p className="text-xs text-muted-foreground">
+          Your phone and email are hidden by default. Uncheck a box to show it on your public profile.
+        </p>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="privacyHidePhone" defaultChecked={doctor.privacyHidePhone} className="size-4" />
-          Hide phone & WhatsApp on public profile
+          <input type="checkbox" name="privacyHidePhone" defaultChecked={doctor.privacyHidePhone ?? true} className="size-4" />
+          Hide phone & WhatsApp number on public profile
         </label>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="privacyHideEmail" defaultChecked={doctor.privacyHideEmail} className="size-4" />
+          <input type="checkbox" name="privacyHideEmail" defaultChecked={doctor.privacyHideEmail ?? true} className="size-4" />
           Hide email on public profile
         </label>
+      </fieldset>
+      <fieldset className="space-y-2 sm:col-span-2">
+        <legend className="text-sm font-medium">Appointments</legend>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="whatsappAppointmentEnabled"
+            defaultChecked={doctor.whatsappAppointmentEnabled ?? false}
+            className="size-4"
+          />
+          Show the WhatsApp appointment button on my public profile
+        </label>
+        <p className="text-xs text-muted-foreground">
+          Lets patients message you on WhatsApp with a pre-filled appointment request. Needs a
+          WhatsApp number (or a public phone that is not hidden) to appear.
+        </p>
       </fieldset>
       <div className="flex items-center gap-3 sm:col-span-2">
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save contact"}</Button>

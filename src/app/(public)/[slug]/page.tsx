@@ -19,7 +19,7 @@ import { AppointmentRequestDialog } from "@/components/profile/appointment-reque
 import { ReportButton } from "@/components/profile/report-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SpecialtyListing } from "@/components/search/specialty-listing";
-import { searchDoctors, listCities } from "@/lib/db/queries/doctors";
+import { searchDoctors, listDistricts } from "@/lib/db/queries/doctors";
 import type { DoctorDocLike } from "@/types/doctor";
 import { publicEnv } from "@/lib/env";
 
@@ -81,9 +81,9 @@ export default async function SlugPage({
   if (specialty) {
     const sp = await searchParams;
     const page = sp.page ? Number(sp.page) : 1;
-    const [{ doctors, total, totalPages }, cities] = await Promise.all([
+    const [{ doctors, total, totalPages }, districts] = await Promise.all([
       searchDoctors({ specialty: specialty.name, page }),
-      listCities(),
+      listDistricts(),
     ]);
     return (
       <SpecialtyListing
@@ -92,7 +92,7 @@ export default async function SlugPage({
         total={total}
         page={page}
         totalPages={totalPages}
-        cities={cities}
+        districts={districts}
         searchParams={sp}
       />
     );
@@ -240,7 +240,7 @@ export default async function SlugPage({
                     _id: String((c as unknown as { _id?: unknown })._id ?? i),
                     name: c.name,
                     area: c.area,
-                    city: c.city,
+                    district: c.district,
                     schedule: (c.schedule ?? []).map((s) => ({
                       day: s.day,
                       startTime: s.startTime,
@@ -250,11 +250,17 @@ export default async function SlugPage({
                   }))}
                 />
               ) : null}
-              <WhatsappButton
-                whatsapp={doctor.contact.whatsapp ?? doctor.contact.publicPhone ?? null}
-                doctorName={doctor.name.displayName}
-                variant={doctor.isClaimed && doctor.chambers.length > 0 ? "outline" : "default"}
-              />
+              {doctor.whatsappAppointmentEnabled ? (
+                <WhatsappButton
+                  whatsapp={
+                    doctor.contact.whatsapp ??
+                    (doctor.privacyHidePhone ? null : doctor.contact.publicPhone) ??
+                    null
+                  }
+                  doctorName={doctor.name.displayName}
+                  variant={doctor.isClaimed && doctor.chambers.length > 0 ? "outline" : "default"}
+                />
+              ) : null}
               {doctor.contact.publicPhone && !doctor.privacyHidePhone ? (
                 <a href={`tel:${doctor.contact.publicPhone}`} className="flex items-center gap-2 hover:underline">
                   <Phone className="size-4" aria-hidden="true" /> {doctor.contact.publicPhone}

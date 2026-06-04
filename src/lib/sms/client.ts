@@ -1,66 +1,61 @@
 /**
- * Transactional SMS via the MDL gateway.
+ * Transactional + bulk SMS facade.
  *
- * Adapter shape mirrors the in-house wrapper Shafa already uses elsewhere:
- *   GET <MDL_SMS_API_BASE_URL>
- *     ?apiKey=...&senderId=...&contactNumbers=...&textBody=...&type=...&label=transactional
+ * This is the STABLE public surface (`sendSms`, `sendSmsBatch`,
+ * `estimateSegments`, and the SMS types) that every call site imports. It owns
+ * Unicode detection, segment estimation, the dev-mode console no-op, body
+ * grouping, and input-order result shaping. The actual wire protocol is
+ * delegated to the provider selected by `SMS_PROVIDER` (see ./provider) —
+ * SSL Wireless iSMS Plus v3 by default, MDL as a fallback.
  *
- * Silently no-ops in dev when any MDL_SMS_* env var is missing — logs the
- * SMS payload to the console so the OTP flow stays testable offline. Mirror
- * of the SES client (`src/lib/email/ses.ts`) for the same UX reason.
- *
- * MDL response shape on failure (observed in the in-house snippet):
- *   { status: "FAILED", message: "<reason>" }
- * That value is mapped to `{ sent: false }` so callers don't need to know
- * the gateway specifics.
+ * Dev fallback: when the active provider isn't configured (creds absent), the
+ * would-be SMS is printed to the console and `sent:false` (single) / `sent:true`
+ * rows (batch, so the campaign script can flow) are returned — mirroring the
+ * SES email client so OTP + campaign flows stay testable offline.
  */
 
-import { env } from "@/lib/env";
+import { randomBytes } from "node:crypto";
+import { estimateSegments, isUnicodeBody, resolveSmsType } from "./estimate";
+import { getSmsProvider } from "./provider";
+import type {
+  SmsMessage,
+  SmsSendResult,
+  BulkSmsMessage,
+  BulkSmsResult,
+  BulkSmsOptions,
+  ProviderChunkResult,
+} from "./types";
 
-export interface SmsMessage {
-  /** E.164 phone, e.g. "+8801711000000". The gateway accepts a CSV of numbers; we always pass one. */
-  to: string;
-  /** Final rendered SMS body. */
-  body: string;
-  /** Gateway hint, e.g. "TEXT" | "UNICODE". Defaults to "TEXT" — call sites override for Bangla. */
-  type?: string;
+// Re-exports so historical import paths keep resolving.
+export { estimateSegments } from "./estimate";
+export type {
+  SmsMessage,
+  SmsSendResult,
+  BulkSmsMessage,
+  BulkSmsResult,
+  BulkSmsOptions,
+} from "./types";
+
+/** Entry = a message paired with its original index, so results stay in input order. */
+type Entry = { idx: number; msg: BulkSmsMessage };
+
+/** <=20 chars (SSL `batch_csms_id` limit), collision-safe within a campaign run. */
+function makeBatchId(): string {
+  return (Date.now().toString(36) + randomBytes(4).toString("hex")).slice(0, 20);
 }
 
-export interface SmsSendResult {
-  sent: boolean;
-  /** Gateway-side message id when available — not all responses include one. */
-  messageId?: string;
-  /** Estimated segments billed: 160-char ASCII or 70-char Unicode chunks. */
-  segments: number;
-}
-
-/**
- * SMS segment counter. Unicode bodies (Bangla, emoji) pack 70 chars per
- * segment; everything else packs 160. We over-estimate on the conservative
- * side — concatenated SMS headers reduce per-segment capacity to 153/67,
- * but the cost ceiling is what we actually need to reason about.
- */
-export function estimateSegments(body: string, isUnicode: boolean): number {
-  const limit = isUnicode ? 70 : 160;
-  if (body.length === 0) return 0;
-  return Math.ceil(body.length / limit);
-}
-
-function isUnicodeBody(body: string): boolean {
-  // Anything outside ASCII trips the Unicode billing tier on most BD gateways.
-  return /[^\x00-\x7F]/.test(body);
-}
+// ---------------------------------------------------------------------------
+// Single send.
+// ---------------------------------------------------------------------------
 
 export async function sendSms(msg: SmsMessage): Promise<SmsSendResult> {
-  const { MDL_SMS_API_BASE_URL, MDL_SMS_API_KEY, MDL_SMS_API_SENDER_ID } = env();
   const unicode = isUnicodeBody(msg.body);
-  const type = msg.type ?? (unicode ? "UNICODE" : "TEXT");
+  const type = resolveSmsType(msg.body, msg.type);
   const segments = estimateSegments(msg.body, unicode);
+  const provider = getSmsProvider();
 
-  if (!MDL_SMS_API_BASE_URL || !MDL_SMS_API_KEY || !MDL_SMS_API_SENDER_ID) {
-    // Dev fallback — print the would-be SMS so the developer can hand-verify
-    // OTP flows without a real gateway.
-    console.log("─── [MDL SMS no-op] would have sent SMS ───");
+  if (!provider.isConfigured()) {
+    console.log(`─── [${provider.name.toUpperCase()} SMS no-op] would have sent SMS ───`);
     console.log(`To:        ${msg.to}`);
     console.log(`Type:      ${type}  (${segments} segment${segments === 1 ? "" : "s"})`);
     console.log(`Body:      ${msg.body}`);
@@ -68,90 +63,31 @@ export async function sendSms(msg: SmsMessage): Promise<SmsSendResult> {
     return { sent: false, segments };
   }
 
-  const url = new URL(MDL_SMS_API_BASE_URL);
-  url.searchParams.set("apiKey", MDL_SMS_API_KEY);
-  url.searchParams.set("senderId", MDL_SMS_API_SENDER_ID);
-  url.searchParams.set("contactNumbers", msg.to);
-  url.searchParams.set("textBody", msg.body);
-  url.searchParams.set("type", type);
-  url.searchParams.set("label", "transactional");
-
-  try {
-    const response = await fetch(url.toString(), { method: "GET" });
-    if (!response.ok) {
-      console.warn(`[MDL SMS] HTTP ${response.status} — ${await safeText(response)}`);
-      return { sent: false, segments };
-    }
-    const payload = await safeJson(response);
-    if (payload && typeof payload === "object" && (payload as { status?: string }).status === "FAILED") {
-      console.warn(`[MDL SMS] gateway reported FAILED — ${(payload as { message?: string }).message ?? "no detail"}`);
-      return { sent: false, segments };
-    }
-    const messageId =
-      typeof payload === "object" && payload
-        ? ((payload as { messageId?: string; message_id?: string }).messageId ??
-          (payload as { message_id?: string }).message_id)
-        : undefined;
-    return { sent: true, messageId, segments };
-  } catch (err) {
-    console.error("[MDL SMS] request failed:", err);
+  const res = await provider.sendOne({ to: msg.to, body: msg.body, type });
+  if (!res.sent) {
+    // Configured provider but the send failed (gateway/IP/auth error). Log it
+    // — otherwise the failure is invisible (the caller often ignores the result).
+    console.warn(`[${provider.name} SMS] send to ${msg.to} failed: ${res.error ?? "unknown error"}`);
     return { sent: false, segments };
   }
+  return { sent: true, messageId: res.messageId, segments };
 }
 
 // ---------------------------------------------------------------------------
-// Bulk send — body-grouped batching for the outbound acquisition script.
+// Bulk send — body-grouped, provider-aware batching for the outbound script.
 // ---------------------------------------------------------------------------
-
-export interface BulkSmsMessage {
-  to: string;
-  body: string;
-  type?: string;
-}
-
-export interface BulkSmsResult {
-  to: string;
-  body: string;
-  sent: boolean;
-  /** UUID for the MDL chunk this row was in — groups partial-failure rows for forensics. */
-  batchId: string;
-  /** Gateway error detail when sent=false. */
-  errorMessage?: string;
-  segments: number;
-}
-
-export interface BulkSmsOptions {
-  /**
-   * Max numbers per MDL API call. The gateway accepts up to 20 numbers in a
-   * single `contactNumbers` CSV (per ops, 2026-05). Lower this if MDL ever
-   * downgrades the cap — every other piece of the pipeline reads from here.
-   */
-  chunkSize?: number;
-  /**
-   * When true (default), stop the whole bulk send the first time a chunk
-   * fails — matches the ops rule "wait for success then send next 20". The
-   * unsent rows stay marked `sent: false`. Set false to fire-and-pray
-   * through the failures (useful for soak tests, not for real campaigns).
-   */
-  stopOnFailure?: boolean;
-}
-
-const DEFAULT_CHUNK = 20;
 
 /**
- * Bulk SMS dispatch optimized for MDL's "20 numbers per call" cap.
+ * Bulk SMS dispatch.
  *
- *   1. Group recipients by identical `body` — MDL's `contactNumbers` field
- *      is a CSV that all share one `textBody`, so we can only batch when
- *      bodies match. Personalized bodies (e.g. `{{firstName}}`) end up in
- *      single-element groups → 1 number per call.
- *   2. Chunk each group into 20s.
- *   3. Fire one GET per chunk, sequentially. The "wait for success" rule
- *      means we DO NOT parallelize chunks — easier to reason about partial
- *      failures and avoids overrunning per-second gateway caps.
- *   4. On failure: by default, stop and return partial results so the
- *      script can persist what got through and bail without burning the
- *      rest of the budget.
+ *   1. Group recipients by identical `body` (insertion order preserved).
+ *   2. Partition groups: multi-recipient same-body groups → the provider's
+ *      `sendChunk` (SSL `/send-sms/bulk`, MDL CSV GET), chunked at the
+ *      provider's `maxBatch` (SSL 100 / MDL 20). Unique/personalized bodies →
+ *      the provider's `sendDynamic` (SSL `/send-sms/dynamic`, 100/call) when
+ *      available; otherwise one single-body chunk per message (MDL = today).
+ *   3. Fire one call per chunk, sequentially. On failure: by default, stop and
+ *      return partial results so the script persists what got through.
  *
  * Results are returned in input order (independent of grouping/chunking).
  */
@@ -159,7 +95,8 @@ export async function sendSmsBatch(
   messages: BulkSmsMessage[],
   opts: BulkSmsOptions = {},
 ): Promise<BulkSmsResult[]> {
-  const chunkSize = opts.chunkSize ?? DEFAULT_CHUNK;
+  const provider = getSmsProvider();
+  const chunkSize = opts.chunkSize ?? provider.maxBatch;
   const stopOnFailure = opts.stopOnFailure ?? true;
 
   // Pre-allocate the result array so we can write back by original index.
@@ -171,119 +108,125 @@ export async function sendSmsBatch(
     segments: estimateSegments(m.body, isUnicodeBody(m.body)),
   }));
 
-  // Group by body — Map preserves insertion order, so result writes stay
-  // deterministic for tests.
-  const groups = new Map<string, Array<{ idx: number; msg: BulkSmsMessage }>>();
+  // Group by body — Map preserves insertion order for deterministic results.
+  const groups = new Map<string, Entry[]>();
   messages.forEach((msg, idx) => {
     const list = groups.get(msg.body) ?? [];
     list.push({ idx, msg });
     groups.set(msg.body, list);
   });
 
-  const { MDL_SMS_API_BASE_URL, MDL_SMS_API_KEY, MDL_SMS_API_SENDER_ID } = env();
-  const devMode = !MDL_SMS_API_BASE_URL || !MDL_SMS_API_KEY || !MDL_SMS_API_SENDER_ID;
+  // Dev no-op: print each chunk, mark rows sent:true so the script can flow.
+  if (!provider.isConfigured()) {
+    for (const [body, entries] of groups) {
+      for (let i = 0; i < entries.length; i += chunkSize) {
+        const chunk = entries.slice(i, i + chunkSize);
+        const batchId = makeBatchId();
+        console.log(`─── [${provider.name.toUpperCase()} SMS bulk no-op] would have sent chunk ───`);
+        console.log(`To:        ${chunk.length} recipient(s) — ${chunk.map((c) => c.msg.to).join(", ")}`);
+        console.log(`Body:      ${body}`);
+        console.log("──────────────────────────────────────────────────");
+        for (const { idx } of chunk) {
+          results[idx]!.batchId = batchId;
+          results[idx]!.sent = true;
+        }
+      }
+    }
+    return results;
+  }
 
-  outer: for (const [body, entries] of groups) {
+  // Partition: multi-recipient same-body groups vs unique-body singletons.
+  const multi: Entry[][] = [];
+  const singletons: Entry[] = [];
+  for (const entries of groups.values()) {
+    if (entries.length >= 2) multi.push(entries);
+    else singletons.push(entries[0]!);
+  }
+
+  // Build the sequential operation list.
+  type Op =
+    | { kind: "chunk"; body: string; type: string; entries: Entry[] }
+    | { kind: "dynamic"; entries: Entry[] };
+  const ops: Op[] = [];
+
+  for (const entries of multi) {
+    const body = entries[0]!.msg.body;
+    const type = resolveSmsType(body);
     for (let i = 0; i < entries.length; i += chunkSize) {
-      const chunk = entries.slice(i, i + chunkSize);
-      const batchId = randomBatchId();
-      const recipients = chunk.map((c) => c.msg.to);
+      ops.push({ kind: "chunk", body, type, entries: entries.slice(i, i + chunkSize) });
+    }
+  }
 
-      const result = await sendOneChunk({ body, recipients, devMode });
+  if (provider.sendDynamic && singletons.length > 0) {
+    for (let i = 0; i < singletons.length; i += chunkSize) {
+      ops.push({ kind: "dynamic", entries: singletons.slice(i, i + chunkSize) });
+    }
+  } else {
+    // No dynamic endpoint (MDL): one single-body chunk per unique body.
+    for (const s of singletons) {
+      ops.push({ kind: "chunk", body: s.msg.body, type: resolveSmsType(s.msg.body), entries: [s] });
+    }
+  }
 
-      for (const { idx } of chunk) {
-        results[idx]!.batchId = batchId;
-        results[idx]!.sent = result.ok;
-        if (!result.ok && result.error) results[idx]!.errorMessage = result.error;
-      }
+  // Fire sequentially; halt on the first failure when stopOnFailure.
+  for (const op of ops) {
+    const batchId = makeBatchId();
+    let result: ProviderChunkResult;
+    if (op.kind === "chunk") {
+      result = await provider.sendChunk({
+        body: op.body,
+        type: op.type,
+        recipients: op.entries.map((e) => e.msg.to),
+        batchId,
+      });
+    } else {
+      result = await provider.sendDynamic!({
+        items: op.entries.map((e) => ({
+          to: e.msg.to,
+          body: e.msg.body,
+          type: resolveSmsType(e.msg.body),
+        })),
+        batchId,
+      });
+    }
 
-      if (!result.ok && stopOnFailure) {
-        console.warn(`[MDL SMS bulk] chunk failed (${result.error}) — halting campaign.`);
-        break outer;
-      }
+    applyChunkResult(results, op.entries, batchId, result);
+
+    if (!result.ok && stopOnFailure) {
+      console.warn(
+        `[${provider.name} SMS bulk] chunk failed (${result.error ?? "unknown"}) — halting campaign.`,
+      );
+      break;
     }
   }
 
   return results;
 }
 
-interface ChunkResult {
-  ok: boolean;
-  error?: string;
-}
-
-async function sendOneChunk({
-  body,
-  recipients,
-  devMode,
-}: {
-  body: string;
-  recipients: string[];
-  devMode: boolean;
-}): Promise<ChunkResult> {
-  const unicode = isUnicodeBody(body);
-  const type = unicode ? "UNICODE" : "TEXT";
-
-  if (devMode) {
-    console.log("─── [MDL SMS bulk no-op] would have sent chunk ───");
-    console.log(`To:        ${recipients.length} recipient(s) — ${recipients.join(", ")}`);
-    console.log(`Type:      ${type}`);
-    console.log(`Body:      ${body}`);
-    console.log("──────────────────────────────────────────────────");
-    // Dev mode is treated as "ok" so the script's status accounting works
-    // without creds. The persisted row reflects `sent: false` either way —
-    // see the script's status mapping.
-    return { ok: true };
+/**
+ * Write a chunk's outcome back to the pre-allocated rows by original index.
+ * Prefers the provider's per-recipient detail (SSL `smsinfo[]`, returned in
+ * input order); falls back to the chunk-level `ok` for every row (MDL).
+ */
+function applyChunkResult(
+  results: BulkSmsResult[],
+  entries: Entry[],
+  batchId: string,
+  result: ProviderChunkResult,
+): void {
+  const per = result.perRecipient;
+  if (per && per.length === entries.length) {
+    entries.forEach((e, i) => {
+      const pr = per[i]!;
+      results[e.idx]!.batchId = batchId;
+      results[e.idx]!.sent = pr.ok;
+      if (!pr.ok) results[e.idx]!.errorMessage = pr.error ?? result.error;
+    });
+    return;
   }
-
-  const { MDL_SMS_API_BASE_URL, MDL_SMS_API_KEY, MDL_SMS_API_SENDER_ID } = env();
-  const url = new URL(MDL_SMS_API_BASE_URL!);
-  url.searchParams.set("apiKey", MDL_SMS_API_KEY!);
-  url.searchParams.set("senderId", MDL_SMS_API_SENDER_ID!);
-  url.searchParams.set("contactNumbers", recipients.join(","));
-  url.searchParams.set("textBody", body);
-  url.searchParams.set("type", type);
-  url.searchParams.set("label", "transactional");
-
-  try {
-    const response = await fetch(url.toString(), { method: "GET" });
-    if (!response.ok) {
-      return { ok: false, error: `HTTP ${response.status}` };
-    }
-    const payload = await safeJson(response);
-    if (
-      payload &&
-      typeof payload === "object" &&
-      (payload as { status?: string }).status === "FAILED"
-    ) {
-      return {
-        ok: false,
-        error: (payload as { message?: string }).message ?? "Gateway reported FAILED",
-      };
-    }
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-function randomBatchId(): string {
-  // Short hex id — uniqueness only needs to hold within a campaign run.
-  return Math.random().toString(16).slice(2, 10) + Date.now().toString(36);
-}
-
-async function safeJson(r: Response): Promise<unknown> {
-  try {
-    return await r.json();
-  } catch {
-    return null;
-  }
-}
-
-async function safeText(r: Response): Promise<string> {
-  try {
-    return await r.text();
-  } catch {
-    return "<no body>";
+  for (const e of entries) {
+    results[e.idx]!.batchId = batchId;
+    results[e.idx]!.sent = result.ok;
+    if (!result.ok) results[e.idx]!.errorMessage = result.error;
   }
 }

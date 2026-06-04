@@ -12,6 +12,7 @@ import type { DoctorDocLike } from "@/types/doctor";
 import { AdminBasicSection } from "./sections/basic-section";
 import { AdminContactSection } from "./sections/contact-section";
 import { AdminSpecialtiesSection } from "./sections/specialties-section";
+import { AdminConcentrationsSection } from "./sections/concentrations-section";
 import { AdminQualificationsSection } from "./sections/qualifications-section";
 import { AdminExperienceSection } from "./sections/experience-section";
 import { AdminStatusSection } from "./sections/status-section";
@@ -50,9 +51,11 @@ export default async function AdminDoctorEditPage({
     name: c.name,
     address: c.address,
     area: c.area,
-    city: c.city,
+    district: c.district,
     division: c.division,
     phone: c.phone ?? "",
+    floor: c.floor ?? "",
+    room: c.room ?? "",
     consultationFee: c.consultationFee ?? { amount: 0, currency: "BDT" as const },
     coordinates: c.coordinates
       ? { lat: c.coordinates.lat, lng: c.coordinates.lng }
@@ -140,6 +143,16 @@ export default async function AdminDoctorEditPage({
             doctorId={doctorId}
             catalog={specialtyCatalog}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Areas of focus</CardTitle>
+          <CardDescription>Free-form concentration tags shown on the public profile.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AdminConcentrationsSection initial={doctor.concentrations ?? []} doctorId={doctorId} />
         </CardContent>
       </Card>
 

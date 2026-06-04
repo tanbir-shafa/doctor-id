@@ -15,7 +15,7 @@ export function ChamberCard({ chamber }: { chamber: DoctorChamber }) {
             <span>
               {chamber.address}
               {chamber.area ? `, ${chamber.area}` : ""}
-              {chamber.city ? `, ${chamber.city}` : ""}
+              {chamber.district ? `, ${chamber.district}` : ""}
             </span>
           </p>
         </div>

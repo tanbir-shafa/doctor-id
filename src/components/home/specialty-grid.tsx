@@ -2,19 +2,19 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 /**
- * Specialty + city grid. Three jobs in one: patient navigation, SEO internal
- * links to the specialty / specialty+city landing pages where doctors rank on
+ * Specialty + district grid. Three jobs in one: patient navigation, SEO internal
+ * links to the specialty / specialty+district landing pages where doctors rank on
  * Google, and competitive FOMO for doctors ("am I listed in mine?").
  */
 export function SpecialtyGrid({
   specialties,
-  cities,
+  districts,
 }: {
   specialties: { name: string; slug: string }[];
-  cities: string[];
+  districts: string[];
 }) {
   const topSpecialties = specialties.slice(0, 18);
-  const topCities = cities.slice(0, 12);
+  const topDistricts = districts.slice(0, 12);
 
   return (
     <section className="border-b border-border bg-muted/30">
@@ -53,19 +53,19 @@ export function SpecialtyGrid({
           </ul>
         ) : null}
 
-        {topCities.length > 0 ? (
+        {topDistricts.length > 0 ? (
           <div className="mt-8">
             <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              Popular cities
+              Popular districts
             </p>
             <ul className="mt-3 flex flex-wrap gap-2">
-              {topCities.map((c) => (
-                <li key={c}>
+              {topDistricts.map((d) => (
+                <li key={d}>
                   <Link
-                    href={`/search?city=${encodeURIComponent(c)}`}
+                    href={`/search?district=${encodeURIComponent(d)}`}
                     className="inline-flex rounded-full border border-border bg-card px-4 py-1.5 text-sm text-foreground transition hover:border-primary hover:text-primary"
                   >
-                    {c}
+                    {d}
                   </Link>
                 </li>
               ))}

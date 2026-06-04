@@ -15,7 +15,7 @@ import { unstable_cache } from "next/cache";
 import {
   getStats,
   listActiveSpecialties,
-  listCities,
+  listDistricts,
   listFeaturedVerifiedDoctors,
   getProfileViewsLast30Days,
 } from "@/lib/db/queries/doctors";
@@ -47,21 +47,21 @@ export const revalidate = 3600;
 // dataset. (Non-fetch/Mongoose reads are uncached by default in Next 16.)
 const getHomeData = unstable_cache(
   async () => {
-    const [stats, specialties, cities, featured, views30d] = await Promise.all([
+    const [stats, specialties, districts, featured, views30d] = await Promise.all([
       getStats(),
       listActiveSpecialties(),
-      listCities(),
+      listDistricts(),
       listFeaturedVerifiedDoctors(6),
       getProfileViewsLast30Days(),
     ]);
-    return { stats, specialties, cities, featured, views30d };
+    return { stats, specialties, districts, featured, views30d };
   },
   ["home:landing-data"],
   { revalidate: 3600, tags: ["home"] },
 );
 
 export default async function HomePage() {
-  const { stats, specialties, cities, featured, views30d } = await getHomeData();
+  const { stats, specialties, districts, featured, views30d } = await getHomeData();
 
   return (
     <>
@@ -69,7 +69,7 @@ export default async function HomePage() {
       <TrustBand />
       <ProofStrip stats={stats} views30d={views30d} featured={featured} />
       <BillboardShowcase />
-      <SpecialtyGrid specialties={specialties} cities={cities} />
+      <SpecialtyGrid specialties={specialties} districts={districts} />
       <WhyFreeBand />
     </>
   );

@@ -20,16 +20,17 @@ EMR without a schema rewrite.
 | Framework | Next.js 16.2.6 (App Router, React 19, Turbopack) — **pinned exact** |
 | Language | TypeScript (strict) |
 | Database | MongoDB Atlas (M10+ prod, M0/dev cluster fine for staging) via Mongoose 9 |
-| Auth | NextAuth v5 (Auth.js) — Credentials + Google OAuth, JWT sessions, bcrypt cost 12 |
+| Auth | NextAuth v5 (Auth.js), JWT sessions — **doctors: phone + SMS OTP** (no password); admins: email + bcrypt password |
 | Styling | Tailwind v4 + shadcn/ui primitives |
 | Forms | React Hook Form + Zod (shared schemas client + server) |
-| File upload | S3 presigned PUT URLs via `@aws-sdk/client-s3` |
+| File upload | **Server-side S3** (`@aws-sdk/client-s3` + `s3-request-presigner` + `credential-providers`) — two buckets (public/private), creds by `NODE_ENV` |
 | Email | AWS SES v2 (no-ops to console logging without credentials) |
+| SMS | **SSL Wireless iSMS Plus v3** (default) + MDL fallback via `SMS_PROVIDER`; no-ops to console without creds |
 | Shared state | Upstash Redis for rate-limiting (degrades to no-op without creds) |
 | Maps | Leaflet + OpenStreetMap (no API key) |
 | OG images | `next/og` (Satori) — 1200 × 630, day-long CDN cache |
 | i18n | `next-intl` patterns, English-only catalog at launch |
-| Tests | Vitest + Testing Library — 26 tests at last count |
+| Tests | Vitest + Testing Library — 454 tests (DB-less) |
 | Deployment | Docker (multi-stage standalone) → AWS ECS Fargate behind ALB |
 
 ---
@@ -75,6 +76,7 @@ sharing the repo with collaborators.
 | `AUTH_SECRET` | yes | boot fails (NextAuth refuses to issue tokens) |
 | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | for prod | S3 uploads return a friendly error; SES sends become `console.log` |
 | `SES_FROM_EMAIL` | for prod | falls back to `no-reply@doctor.id.bd` |
+| `SSL_SMS_API_TOKEN` + `SSL_SMS_SID` (`SMS_PROVIDER=ssl`) | for prod SMS | OTP + campaign SMS print to the dev console (no-op) instead of dispatching. **The request IP must be whitelisted** in the SSL portal for live sends. |
 | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | for prod | rate limiters allow every request (dev-friendly, prod-unsafe) |
 | `AUTH_GOOGLE_ID` + `AUTH_GOOGLE_SECRET` | optional | Google sign-in button is hidden; credentials sign-in still works |
 
@@ -89,6 +91,7 @@ sharing the repo with collaborators.
 | `npm start` | Run the production build |
 | `npm run seed` | Bootstrap: upsert admin + 36-specialty catalog. Idempotent — no drops, no fake doctors. |
 | `npm run seed -- --source=popular-diagnostic [--limit=N] [--dry-run]` | Ingest the Popular Diagnostic JSON dump at `data/popular-diagnostic/` as unclaimed profiles. Idempotent (no drops). |
+| `npm run outbound -- --campaign=<id> --template=<id> [--cohort=district=Dhaka,...] [--dry-run]` | Bulk SMS acquisition campaign via the active `SMS_PROVIDER`. |
 | `npm test` | Run the Vitest suite (no DB required) |
 | `npm run test:watch` | Vitest watch mode |
 | `npm run typecheck` | `tsc --noEmit` |
@@ -102,7 +105,7 @@ sharing the repo with collaborators.
 ```
 src/
   app/
-    (public)/        # public pages: homepage, /[slug], /search, /[specialty][/[city]]
+    (public)/        # public pages: homepage, /[slug], /search, /[specialty]/[district]
     (auth)/          # /auth/login, /register, /verify-email, /forgot-password, /reset-password
     (dashboard)/     # /dashboard/* (auth-gated)
     admin/           # /admin/* (role-gated)
@@ -120,11 +123,13 @@ src/
   lib/
     db/              # mongoose connection + models + queries
     auth/            # NextAuth config (node + edge variants)
-    s3/              # presign helpers
+    s3/              # server-side S3 service (two-bucket, creds by NODE_ENV)
     email/           # SES + templates
+    sms/             # SMS provider facade (SSL Wireless + MDL) — sendSms/sendSmsBatch
     redis/           # Upstash client + ratelimit factories
     fhir/            # FHIR Practitioner mapper (the EMR integration seam)
     seo/             # JSON-LD + Metadata builders
+    geo/             # bd-districts.ts (8 divisions, 64 districts + canonicalize)
     utils/           # cn, slug, bmdc, sanitize, completeness
     validators/      # Zod schemas (one per profile section)
   server/actions/    # Server Actions (every mutation routes through here)
@@ -132,6 +137,8 @@ src/
   proxy.ts           # auth proxy (formerly middleware; Next 16 rename)
 scripts/
   seed.ts            # idempotent seed (refuses to run in production)
+  seed-unified.ts    # seed the unified dataset into Doctor
+  outbound.ts        # bulk SMS campaign dispatcher
 tests/               # Vitest
 ```
 
@@ -174,6 +181,27 @@ so repeat visits from the same IP within a day only count once — no PII stored
 `$text` search is the right tool up to ~50k profiles. Beyond that, swap the
 `searchDoctors` query helper for Atlas Search. It's the single seam — only
 that file changes.
+
+### SMS provider facade
+`sendSms` / `sendSmsBatch` (`lib/sms/client.ts`) are a stable facade; the wire
+protocol lives behind `SMS_PROVIDER` (`ssl` default — SSL Wireless iSMS Plus v3;
+`mdl` fallback). The facade owns Unicode detection, segment estimation, the dev
+no-op, and body-grouping; providers own only the HTTP. Bulk campaigns use SSL's
+`/send-sms/bulk` (same body) + `/send-sms/dynamic` (personalized), ≤100 per call.
+**The request IP must be whitelisted** in the SSL portal for live sends.
+
+### Contact is private by default
+`privacyHidePhone` / `privacyHideEmail` default to **hidden**; the public phone,
+email, and WhatsApp number show only when a doctor opts in. A separate
+`whatsappAppointmentEnabled` flag (opt-in) gates the "Chat on WhatsApp"
+appointment button. All three are enforced at the profile page **and** the FHIR
+mapper, so the public `/api/v1` endpoints never leak hidden contact.
+
+### Chamber location = district
+Each chamber stores `division` + `district` (the canonical 64-district key,
+renamed from `city`), edited via cascading dropdowns sourced from
+`lib/geo/bd-districts.ts`. Location search is `/search?district=` and
+`/[specialty]/[district]`.
 
 ---
 
@@ -231,8 +259,6 @@ the SES console.
 
 ## Known limitations / v2 backlog
 
-- **Chambers editor**: dashboard chambers view is read-only in MVP. Adding/editing
-  chambers (with the Leaflet location picker + day/time schedule grid) ships in v2.
 - **Image cropper**: `react-easy-crop` is installed but not yet wired into
   `PhotoUploader` — uploads happen at the file's natural dimensions for now.
 - **BMDC verification is manual**: there's no public BMDC API. Admin reviews

@@ -1,5 +1,5 @@
 /**
- * Query helpers used by /search, /[specialty], /[specialty]/[city], and the
+ * Query helpers used by /search, /[specialty], /[specialty]/[district], and the
  * public API. Kept here as the single source of truth so query shape changes
  * (e.g., moving to Atlas Search) only touch one file.
  */
@@ -12,7 +12,7 @@ import type { DoctorDocLike, VerificationLevel } from "@/types/doctor";
 export interface DoctorSearchParams {
   q?: string;
   specialty?: string;
-  city?: string;
+  district?: string;
   area?: string;
   verificationLevel?: "unverified" | "bmdc_verified" | "fully_verified";
   language?: string;
@@ -45,8 +45,8 @@ export async function searchDoctors(params: DoctorSearchParams): Promise<DoctorS
   if (params.specialty) {
     filter["specialties.name"] = new RegExp(`^${escapeRegex(params.specialty)}$`, "i");
   }
-  if (params.city) {
-    filter["chambers.city"] = new RegExp(`^${escapeRegex(params.city)}$`, "i");
+  if (params.district) {
+    filter["chambers.district"] = new RegExp(`^${escapeRegex(params.district)}$`, "i");
   }
   if (params.area) {
     filter["chambers.area"] = new RegExp(`^${escapeRegex(params.area)}$`, "i");
@@ -79,7 +79,7 @@ export async function searchDoctors(params: DoctorSearchParams): Promise<DoctorS
             { bio: r },
             { "specialties.name": r },
             { subSpecialties: r },
-            { "chambers.city": r },
+            { "chambers.district": r },
             { "chambers.area": r },
             { "chambers.name": r },
           ],
@@ -137,30 +137,30 @@ export async function searchDoctors(params: DoctorSearchParams): Promise<DoctorS
 }
 
 /**
- * Returns the distinct cities present on published profiles. Used to populate
+ * Returns the distinct districts present on published profiles. Used to populate
  * the search facets and the homepage stats.
  */
-export async function listCities(): Promise<string[]> {
+export async function listDistricts(): Promise<string[]> {
   await dbConnect();
-  const cities = (await (Doctor as unknown as Loose).distinct(
-    "chambers.city",
+  const districts = (await (Doctor as unknown as Loose).distinct(
+    "chambers.district",
     { status: "published" },
   )) as string[];
-  return cities.filter(Boolean).sort();
+  return districts.filter(Boolean).sort();
 }
 
 /**
  * Helpful counts for the homepage hero stats.
  */
-export async function getStats(): Promise<{ totalDoctors: number; specialties: number; cities: number; verifiedDoctors: number }> {
+export async function getStats(): Promise<{ totalDoctors: number; specialties: number; districts: number; verifiedDoctors: number }> {
   await dbConnect();
-  const [totalDoctors, verifiedDoctors, cities] = await Promise.all([
+  const [totalDoctors, verifiedDoctors, districts] = await Promise.all([
     (Doctor as unknown as Loose).countDocuments({ status: "published" }),
     (Doctor as unknown as Loose).countDocuments({
       status: "published",
       verificationLevel: { $ne: "unverified" },
     }),
-    listCities(),
+    listDistricts(),
   ]);
   const specialtyNames = (await (Doctor as unknown as Loose).distinct("specialties.name", {
     status: "published",
@@ -168,7 +168,7 @@ export async function getStats(): Promise<{ totalDoctors: number; specialties: n
   return {
     totalDoctors,
     verifiedDoctors,
-    cities: cities.length,
+    districts: districts.length,
     specialties: specialtyNames.length,
   };
 }
@@ -209,7 +209,7 @@ export interface FeaturedDoctor {
   slug: string;
   name: string;
   specialty: string | null;
-  city: string | null;
+  district: string | null;
   photo: string | null;
   verificationLevel: VerificationLevel;
 }
@@ -238,7 +238,7 @@ export async function listFeaturedVerifiedDoctors(limit = 6): Promise<FeaturedDo
       slug: d.slug,
       name: d.name.displayName,
       specialty: d.specialties?.find((s) => s.isPrimary)?.name ?? d.specialties?.[0]?.name ?? null,
-      city: d.chambers?.find((c) => c.isPrimary)?.city ?? d.chambers?.[0]?.city ?? null,
+      district: d.chambers?.find((c) => c.isPrimary)?.district ?? d.chambers?.[0]?.district ?? null,
       photo: d.photo?.url ?? null,
       verificationLevel: d.verificationLevel,
     };

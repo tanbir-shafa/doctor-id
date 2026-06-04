@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { updateProfileBasicAction } from "@/server/actions/doctor";
+import { SubSpecialtiesInput } from "@/components/dashboard/sub-specialties-input";
 import type { DoctorDocLike } from "@/types/doctor";
 
 const ALL_LANGS = ["Bangla", "English", "Hindi", "Urdu", "Arabic"];
@@ -106,6 +107,15 @@ export function BasicSectionForm({
           ))}
         </div>
       </fieldset>
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label htmlFor="subspecialty-input">Sub-specialties</Label>
+        <SubSpecialtiesInput id="subspecialty-input" initial={doctor.subSpecialties ?? []} />
+        <p className="text-xs text-muted-foreground">
+          Focused areas within your specialty — e.g. Echocardiography,
+          Interventional Cardiology. Press Enter to add each (max 10). Used in
+          search.
+        </p>
+      </div>
       <div className="space-y-1.5 sm:col-span-2">
         <Label htmlFor="bio">Bio (markdown supported, max 2000 chars)</Label>
         <textarea

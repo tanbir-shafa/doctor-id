@@ -108,7 +108,7 @@ export async function GET(
             <div style={{ fontSize: 36, marginTop: 12, opacity: 0.95, display: "flex" }}>{primary?.name ?? "Doctor"}</div>
             {chamber ? (
               <div style={{ fontSize: 26, marginTop: 16, opacity: 0.85, display: "flex" }}>
-                {chamber.area}, {chamber.city}
+                {chamber.area}, {chamber.district}
               </div>
             ) : null}
             {isVerified ? (

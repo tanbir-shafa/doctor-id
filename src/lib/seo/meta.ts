@@ -14,7 +14,7 @@ export function buildProfileMetadata(doc: DoctorDocLike): Metadata {
 
   const fullName = doc.name.displayName;
   const specialtyLabel = primary?.name ?? "Doctor";
-  const cityLabel = primaryChamber?.city ? ` in ${primaryChamber.city}` : "";
+  const cityLabel = primaryChamber?.district ? ` in ${primaryChamber.district}` : "";
 
   const title = doc.seoTitle || `${fullName} — ${specialtyLabel}${cityLabel}`;
   const description =

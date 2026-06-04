@@ -32,7 +32,7 @@ function doc(over: Partial<DoctorDocLike> = {}): DoctorDocLike {
                 name: "Apollo",
                 address: "100 Road",
                 area: "Dhanmondi",
-                city: "Dhaka",
+                district: "Dhaka",
                 division: "Dhaka",
                 schedule: [],
                 isPrimary: true,

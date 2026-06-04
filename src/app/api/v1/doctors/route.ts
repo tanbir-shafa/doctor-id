@@ -6,7 +6,7 @@ import { toFhirPractitioner } from "@/lib/fhir/practitioner";
 /**
  * GET /api/v1/doctors
  *
- * Query params: q, specialty, city, page, pageSize, verificationLevel, sort.
+ * Query params: q, specialty, district (alias: city), page, pageSize, verificationLevel, sort.
  * Responds with `{ data: FhirPractitioner[], pagination: { ... } }` so EMR
  * consumers see canonical FHIR while keeping pagination outside the bundle.
  */
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const params = {
     q: url.searchParams.get("q") ?? undefined,
     specialty: url.searchParams.get("specialty") ?? undefined,
-    city: url.searchParams.get("city") ?? undefined,
+    district: url.searchParams.get("district") ?? url.searchParams.get("city") ?? undefined,
     verificationLevel: (url.searchParams.get("verificationLevel") as never) ?? undefined,
     language: url.searchParams.get("language") ?? undefined,
     gender: (url.searchParams.get("gender") as never) ?? undefined,

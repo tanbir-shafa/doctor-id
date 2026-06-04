@@ -4,7 +4,7 @@
  *
  *  - Chambers REFERENCE the seeded Chamber collection by `chamberLocationId`;
  *    display fields (name/address/phone/coords) are cached from Chamber for
- *    joinless SSR reads. `city` holds the canonical 64-district; `area`/`division`
+ *    joinless SSR reads. `district` holds the canonical 64-district; `area`/`division`
  *    are the denormalized query keys.
  *  - Specialties are the canonical refs (deduped); the verbatim source strings are
  *    preserved in `sourceSpecialty`.
@@ -95,7 +95,7 @@ function chamberSubdocs(
       name: c.name,
       address: (c.address && String(c.address).trim()) || c.name, // required + non-empty
       area: r.area,
-      city: r.district, // canonical 64-district (the indexed location key)
+      district: r.district, // canonical 64-district (the indexed location key)
       division: r.division,
       coordinates: c.coordinates ?? { lat: null, lng: null },
       phone: c.phone ?? null,

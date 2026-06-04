@@ -98,7 +98,7 @@ describe("normalizeIbnSinaDoctor with the first ibn-sina row", () => {
         };
         const c = normalizeIbnSinaDoctor(stub, LOOKUP, "2026-01-01T00:00:00.000Z");
         expect(c!.fields.chambers?.[0]?.area).toBe("Gandaria");
-        expect(c!.fields.chambers?.[0]?.city).toBe("Dhaka");
+        expect(c!.fields.chambers?.[0]?.district).toBe("Dhaka");
     });
 
     it("returns null when name is unparseable", () => {

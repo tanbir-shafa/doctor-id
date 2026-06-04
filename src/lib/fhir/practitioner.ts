@@ -139,7 +139,7 @@ export function toFhirPractitioner(doc: DoctorDocLike): FhirPractitionerEnvelope
           display: chamber.name,
           address: {
             line: [chamber.address],
-            city: chamber.city,
+            city: chamber.district,
             district: chamber.division,
             country: "BD",
           },

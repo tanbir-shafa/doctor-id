@@ -165,7 +165,7 @@ export async function GET(
                         ) : null}
                         {chamber ? (
                             <div style={{fontSize: 26, marginTop: 6, opacity: 0.8, display: "flex"}}>
-                                {chamber.area}, {chamber.city}
+                                {chamber.area}, {chamber.district}
                             </div>
                         ) : null}
                     </div>

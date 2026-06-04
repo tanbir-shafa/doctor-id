@@ -1,7 +1,7 @@
 /**
  * Canonical list of the 64 districts and 8 divisions of Bangladesh.
  *
- * Single source of truth for everything that touches `Doctor.chambers[].city`
+ * Single source of truth for everything that touches `Doctor.chambers[].district`
  * and `.division` — the Zod validator, Mongoose `enum`, dashboard chambers
  * editor dropdown, admin doctors list filter, the one-time DB migration,
  * the `data/unified/doctors.json` canonicalization, and the ingest pipeline.

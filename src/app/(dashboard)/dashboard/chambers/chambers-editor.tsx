@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChambersUpdateSchema } from "@/lib/validators/doctor";
+import { BD_DIVISIONS, BD_DISTRICTS } from "@/lib/geo/bd-districts";
 import { ScheduleEditor, type ScheduleSlot } from "@/components/dashboard/schedule-editor";
 import { updateChambersAction } from "@/server/actions/doctor";
 
@@ -34,9 +35,11 @@ const EMPTY_CHAMBER: ChamberFormValue = {
   name: "",
   address: "",
   area: "",
-  city: "Dhaka",
+  district: "Dhaka",
   division: "Dhaka",
   phone: "",
+  floor: "",
+  room: "",
   consultationFee: { amount: 0, currency: "BDT" },
   coordinates: { lat: null, lng: null },
   schedule: [],
@@ -60,9 +63,11 @@ export function ChambersEditor({ initialChambers, submitAction }: Props) {
       name: c.name ?? "",
       address: c.address ?? "",
       area: c.area ?? "",
-      city: c.city ?? "Dhaka",
+      district: c.district ?? "Dhaka",
       division: c.division ?? "Dhaka",
       phone: c.phone ?? "",
+      floor: c.floor ?? "",
+      room: c.room ?? "",
       consultationFee: c.consultationFee ?? { amount: 0, currency: "BDT" },
       coordinates: c.coordinates ?? { lat: null, lng: null },
       schedule: (c.schedule ?? []) as ScheduleSlot[],
@@ -122,6 +127,23 @@ export function ChambersEditor({ initialChambers, submitAction }: Props) {
           const schedule = (form.watch(`chambers.${idx}.schedule`) ?? []) as ScheduleSlot[];
           const errs = form.formState.errors.chambers?.[idx];
 
+          // Division → district cascade. Options come from the canonical 64-district
+          // catalog (src/lib/geo/bd-districts). A legacy value not in the list is kept
+          // selectable so editing an imported chamber never silently rewrites it.
+          const selectedDivision = form.watch(`chambers.${idx}.division`);
+          const currentDistrict = form.watch(`chambers.${idx}.district`);
+          const districtNames = BD_DISTRICTS.filter((d) => d.division === selectedDivision).map(
+            (d) => d.name,
+          );
+          const districtOptions =
+            currentDistrict && !districtNames.includes(currentDistrict)
+              ? [currentDistrict, ...districtNames]
+              : districtNames;
+          const divisionOptions =
+            selectedDivision && !(BD_DIVISIONS as readonly string[]).includes(selectedDivision)
+              ? [selectedDivision, ...BD_DIVISIONS]
+              : [...BD_DIVISIONS];
+
           return (
             <li key={field.id}>
               <Card>
@@ -180,12 +202,59 @@ export function ChambersEditor({ initialChambers, submitAction }: Props) {
                       {errs?.area ? <p className="text-xs text-destructive">{errs.area.message}</p> : null}
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor={`city-${idx}`}>City</Label>
-                      <Input id={`city-${idx}`} {...form.register(`chambers.${idx}.city`)} />
+                      <Label htmlFor={`division-${idx}`}>Division</Label>
+                      <select
+                        id={`division-${idx}`}
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        {...form.register(`chambers.${idx}.division`, {
+                          onChange: (e) => {
+                            // Reset the district to the first one in the newly-picked division.
+                            const first = BD_DISTRICTS.find((d) => d.division === e.target.value)?.name;
+                            if (first) {
+                              form.setValue(`chambers.${idx}.district`, first, { shouldDirty: true });
+                            }
+                          },
+                        })}
+                      >
+                        {divisionOptions.map((dv) => (
+                          <option key={dv} value={dv}>
+                            {dv}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor={`division-${idx}`}>Division</Label>
-                      <Input id={`division-${idx}`} {...form.register(`chambers.${idx}.division`)} />
+                      <Label htmlFor={`district-${idx}`}>District</Label>
+                      <select
+                        id={`district-${idx}`}
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        {...form.register(`chambers.${idx}.district`)}
+                      >
+                        {districtOptions.map((dn) => (
+                          <option key={dn} value={dn}>
+                            {dn}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor={`floor-${idx}`}>Floor (optional)</Label>
+                      <Input
+                        id={`floor-${idx}`}
+                        {...form.register(`chambers.${idx}.floor`)}
+                        placeholder="e.g. 3rd floor"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`room-${idx}`}>Room / suite (optional)</Label>
+                      <Input
+                        id={`room-${idx}`}
+                        {...form.register(`chambers.${idx}.room`)}
+                        placeholder="e.g. Room 302"
+                      />
                     </div>
                   </div>
 

@@ -66,10 +66,10 @@ export function ProfileHeader({ doctor }: { doctor: DoctorDocLike }) {
               <span className="inline-flex items-center gap-1">
                 <MapPin className="size-4" aria-hidden="true" />
                 <Link
-                  href={`/${encodeURIComponent(primarySpecialty?.name.toLowerCase() ?? "doctors")}/${encodeURIComponent(primaryChamber.city.toLowerCase())}`}
+                  href={`/${encodeURIComponent(primarySpecialty?.name.toLowerCase() ?? "doctors")}/${encodeURIComponent(primaryChamber.district.toLowerCase())}`}
                   className="hover:underline"
                 >
-                  {primaryChamber.area}, {primaryChamber.city}
+                  {primaryChamber.area}, {primaryChamber.district}
                 </Link>
               </span>
             ) : null}

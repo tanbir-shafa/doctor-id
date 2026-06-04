@@ -1,11 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { ChambersUpdateSchema, ChamberSchema } from "@/lib/validators/doctor";
+import {
+  ChambersUpdateSchema,
+  ChamberSchema,
+  ProfileConcentrationsSchema,
+} from "@/lib/validators/doctor";
 
 const VALID_BASE = {
   name: "Test Chamber",
   address: "House 1, Road 1",
   area: "Dhanmondi",
-  city: "Dhaka",
+  district: "Dhaka",
   division: "Dhaka",
   phone: "+8801711000000",
   consultationFee: { amount: 1000, currency: "BDT" as const },
@@ -18,6 +22,29 @@ describe("ChamberSchema (single chamber)", () => {
   it("accepts a minimal valid chamber", () => {
     const r = ChamberSchema.safeParse({ ...VALID_BASE });
     expect(r.success).toBe(true);
+  });
+
+  it("accepts and preserves floor / room", () => {
+    const r = ChamberSchema.safeParse({ ...VALID_BASE, floor: "3rd floor", room: "Room 302" });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.floor).toBe("3rd floor");
+      expect(r.data.room).toBe("Room 302");
+    }
+  });
+
+  it("trims floor / room whitespace", () => {
+    const r = ChamberSchema.safeParse({ ...VALID_BASE, floor: "  2B  ", room: "  12  " });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.floor).toBe("2B");
+      expect(r.data.room).toBe("12");
+    }
+  });
+
+  it("rejects a floor longer than 40 chars", () => {
+    const r = ChamberSchema.safeParse({ ...VALID_BASE, floor: "x".repeat(41) });
+    expect(r.success).toBe(false);
   });
 
   it("rejects HH:mm formatting errors", () => {
@@ -105,5 +132,37 @@ describe("ChambersUpdateSchema (full list)", () => {
       chambers: [{ ...VALID_BASE, isPrimary: true }],
     });
     expect(oneR.success).toBe(true);
+  });
+});
+
+describe("ProfileConcentrationsSchema", () => {
+  it("accepts a valid tag list", () => {
+    const r = ProfileConcentrationsSchema.safeParse({
+      concentrations: ["Echocardiography", "Interventional Cardiology"],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("defaults to an empty array when omitted", () => {
+    const r = ProfileConcentrationsSchema.safeParse({});
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.concentrations).toEqual([]);
+  });
+
+  it("rejects more than 30 tags", () => {
+    const r = ProfileConcentrationsSchema.safeParse({
+      concentrations: Array.from({ length: 31 }, (_, i) => `tag-${i}`),
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a tag longer than 80 chars", () => {
+    const r = ProfileConcentrationsSchema.safeParse({ concentrations: ["x".repeat(81)] });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects an empty-string tag", () => {
+    const r = ProfileConcentrationsSchema.safeParse({ concentrations: [""] });
+    expect(r.success).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { searchDoctors, listCities } from "@/lib/db/queries/doctors";
+import { searchDoctors, listDistricts } from "@/lib/db/queries/doctors";
 import { Specialty } from "@/lib/db/models";
 import { dbConnect } from "@/lib/db/mongoose";
 import { DoctorCard, type DoctorCardView } from "@/components/search/doctor-card";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Find a doctor",
   description:
-    "Search verified doctors in Bangladesh by specialty, city, language, and more. Updated daily.",
+    "Search verified doctors in Bangladesh by specialty, district, language, and more. Updated daily.",
 };
 
 // Plain server-rendered search; no client JS needed for results.
@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 interface SearchParamsRaw {
   q?: string;
   specialty?: string;
-  city?: string;
+  district?: string;
   page?: string;
   verificationLevel?: string;
   language?: string;
@@ -49,11 +49,11 @@ export default async function SearchPage({
 }) {
   const sp = await searchParams;
   const view: DoctorCardView = sp.view === "grid" ? "grid" : "list";
-  const [{ doctors, total, page, totalPages }, specialties, cities] = await Promise.all([
+  const [{ doctors, total, page, totalPages }, specialties, districts] = await Promise.all([
     searchDoctors({
       q: sp.q,
       specialty: sp.specialty,
-      city: sp.city,
+      district: sp.district,
       page: sp.page ? Number(sp.page) : 1,
       verificationLevel: sp.verificationLevel as never,
       language: sp.language,
@@ -61,7 +61,7 @@ export default async function SearchPage({
       sort: (sp.sort as never) ?? (sp.q ? "relevance" : "verified"),
     }),
     getSpecialties(),
-    listCities(),
+    listDistricts(),
   ]);
 
   return (
@@ -104,14 +104,14 @@ export default async function SearchPage({
           ))}
         </select>
         <select
-          name="city"
-          defaultValue={sp.city ?? ""}
+          name="district"
+          defaultValue={sp.district ?? ""}
           className="h-10 rounded-md border border-input bg-background px-3 text-sm"
         >
-          <option value="">Any city</option>
-          {cities.map((c) => (
-            <option key={c} value={c}>
-              {c}
+          <option value="">Any district</option>
+          {districts.map((d) => (
+            <option key={d} value={d}>
+              {d}
             </option>
           ))}
         </select>

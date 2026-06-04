@@ -71,10 +71,12 @@ export interface DoctorChamber {
   name: string;
   address: string;
   area: string;
-  city: string;
+  district: string;
   division: string;
   coordinates?: ChamberCoordinates;
   phone?: string;
+  floor?: string;
+  room?: string;
   schedule: ChamberScheduleSlot[];
   consultationFee?: ChamberFee;
   isPrimary: boolean;
@@ -196,6 +198,7 @@ export interface DoctorDocLike {
 
   privacyHidePhone?: boolean;
   privacyHideEmail?: boolean;
+  whatsappAppointmentEnabled?: boolean;
 
   /** Set by the dedup pipeline when a candidate group can't be auto-merged. */
   dupReviewGroup?: string | null;

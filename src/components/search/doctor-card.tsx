@@ -86,7 +86,7 @@ export function DoctorCard({
       : null;
   const languages = doctor.languages?.length ? doctor.languages.join(", ") : null;
   const consultingDays = formatConsultingDays(primaryChamber?.schedule);
-  const location = primaryChamber ? `${primaryChamber.area}, ${primaryChamber.city}` : null;
+  const location = primaryChamber ? `${primaryChamber.area}, ${primaryChamber.district}` : null;
 
   return (
     <Link

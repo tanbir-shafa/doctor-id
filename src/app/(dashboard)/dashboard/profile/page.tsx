@@ -7,6 +7,7 @@ import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor, Specialty } from "@/lib/db/models";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { SpecialtiesEditor } from "@/components/dashboard/specialties-editor";
+import { ConcentrationsEditor } from "@/components/dashboard/concentrations-editor";
 import { updateProfileSpecialtiesAction } from "@/server/actions/doctor";
 import { BasicSectionForm } from "./basic-form";
 import { ContactSectionForm } from "./contact-form";
@@ -109,6 +110,19 @@ export default async function EditProfilePage() {
             catalog={specialtyCatalog}
             submitAction={updateProfileSpecialtiesAction}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Areas of focus</CardTitle>
+          <CardDescription>
+            Free-form tags (e.g. &ldquo;Interventional Cardiology&rdquo;) shown
+            in the &ldquo;Areas of focus&rdquo; section of your public profile.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ConcentrationsEditor initial={doctor.concentrations ?? []} />
         </CardContent>
       </Card>
 

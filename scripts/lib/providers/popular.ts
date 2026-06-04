@@ -346,7 +346,7 @@ export function toCanonicalCandidate(
         name: c.name,
         address: c.address,
         area: c.area,
-        city: c.city,
+        district: c.city,
         division: c.division,
         coordinates:
           c.coordinates.lat != null && c.coordinates.lng != null

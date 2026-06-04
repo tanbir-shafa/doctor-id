@@ -25,6 +25,7 @@ import { generateSlug } from "@/lib/utils/slug";
 import { normalizeBmdc } from "@/lib/utils/bmdc";
 import { normalizeBdPhone } from "@/lib/utils/phone";
 import { sendSms } from "@/lib/sms/client";
+import { getSmsProvider } from "@/lib/sms/provider";
 import {
   loginRateLimiter,
   tokenRequestRateLimiter,
@@ -206,7 +207,17 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
 
   const verifyUrl = `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/register?phone=${encodeURIComponent(normalizedPhone)}&step=verify${claimSlug ? `&slug=${encodeURIComponent(claimSlug)}` : ""}`;
   const body = `doctor.id.bd: Your verification code is ${code}. Valid for ${OTP_TTL_MINUTES} minutes. ${verifyUrl}`;
-  await sendSms({ to: normalizedPhone, body });
+  const smsResult = await sendSms({ to: normalizedPhone, body });
+  // When a real SMS provider is configured but the send fails (gateway/IP/auth
+  // error), tell the user instead of advancing to the code screen. In dev with
+  // no provider configured, sendSms no-ops (prints the code to the console) and
+  // must still "succeed" so offline testing works.
+  if (!smsResult.sent && getSmsProvider().isConfigured()) {
+    return {
+      ok: false,
+      error: "We couldn't send your verification code right now. Please try again in a moment.",
+    };
+  }
 
   return { ok: true };
 }
@@ -237,8 +248,16 @@ export async function requestLoginOtpAction(input: { phone: string }): Promise<A
       approved: boolean;
     } | null>();
 
-  // Silent no-op for unknown / unverified-only phones — avoids enumeration.
-  if (!user) return { ok: true };
+  // No account for this phone — surface a clear, actionable message instead of
+  // silently succeeding. (This trades phone-number enumeration resistance for
+  // UX: the login screen now distinguishes "no account" from "code sent". The
+  // per-phone rate limiter above still caps how fast a number can be probed.)
+  if (!user) {
+    return {
+      ok: false,
+      error: "No account found with this number. Please register first.",
+    };
+  }
 
   // Surface a clear "still waiting on admin" message for accounts that
   // exist but haven't been approved. This is a known-account path so the
@@ -267,7 +286,13 @@ export async function requestLoginOtpAction(input: { phone: string }): Promise<A
   );
 
   const body = `doctor.id.bd: Your sign-in code is ${code}. Valid for ${OTP_TTL_MINUTES} minutes.`;
-  await sendSms({ to: phone, body });
+  const smsResult = await sendSms({ to: phone, body });
+  if (!smsResult.sent && getSmsProvider().isConfigured()) {
+    return {
+      ok: false,
+      error: "We couldn't send your sign-in code right now. Please try again in a moment.",
+    };
+  }
   return { ok: true };
 }
 

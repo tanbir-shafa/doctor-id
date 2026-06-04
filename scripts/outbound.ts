@@ -3,7 +3,7 @@
  *
  * Usage:
  *   npm run outbound -- --campaign=2026-w22-rxpad --template=en-claim-rx-pad
- *     [--cohort=city=Dhaka,specialty=Cardiology]
+ *     [--cohort=district=Dhaka,specialty=Cardiology]
  *     [--limit=N]
  *     [--dry-run]
  *
@@ -15,7 +15,8 @@
  *      (idempotency — `(doctorId, templateId, sentAt within 7d)`).
  *   5. Render the template against each doctor's context.
  *   6. Hand the batch to `sendSmsBatch`, which groups identical bodies and
- *      chunks 20-per-call to honor MDL's per-call cap.
+ *      chunks per the active provider's cap (SSL 100/call bulk + dynamic,
+ *      MDL 20/call).
  *   7. Persist one `OutboundMessage` row per recipient with the final
  *      status (sent / failed / opted_out / skipped).
  *
@@ -27,6 +28,7 @@ import mongoose from "mongoose";
 import { dbConnect, dbDisconnect } from "@/lib/db/mongoose";
 import { Doctor, OutboundMessage, OptOut } from "@/lib/db/models";
 import { sendSmsBatch, type BulkSmsResult } from "@/lib/sms/client";
+import { getSmsProvider } from "@/lib/sms/provider";
 import { normalizeBdPhone } from "@/lib/utils/phone";
 import {
   OUTBOUND_TEMPLATES,
@@ -100,7 +102,7 @@ async function main() {
     status: "published",
     "contact.publicPhone": { $ne: null },
   };
-  if (args.cohort.city) filter["chambers.city"] = args.cohort.city;
+  if (args.cohort.district) filter["chambers.district"] = args.cohort.district;
   if (args.cohort.specialty) filter["specialties.name"] = args.cohort.specialty;
 
   const query = Doctor.find(filter).select("_id slug name contact specialties");
@@ -172,14 +174,26 @@ async function main() {
   const queued = rows.filter((r) => r.status === "queued");
   const segPreview = queued[0] ? segmentCount(queued[0].body) : { unicode: false, segments: 0 };
   const distinctBodies = new Set(queued.map((r) => r.body)).size;
-  const calls = Math.ceil(distinctBodies / 1) * Math.ceil(queued.length / Math.max(distinctBodies, 1) / 20);
+  // Approximate gateway-call count for the active provider: same-body cohorts
+  // (>=2) batch by maxBatch; unique/personalized bodies pool into the dynamic
+  // endpoint (also maxBatch). Mirrors sendSmsBatch's partition.
+  const provider = getSmsProvider();
+  const bodyCounts = new Map<string, number>();
+  for (const r of queued) bodyCounts.set(r.body, (bodyCounts.get(r.body) ?? 0) + 1);
+  let singletons = 0;
+  let calls = 0;
+  for (const count of bodyCounts.values()) {
+    if (count >= 2) calls += Math.ceil(count / provider.maxBatch);
+    else singletons += 1;
+  }
+  if (singletons > 0) calls += Math.ceil(singletons / provider.maxBatch);
 
   console.log(`→ Skipped (no phone):     ${skippedNoPhone}`);
   console.log(`→ Skipped (opt-out):      ${rows.filter((r) => r.status === "opted_out").length}`);
   console.log(`→ Skipped (recently sent):${rows.filter((r) => r.status === "skipped").length}`);
   console.log(`→ Queued to send:         ${queued.length}`);
   console.log(
-    `→ Body groups: ${distinctBodies} (${template.personalized ? "personalized" : "shared body"}) · ~${calls} MDL call(s) · ${segPreview.segments} segment${segPreview.segments === 1 ? "" : "s"}/SMS (${segPreview.unicode ? "Unicode" : "ASCII"})`,
+    `→ Body groups: ${distinctBodies} (${template.personalized ? "personalized" : "shared body"}) · ~${calls} ${provider.name} call(s) · ${segPreview.segments} segment${segPreview.segments === 1 ? "" : "s"}/SMS (${segPreview.unicode ? "Unicode" : "ASCII"})`,
   );
 
   // Guard: don't ship campaigns with unresolved placeholders.
@@ -225,7 +239,7 @@ async function main() {
     return;
   }
 
-  console.log(`\n→ Dispatching ${queued.length} SMS via MDL (chunked)…`);
+  console.log(`\n→ Dispatching ${queued.length} SMS via ${provider.name} gateway (chunked)…`);
   const sendResults: BulkSmsResult[] = await sendSmsBatch(
     queued.map((r) => ({ to: r.doctor.phone, body: r.body })),
   );

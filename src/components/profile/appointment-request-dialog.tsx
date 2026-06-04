@@ -19,7 +19,7 @@ interface ChamberOption {
   _id: string;
   name: string;
   area?: string;
-  city?: string;
+  district?: string;
   schedule?: ChamberScheduleSlot[];
 }
 

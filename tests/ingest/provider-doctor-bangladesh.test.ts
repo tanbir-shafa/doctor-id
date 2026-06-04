@@ -88,7 +88,7 @@ describe("normalizeDoctorBangladeshPost confidence ladder", () => {
         expect(c).not.toBeNull();
         expect(c!.sourceMeta.confidence).toBe("high");
         expect(c!.fields.specialties?.[0]?.name).toBe("Dermatology");
-        expect(c!.fields.chambers?.[0]?.city).toBe("Pabna");
+        expect(c!.fields.chambers?.[0]?.district).toBe("Pabna");
         expect(c!.fields.chambers?.[0]?.schedule.length).toBe(6); // Friday closed
     });
 
@@ -146,7 +146,7 @@ describe("real-fixture smoke test", () => {
         expect(c!.sourceMeta.confidence).toBe("high");
         expect(c!.fields.name.last).toBe("Newaz");
         expect(c!.fields.specialties?.[0]?.name).toBe("Dermatology");
-        expect(c!.fields.chambers?.[0]?.city).toBe("Pabna");
+        expect(c!.fields.chambers?.[0]?.district).toBe("Pabna");
     });
 });
 

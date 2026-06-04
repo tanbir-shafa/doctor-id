@@ -21,7 +21,7 @@ export function ShareToWhatsappButton({
         slug: string;
         name: {prefix: string; displayName: string};
         specialties: Array<{name: string; isPrimary: boolean}>;
-        chambers: Array<{area: string; city: string; isPrimary: boolean}>;
+        chambers: Array<{area: string; district: string; isPrimary: boolean}>;
     };
     label?: string;
     variant?: "default" | "outline";
@@ -32,7 +32,7 @@ export function ShareToWhatsappButton({
         displayName: doctor.name.displayName,
         prefix: doctor.name.prefix,
         specialty: primarySpec?.name,
-        chamberSummary: primaryChamber ? `${primaryChamber.area}, ${primaryChamber.city}` : undefined,
+        chamberSummary: primaryChamber ? `${primaryChamber.area}, ${primaryChamber.district}` : undefined,
         slug: doctor.slug,
     });
     const href = buildWhatsappShareUrl(text);

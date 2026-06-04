@@ -281,7 +281,7 @@ function buildChamber(c: SasChamber, isPrimary: boolean): DoctorChamber | null {
         name: c.name,
         address: fullAddress || c.name,
         area,
-        city,
+        district: city,
         division,
         coordinates:
             typeof addr.lat === "number" && typeof addr.lng === "number"
@@ -337,10 +337,10 @@ export function normalizeSasthyasebaDoctor(
     const phone: string | undefined = undefined; // sasthyaseba doesn't expose
     const nameKey = normalizeNameForMatch(parsedName.displayName) ?? undefined;
     const primary = specialties[0]?.name?.toLowerCase();
-    const district = chambers[0]?.city?.toLowerCase();
+    const district = chambers[0]?.district?.toLowerCase();
     const specialtyDistrictKey = primary && district ? `${primary}|${district}` : undefined;
     const chamberAddressKeys = chambers
-        .map((c) => `${c.area}|${c.city}`.toLowerCase())
+        .map((c) => `${c.area}|${c.district}`.toLowerCase())
         .filter(Boolean);
 
     return {

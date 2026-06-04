@@ -44,7 +44,7 @@ export function buildShareText(input: ShareTextInput): string {
 export function buildShareTextForDoctor(doc: DoctorDocLike): string {
     const primary = doc.specialties.find((s) => s.isPrimary) ?? doc.specialties[0];
     const chamber = doc.chambers.find((c) => c.isPrimary) ?? doc.chambers[0];
-    const chamberSummary = chamber ? `${chamber.area}, ${chamber.city}` : undefined;
+    const chamberSummary = chamber ? `${chamber.area}, ${chamber.district}` : undefined;
     return buildShareText({
         displayName: doc.name.displayName,
         prefix: doc.name.prefix,

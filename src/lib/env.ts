@@ -48,9 +48,22 @@ const ServerEnvSchema = z.object({
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 
-  // MDL SMS gateway (A.4 — SMS magic-link claim). Optional in dev: when any
-  // of these are missing, `sendSms()` logs the message to the console
-  // instead of dispatching, so the claim flow stays testable offline.
+  // SMS provider switch. `ssl` (SSL Wireless iSMS Plus v3) is the default;
+  // `mdl` selects the legacy in-house gateway as a one-env-var fallback.
+  SMS_PROVIDER: z.enum(["ssl", "mdl"]).default("ssl"),
+
+  // SSL Wireless iSMS Plus v3 (primary SMS provider). Optional in dev: when
+  // token + sid are missing, `sendSms()`/`sendSmsBatch()` log to the console
+  // instead of dispatching, so OTP + campaign flows stay testable offline
+  // (same UX as the SES email client). NOTE: the request IP must be
+  // whitelisted in the SSL portal before live sends succeed.
+  SSL_SMS_API_TOKEN: z.string().optional(),
+  SSL_SMS_SID: z.string().optional(),
+  SSL_SMS_API_BASE_URL: z.string().url().default("https://smsplus.sslwireless.com/api/v3"),
+
+  // MDL SMS gateway (legacy fallback — set SMS_PROVIDER=mdl to use). Optional
+  // in dev: when any of these are missing, the MDL path logs to the console
+  // instead of dispatching.
   MDL_SMS_API_BASE_URL: z.string().url().optional(),
   MDL_SMS_API_KEY: z.string().optional(),
   MDL_SMS_API_SENDER_ID: z.string().optional(),

@@ -83,9 +83,9 @@ cp .env.example .env.local
 
 | Var | What it unlocks | Without it |
 |---|---|---|
-| `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` + `S3_BUCKET` | Photo / document uploads land in S3. Popular Diagnostic seed copies photos to S3. | Photos stay at `legacy-external` URLs (Popular CDN). Doc uploads fail with a friendly error. |
+| `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` + `AWS_PUBLIC_BUCKET_NAME` + `AWS_PRIVATE_BUCKET_NAME` | Server-side S3 uploads — profile/cover photos (public bucket) + **mandatory registration selfie** & verification docs (private bucket). | Profile photos fall back to Popular CDN URLs; **selfie/verification uploads fail**, so registration can't complete without the private bucket set (even in dev). See CLAUDE.md #17. |
 | `SES_FROM_EMAIL` | Email-verification + password-reset mail goes out via AWS SES. | `sendEmail()` logs the email to the console — fine for verifying tokens manually. |
-| `MDL_SMS_API_BASE_URL` + `MDL_SMS_API_KEY` + `MDL_SMS_API_SENDER_ID` | Real SMS dispatched via the MDL gateway (login OTPs, claim OTPs, appointment notifications, outbound campaigns). | `sendSms()` logs the SMS body + 6-digit OTP to the dev console. **You can complete a full registration / login flow this way.** |
+| `SSL_SMS_API_TOKEN` + `SSL_SMS_SID` (`SMS_PROVIDER=ssl`, default) | Real SMS via **SSL Wireless iSMS Plus v3** (login OTPs, registration OTPs, appointment notifications, outbound campaigns). **Live sends require the request IP to be whitelisted** in the SSL portal. MDL is a one-env fallback (`SMS_PROVIDER=mdl` + `MDL_SMS_*`). | `sendSms()` logs the SMS body + 6-digit OTP to the dev console. **You can complete a full registration / login flow this way.** |
 | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | Real rate-limiting on login, OTPs, appointment submissions, outbound. | Limiters return `{ success: true }` — fine for solo dev, never for prod. |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth on admin login. | Credentials-only login still works. |
 | `ADMIN_EMAILS` | Comma-separated list of emails granted `role: 'admin'` at signup or seed-bootstrap. | The seed script defaults to `admin@doctor.id.bd`. |
@@ -234,16 +234,16 @@ Visit:
 
 ### 7.1 Claim a Popular Diagnostic profile as a doctor
 
-Without MDL credentials, the SMS gateway is a no-op: **the OTP is printed
+Without SMS credentials, the SMS gateway is a no-op: **the OTP is printed
 to your `npm run dev` console**. Walk through it:
 
 1. Open `http://localhost:3000/dr-m-nazrul-islam-cardiologist` (or any unclaimed Popular profile).
 2. Click **"Claim this profile"** → lands on `/auth/register?slug=...`.
-3. Fill BMDC# (any 4–7 digit number for dev), phone (use the seeded phone on the doctor's contact — visible in Compass), name. Optionally attach NID/selfie if S3 is configured.
+3. Fill BMDC# (any 4–7 digit number for dev), phone (use the seeded phone on the doctor's contact — visible in Compass), name, and **a live-camera selfie** (mandatory — needs the private S3 bucket configured, even in dev — see §3).
 4. Submit → check the `npm run dev` terminal for the OTP:
 
    ```
-   ─── [MDL SMS no-op] would have sent SMS ───
+   ─── [SSL SMS no-op] would have sent SMS ───
    To:        +8801711563450
    Body:      doctor.id.bd: Your verification code is 348127. ...
    ```
@@ -277,14 +277,14 @@ login" on the doctor's next dashboard load.
 
 ### 7.5 Run a bulk-outbound campaign
 
-Add MDL credentials (or stay in dev no-op mode), then:
+Add SSL Wireless credentials (or stay in dev no-op mode), then:
 
 ```bash
 # Dry-run a campaign — prints what would happen, writes nothing
 npm run outbound -- \
   --campaign=2026-w22-rxpad \
   --template=en-claim-rx-pad \
-  --cohort=sourceProvider=popular-diagnostic \
+  --cohort=district=Dhaka \
   --limit=20 \
   --dry-run
 
@@ -292,7 +292,7 @@ npm run outbound -- \
 npm run outbound -- \
   --campaign=2026-w22-rxpad \
   --template=en-claim-rx-pad \
-  --cohort=sourceProvider=popular-diagnostic \
+  --cohort=district=Dhaka \
   --limit=20
 ```
 
@@ -303,13 +303,13 @@ Output funnel:
 → Skipped (opt-out):      0
 → Skipped (recently sent):0
 → Queued to send:         20
-→ Body groups: 1 (shared body) · ~1 MDL call(s) · 1 segment/SMS (ASCII)
+→ Body groups: 1 (shared body) · ~1 ssl call(s) · 1 segment/SMS (ASCII)
 ```
 
-The script honors MDL's **20-numbers-per-call** cap and waits for each
-response before firing the next batch. Templates with `{{firstName}}` etc.
-automatically fall back to 1-per-call. See `/admin/outbound` for the
-post-send funnel + campaign claim rate.
+The script honors the active provider's per-call cap — SSL Wireless batches
+**up to 100** numbers per `/send-sms/bulk` call (same body) and up to 100
+personalized messages per `/send-sms/dynamic` call (MDL caps at 20). See
+`/admin/outbound` for the post-send funnel + campaign claim rate.
 
 ---
 
@@ -318,7 +318,7 @@ post-send funnel + campaign claim rate.
 Run the full quality-gate before committing:
 
 ```bash
-npm test           # Vitest (148 tests, DB-less, ~2s)
+npm test           # Vitest (454 tests, DB-less, ~3s)
 npm run typecheck  # tsc --noEmit
 npm run build      # production build (~10s)
 ```
@@ -341,7 +341,8 @@ The repo follows the App Router. High-level map (full version in
 | `src/app/(dashboard)/dashboard/` | Doctor dashboard |
 | `src/app/admin/` | Admin portal (AdminLTE-style shell) |
 | `src/lib/db/models/` | Mongoose schemas — start here when changing data |
-| `src/lib/sms/client.ts` | MDL adapter + `sendSmsBatch` |
+| `src/lib/sms/client.ts` | SMS provider facade (`sendSms`/`sendSmsBatch`) — SSL Wireless + MDL |
+| `src/lib/geo/bd-districts.ts` | 8 divisions + 64 districts (chamber dropdowns + canonicalize) |
 | `src/lib/rx-pad/dto.ts` + `src/components/pdf/rx-pad.tsx` | Rx pad pipeline (A.2) |
 | `src/lib/outbound/templates.ts` | SMS template registry |
 | `src/server/actions/` | Every mutation goes through here |
@@ -388,6 +389,37 @@ npm run seed -- --source=popular-diagnostic
 Always safe to re-run. Existing rows are refreshed (except for claimed
 profiles, which are immutable to seed). New rows are added.
 
+### Show a doctor's contact details (hidden by default)
+
+Phone and email are **hidden by default** on every profile (privacy-first). A
+doctor reveals them by unchecking "Hide phone / email" in Dashboard → Profile →
+Contact; an admin can do the same in `/admin/doctors/<slug>/edit`. The "Chat on
+WhatsApp" appointment button is separately opt-in (`whatsappAppointmentEnabled`).
+The public `/api/v1` endpoints honour these flags — hidden contact never leaks.
+Chamber/clinic phone numbers stay public (facility lines, not personal contact).
+
+### Edit chamber location (division + district)
+
+Each chamber stores a **division** and a **district** (the canonical 64-district
+key, renamed from the old `city`). Both are dropdowns in Dashboard → Chambers
+(and the admin editor), sourced from
+[`src/lib/geo/bd-districts.ts`](../src/lib/geo/bd-districts.ts); picking a
+division filters the district list. Location search is `/search?district=` and
+`/<specialty>/<district>`.
+
+### Reset & reseed (pre-production)
+
+This app is pre-production — adopt schema changes by dropping the DB and
+reseeding rather than running migrations. New docs pick up the current schema on
+insert: contact is **hidden by default** and chambers store `district` (from the
+ingestion writers + schema defaults).
+
+```bash
+# drop the dev DB first (Compass, or mongosh: `use doctor-id-dev; db.dropDatabase()`)
+npm run seed                         # admin + 36 specialties
+npm run seed:unified                 # or: npm run seed -- --source=popular-diagnostic
+```
+
 ---
 
 ## 11. Troubleshooting
@@ -398,7 +430,7 @@ profiles, which are immutable to seed). New rows are added.
 | `env.ts: server env accessed from the browser` in a test | jsdom test calling server-only code | Add `// @vitest-environment node` to the test file |
 | Photos broken on `/[slug]` | Image host not whitelisted | Check `next.config.ts:images.remotePatterns`. Popular CDN is already in the list. |
 | `Cannot overwrite model once compiled` in dev | Old code shape on a model file | All models use `(models.X as Model<…>) ?? model("X", schema)` — make sure new models follow that pattern |
-| OTP never arrives | MDL creds unset (expected in dev) | Check the `npm run dev` console — OTP prints there |
+| OTP never arrives | SMS creds unset (expected in dev) | Check the `npm run dev` console — the OTP prints there. If SSL creds **are** set but no SMS arrives, confirm your egress IP is whitelisted in the SSL portal (the server logs `[ssl SMS] … failed: …`). |
 | Claim succeeds but doctor can't log in | Admin approval gate (intentional) | Approve at `/admin/verifications` |
 | `npm test` failing on seed dependencies | jsdom can't load server modules | Use `// @vitest-environment node` for any test touching `env()` / Mongoose |
 

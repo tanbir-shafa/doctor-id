@@ -17,6 +17,7 @@ import {
   ProfileExperienceSchema,
   ProfileStatusSchema,
   ProfileCredentialsSchema,
+  ProfileConcentrationsSchema,
   ChambersUpdateSchema,
 } from "@/lib/validators/doctor";
 
@@ -140,6 +141,7 @@ export async function adminUpdateProfileContactAction(
     website: form.get("website") || "",
     privacyHidePhone: form.get("privacyHidePhone") === "on",
     privacyHideEmail: form.get("privacyHideEmail") === "on",
+    whatsappAppointmentEnabled: form.get("whatsappAppointmentEnabled") === "on",
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
@@ -150,6 +152,7 @@ export async function adminUpdateProfileContactAction(
   doctor.set("contact.website", parsed.data.website || null);
   doctor.set("privacyHidePhone", Boolean(parsed.data.privacyHidePhone));
   doctor.set("privacyHideEmail", Boolean(parsed.data.privacyHideEmail));
+  doctor.set("whatsappAppointmentEnabled", Boolean(parsed.data.whatsappAppointmentEnabled));
   doctor.set("profileCompletenessScore", bumpCompleteness(doctor.toObject()));
   await doctor.save();
 
@@ -188,6 +191,48 @@ export async function adminUpdateProfileSpecialtiesAction(
 
   await logAdminEdit({
     type: "doctor.profile_specialties.updated",
+    doctorId: doctor._id,
+    adminId: ctx.adminId,
+    adminEmail: ctx.adminEmail,
+    metadata: { count: cleaned.length },
+  });
+
+  revalidateAdminDoctorPaths(doctor.get("slug"));
+  return { ok: true };
+}
+
+export async function adminUpdateProfileConcentrationsAction(
+  doctorId: string,
+  form: FormData,
+): Promise<ActionResult> {
+  const ctx = await loadDoctorAsAdmin(doctorId);
+  if (!ctx.ok) return ctx;
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(form.get("concentrations") ?? "[]"));
+  } catch {
+    return { ok: false, error: "Could not read concentrations payload." };
+  }
+  const parsed = ProfileConcentrationsSchema.safeParse({ concentrations: raw });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+  for (const c of parsed.data.concentrations) {
+    const v = c.trim();
+    const key = v.toLowerCase();
+    if (v && !seen.has(key)) {
+      seen.add(key);
+      cleaned.push(v);
+    }
+  }
+  const { doctor } = ctx;
+  doctor.set("concentrations", cleaned);
+  await doctor.save();
+
+  await logAdminEdit({
+    type: "doctor.profile_concentrations.updated",
     doctorId: doctor._id,
     adminId: ctx.adminId,
     adminEmail: ctx.adminEmail,
@@ -407,6 +452,8 @@ export async function adminUpdateChambersAction(
       ? { lat: c.coordinates.lat, lng: c.coordinates.lng }
       : { lat: null, lng: null },
     phone: c.phone ?? null,
+    floor: c.floor?.trim() ? c.floor.trim() : null,
+    room: c.room?.trim() ? c.room.trim() : null,
     consultationFee: c.consultationFee ?? { amount: 0, currency: "BDT" as const },
   }));
 

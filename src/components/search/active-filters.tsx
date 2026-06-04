@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 type SearchParams = Record<string, string | string[] | undefined>;
 
 /** Params that count as "filters" (excludes sort, page, view). */
-const FILTER_KEYS = ["q", "specialty", "city", "verificationLevel", "gender", "language"] as const;
+const FILTER_KEYS = ["q", "specialty", "district", "verificationLevel", "gender", "language"] as const;
 
 const VERIFICATION_LABELS: Record<string, string> = {
   fully_verified: "Fully verified",
@@ -18,7 +18,7 @@ const GENDER_LABELS: Record<string, string> = {
 };
 const KEY_PREFIX: Partial<Record<(typeof FILTER_KEYS)[number], string>> = {
   q: "Search",
-  city: "City",
+  district: "District",
   language: "Speaks",
 };
 

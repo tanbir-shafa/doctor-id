@@ -12,8 +12,10 @@ rewrite.
 
 **Status**: MVP shipped + **Sprint A complete** (all 8 features Day 1–30
 of the 60-day acquisition plan) + **S3 re-platform & mandatory live-selfie
-registration** (see #17). Production `next build` green. **428
-Vitest tests passing** (`npm run lint` clean). Real public-Bangladesh data ingested (Popular
+registration** (#17) + **SSL Wireless SMS** (#14) + **contact-private-by-default
+& opt-in WhatsApp appointment button** (#18) + **chamber `city`→`district` rename
+with cascading division/district dropdowns** (#19). Production `next build` green.
+**454 Vitest tests passing** (`npm run lint` clean). Real public-Bangladesh data ingested (Popular
 Diagnostic, 3,237 doctors). See [`.claude/progress/mvp-progress.md`](./.claude/progress/mvp-progress.md)
 for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-started.md).
 
@@ -30,7 +32,7 @@ for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-st
 | Mongo driver | `mongodb@6.21.0` *pinned to 6.x* | `@auth/mongodb-adapter@3.11.2` peer-requires Mongo 6; Mongoose has its own bundled driver and is independent |
 | Email | AWS SES v2 | No-ops to console.log when AWS creds absent |
 | **Storage / uploads** | **AWS S3, server-side** (`@aws-sdk/client-s3` + `s3-request-presigner` + `credential-providers`) | Port of shafa `apps/api`. Creds resolve by `NODE_ENV`: prod → cross-account STS role, else → static keys. **Public** bucket (profile/cover, stable URLs) + **private** bucket (selfie/verification, presigned-GET). See #17. |
-| **SMS** | **MDL gateway** (in-house axios-shaped wrapper) | Same dev-mode no-op pattern as SES. Bulk send caps at **20 numbers per call**. |
+| **SMS** | **SSL Wireless iSMS Plus v3** (JSON API; MDL legacy fallback via `SMS_PROVIDER`) | Server-side `fetch` through a provider facade. Bulk via `/send-sms/bulk` (≤100 same-body) + `/send-sms/dynamic` (≤100 per-number). Same dev-mode no-op as SES. **Request IP must be whitelisted** in the SSL portal for live sends. See #14. |
 | Shared state | Upstash Redis (`@upstash/redis` + `@upstash/ratelimit`) | Limiters degrade to "allow everything" without creds |
 | Styling | Tailwind v4 + shadcn-style primitives (copied, not packaged) | Tokens in [`src/app/globals.css`](src/app/globals.css) |
 | Forms | React Hook Form + Zod | Same Zod schemas used client- and server-side |
@@ -49,7 +51,7 @@ for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-st
 src/
   app/
     (public)/        homepage, /[slug] (polymorphic — see #3), /search,
-                     /[specialty]/[city], /[slug]/[city]
+                     /[specialty]/[district], /[slug]/[district] (see #19)
     (auth)/
       auth/login              doctor phone+OTP sign-in
       auth/register           doctor register: BMDC + phone + name + mandatory
@@ -95,7 +97,8 @@ src/
                      + buckets.ts (public/private routing + UPLOAD_PURPOSE) + file-doc.ts
                      + doctor-photo.ts + upload-doc.ts. See #17.
     email/           ses.ts + templates.ts (inline HTML)
-    sms/             client.ts (MDL) — sendSms() + sendSmsBatch() (body-grouped)
+    sms/             client.ts (facade: sendSms/sendSmsBatch) + provider.ts (SMS_PROVIDER
+                     selector) + providers/{ssl,mdl}.ts + types.ts + estimate.ts
     redis/           client + ratelimit factories (login + OTP + appointment + outbound limiters)
     fhir/            practitioner.ts ← THE EMR integration seam
     rx-pad/          dto.ts (pure DTO + schedule formatter) — A.2
@@ -103,6 +106,7 @@ src/
     outbound/        templates.ts — renderTemplate(), segmentCount() — A.8
     sla.ts           classifySla() + formatDuration() — A.7 (model-free; client-safe)
     seo/             jsonld.ts (Physician + MedicalBusiness) + meta.ts
+    geo/             bd-districts.ts (8 divisions, 64 districts + canonicalize) — see #19
     utils/           cn, slug, bmdc, sanitize, completeness, phone, name-parser, otp
     validators/      Zod: auth, doctor, appointment — single source of truth
     api/             withApiHandler() wrapper for /api/v1 routes
@@ -123,12 +127,13 @@ src/
   proxy.ts           auth proxy (edge runtime, role-gated /admin and /dashboard)
 scripts/
   seed.ts            default seed + --source=popular-diagnostic ingestion
+  seed-unified.ts    seed the unified dataset (data/unified) into Doctor
   outbound.ts        batched SMS campaign dispatcher — A.8
-  lib/providers/     popular.ts (Popular Diagnostic normalizer)
+  lib/providers/     popular.ts + ibn-sina/sasthyaseba/doctor-bangladesh normalizers
   fetch-*.ts         one-shot snapshot scripts (Popular, Ibn Sina)
 data/
   popular-diagnostic/{doctor-ids,details,photos,meta}.json   (3,237 doctors)
-tests/               42 files, 428 tests — Vitest, DB-less
+tests/               44 files, 454 tests — Vitest, DB-less
 doc/                 developer guides (getting-started.md)
 .claude/
   plans/             roadmaps + plan files
@@ -161,7 +166,7 @@ showing a stale login form.
 
 ### 1b. Doctor auth is phone + SMS OTP, *not* password
 - **Registration** ([startRegistrationAction → completeRegistrationAction](src/server/actions/auth.ts)): doctor submits BMDC + phone + name + **a mandatory live-camera selfie** (email optional) → OTP sent → OTP verified → User + Doctor + ClaimRequest materialized atomically inside `completeRegistrationAction` (which also mints the selfie's `File` doc). **No password is ever set on a doctor User row.** See #17 for the selfie upload/storage path.
-- **Login** ([requestLoginOtpAction + NextAuth `sms-otp` provider](src/server/actions/auth.ts)): phone → OTP → signed in. NextAuth's `sms-otp` Credentials provider in [auth/config.ts](src/lib/auth/config.ts) is the trust boundary — it re-validates the OTP hash, enforces the approval gate, and clears OTP state on success.
+- **Login** ([requestLoginOtpAction + NextAuth `sms-otp` provider](src/server/actions/auth.ts)): phone → OTP → signed in. NextAuth's `sms-otp` Credentials provider in [auth/config.ts](src/lib/auth/config.ts) is the trust boundary — it re-validates the OTP hash, enforces the approval gate, and clears OTP state on success. An **unknown phone returns a clear "No account found with this number. Please register first."** — the old silent enumeration-protection no-op was removed (UX over enumeration resistance; the per-phone rate limiter still applies). If a real SMS provider is configured but the send fails, the action returns an error instead of pretending success (the dev no-op still "succeeds" so offline testing works). Same send-failure handling on registration.
 - **Admin auth** unchanged: email + bcrypt password via the original Credentials provider, at `/auth/admin/login`.
 - Sessions persist for **30 days** via explicit cookie `maxAge` (see [auth/config.ts](src/lib/auth/config.ts) `cookies.sessionToken.options.maxAge`). Without this, NextAuth falls back to a session cookie that drops on browser close.
 
@@ -203,10 +208,11 @@ not introduce `userId`-based authorization in new code.
 
 ### 5. MongoDB cannot index two array fields together
 The brief originally specified a compound index on
-`specialties.name + chambers.city`. MongoDB rejects this with
+`specialties.name + chambers.district`. MongoDB rejects this with
 "cannot index parallel arrays". The fix is **two separate single-field
 indexes** — the query planner intersects them. See the comment block in
-[`src/lib/db/models/Doctor.ts`](src/lib/db/models/Doctor.ts).
+[`src/lib/db/models/Doctor.ts`](src/lib/db/models/Doctor.ts). (The location key
+was renamed `chambers.city` → `chambers.district` — see #19.)
 
 ### 5a. Sparse-unique indexes need a partial filter when the field has `default: null`
 Mongoose's `default: null` materializes the field, which means a plain
@@ -276,17 +282,32 @@ flows work only for verified test addresses. The `sendEmail()` helper
 gracefully no-ops to console.log when AWS creds are absent, so dev isn't
 blocked.
 
-### 14. MDL SMS gateway: 20 numbers per call + sequential
-The MDL gateway accepts up to **20 phone numbers per API call** as a CSV in
-the `contactNumbers` field, all receiving the **same** `textBody`. The ops
-rule is: send one batch, wait for the success response, then send the next.
-[`sendSmsBatch`](src/lib/sms/client.ts) implements this: it groups messages
-by identical body string, chunks each group into 20s, fires GETs
-sequentially, and halts the campaign on the first chunk failure. Personalized
-templates (with `{{firstName}}` etc.) automatically degrade to 1-per-call
-because each body is unique. Outbound bodies should stay identical across a
-cohort when possible — a 3,237-doctor campaign collapses from 3,237 calls to
-~165 with shared-body broadcasts.
+### 14. SMS provider facade: SSL Wireless (default) + MDL fallback
+`sendSms`/`sendSmsBatch` in [`src/lib/sms/client.ts`](src/lib/sms/client.ts) are
+a **stable facade** — call sites never change. The wire protocol is delegated
+to the provider chosen by `SMS_PROVIDER` (default `ssl`; `mdl` is a one-env
+rollback) via [`provider.ts`](src/lib/sms/provider.ts). The facade owns Unicode
+detection, segment estimation, the dev no-op, body-grouping, and input-order
+result shaping; providers ([`providers/ssl.ts`](src/lib/sms/providers/ssl.ts),
+[`providers/mdl.ts`](src/lib/sms/providers/mdl.ts)) own only the HTTP.
+
+**SSL Wireless iSMS Plus v3** (`https://smsplus.sslwireless.com/api/v3`, JSON
+POST, `api_token`+`sid` auth — **the request IP must be whitelisted** or every
+call returns `status:"FAILED"`). `sendSmsBatch` partitions a cohort: same-body
+groups → `/send-sms/bulk` (≤100 msisdn/call); unique/personalized bodies →
+`/send-sms/dynamic` (≤100 messages/call — a strict win over MDL's 1-per-call).
+Per-recipient status comes from the `smsinfo[]` array (matched back by msisdn,
+returned in input order); `reference_id` → our `messageId`. `csms_id`/
+`batch_csms_id` are capped at 20 chars (see `makeCsmsId`). A failed chunk halts
+the campaign by default (`stopOnFailure`). Chunk size is provider-aware
+(`opts.chunkSize ?? provider.maxBatch`), so the outbound script auto-uses 100
+under SSL / 20 under MDL with no change.
+
+**MDL fallback** (`SMS_PROVIDER=mdl`): GET with up to **20** numbers per
+`contactNumbers` CSV sharing one `textBody`, sequential, halt-on-failure. No
+per-recipient status and no dynamic endpoint, so personalized bodies degrade to
+1-per-call. A 3,237-doctor shared-body campaign is ~33 calls under SSL (100/call)
+vs ~165 under MDL (20/call).
 
 ### 15. EMR bundling is manual in Sprint A
 The "free Shafa EMR account" perk is a manual ops flow — no API integration,
@@ -317,6 +338,44 @@ share one S3 setup). Rules that will bite if forgotten:
 - **Loose model casts**: the deliberately-untyped `Model<unknown>` exports are reached via `(X as unknown as Loose)` ([`loose.ts`](src/lib/db/models/loose.ts)) — **not** the old `{ method: Function }` shape (which trips `@typescript-eslint/no-unsafe-function-type`).
 - **ESLint**: `no-explicit-any` is off for `tests/**` + `scripts/**`; `no-unused-vars` ignores `^_`-prefixed bindings (see [eslint.config.mjs](eslint.config.mjs)). New AWS env vars are in `.env.example`.
 
+### 18. Contact is private by default + WhatsApp appointment is opt-in
+[`ContactSchema`/`DoctorSchema`](src/lib/db/models/Doctor.ts) carry
+`privacyHidePhone` + `privacyHideEmail` — both **default `true`** (a doctor opts
+*in* to showing contact) — and `whatsappAppointmentEnabled` (default **`false`**)
+which gates the "Chat on WhatsApp" appointment button on the public profile. All
+three are enforced at **every** public surface, not just the page:
+- the profile-page conditionals ([`[slug]/page.tsx`](src/app/(public)/[slug]/page.tsx)),
+- the **FHIR mapper** ([practitioner.ts](src/lib/fhir/practitioner.ts)) filters
+  `telecom` by the flags, so `/api/v1/doctors[/slug]` never leak hidden contact,
+- the dashboard + admin contact forms ([contact-form.tsx](src/app/(dashboard)/dashboard/profile/contact-form.tsx))
+  persist them via `updateProfileContactAction` / `adminUpdateProfileContactAction`.
+
+The WhatsApp button never falls back to a *hidden* public phone (no `wa.me`
+leak). Pre-production: a fresh seed/reseed materializes docs with the
+hidden-by-default schema, so no data migration is needed.
+**Chamber/facility phone numbers** (JSON-LD, `ChamberCard`) are intentionally
+**not** gated — they're clinic lines, not personal contact.
+
+### 19. Chamber location key is `district` (renamed from `city`) + dropdowns
+`Doctor.chambers[].district` (was `city`; it always *held* a district) is the
+canonical 64-district location query key — indexed `{"chambers.district": 1}`
+and powering `/search?district=`, `/[specialty]/[district]`, the homepage stats,
+and the sitemap combos. The embedded subdoc now matches the separate `Chamber`
+catalog model, which already used `district`. **Division + district are
+dropdowns** in the shared dashboard/admin chamber editor
+([chambers-editor.tsx](src/app/(dashboard)/dashboard/chambers/chambers-editor.tsx)),
+sourced from [`src/lib/geo/bd-districts.ts`](src/lib/geo/bd-districts.ts) (8
+divisions, 64 districts, `divisionForDistrict`/`canonicalizeDistrict`); picking a
+division filters the district list, and a legacy non-canonical value stays
+selectable so editing never silently rewrites it. The public REST API accepts
+`?district=` with a **deprecated `?city=` alias**. The **FHIR output is
+unchanged** — `address.city` is still emitted (now sourced from
+`chamber.district`), so the EMR seam stays stable. Pre-production: a drop +
+reseed adopts the rename — the ingestion writers (`seed-unified.ts`,
+`scripts/lib/providers/*`) emit `district` directly, so no data migration is
+needed. When renaming chamber fields, always update those writers too — they
+write the embedded subdoc and Mongoose `required` would fail a stale key at save.
+
 ---
 
 ## Scripts
@@ -328,7 +387,7 @@ share one S3 setup). Rules that will bite if forgotten:
 | `npm start` | Run the production build |
 | `npm run seed` | Bootstrap mode: upsert admin + 36-specialty catalog. **Idempotent — no drops, no fake doctors.** Refuses NODE_ENV=production. |
 | `npm run seed -- --source=popular-diagnostic [--limit=N] [--dry-run]` | Ingest the Popular Diagnostic dump in `data/popular-diagnostic/` as unclaimed profiles. Idempotent (no drops). |
-| `npm run outbound -- --campaign=<id> --template=<id> [--cohort=k=v,...] [--limit=N] [--dry-run]` | Bulk SMS acquisition campaign via MDL. Honors 20-per-call batching. |
+| `npm run outbound -- --campaign=<id> --template=<id> [--cohort=k=v,...] [--limit=N] [--dry-run]` | Bulk SMS acquisition campaign via the active provider (`SMS_PROVIDER`). Honors per-provider batching (SSL bulk+dynamic ≤100, MDL ≤20). Cohort filter is `--cohort=district=Dhaka,...`. |
 | `npm test` | Run the Vitest suite (no DB required) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
@@ -352,8 +411,10 @@ onboarding flow including local Mongo options and credential bootstrapping.
 These are documented stub surfaces — if the user asks for them, they're not
 finished yet, but the integration seam exists:
 
-- **WhatsApp Business API**: explicitly OUT of Sprint A. A.8 ships SMS-only via MDL. WhatsApp is a Sprint B add — gateway approval is 2–4 weeks.
-- **MDL delivery webhook**: `OutboundMessage.deliveredAt` is reserved but never populated. When MDL exposes a delivery-receipt webhook, add `POST /api/webhooks/sms` to fill it in.
+- **WhatsApp Business API**: explicitly OUT of Sprint A. A.8 ships SMS-only. WhatsApp is a Sprint B add — gateway approval is 2–4 weeks.
+- **SMS delivery webhook**: `OutboundMessage.deliveredAt` is reserved but never populated. SSL Wireless's public v3 docs expose no delivery-report webhook or status-query endpoint; if/when one is provisioned, add `POST /api/webhooks/sms` to fill it in. (Same gap existed on MDL.)
+- **SSL secure OTP endpoint** (`/secure/otp-sms`, HMAC-SHA256 + AES-256-CBC): OTP currently ships via the standard `/send-sms` (the trust boundary is our hashed, TTL'd, rate-limited OTP state, not the channel). The secure endpoint is a future hardening option — add a `sendSecureOtp` provider method behind an env flag; the auth actions already centralize OTP send through `sendSms`, so no call-site change.
+- **MDL retained as fallback**: the legacy MDL gateway stays wired behind `SMS_PROVIDER=mdl` for a one-env rollback if SSL onboarding (IP whitelist, sender-id approval) slips. Remove it once SSL is proven in production.
 - **Real EMR API integration**: A.5 ships the manual queue. The "Open EMR" SSO + provisioning API is deferred until the EMR team's endpoint contract lands.
 - **Image cropper**: `react-easy-crop` is installed but not yet wired into [`PhotoUploader`](src/app/(dashboard)/dashboard/photos/photo-uploader.tsx). Uploads happen at the file's natural dimensions.
 - **BMDC verification automation**: admin reviews uploaded certificates manually — no public BMDC API exists.
@@ -362,19 +423,21 @@ finished yet, but the integration seam exists:
 - **Soft delete grace period**: `softDeleteAccountAction` sets `deletedAt` and unpublishes the profile. A 30-day-grace hard-delete job is referenced in the README but not implemented.
 - **Lighthouse + axe a11y audit**: deferred to staging post-merge.
 - **i18n catalog**: structure in place via `next-intl`; only English shipped.
+- **District canonicalization**: imported chambers may carry non-canonical district spellings ("Chittagong" vs "Chattogram"). `canonicalizeDistrict()` + the alias table in [bd-districts.ts](src/lib/geo/bd-districts.ts) can drive a follow-up normalization migration; the editor dropdown tolerates legacy values meanwhile (#19).
 
 ---
 
 ## How to make good changes here
 
 - **Read the plan first**: [`.claude/plans/`](./.claude/plans/) explains *why* the architecture is the way it is. The progress file ([`.claude/progress/mvp-progress.md`](./.claude/progress/mvp-progress.md)) is the authoritative status board — update it in the same commit that completes a step.
-- **Don't add new dependencies casually**: the brief is strict about the tech stack. Mongoose, NextAuth v5, Tailwind v4, shadcn-style (copied, not packaged), Zod, `@react-pdf/renderer`, MDL SMS, `@aws-sdk/{client-s3,s3-request-presigner,credential-providers}`. Adding e.g. React Query or a different ORM needs user approval.
+- **Don't add new dependencies casually**: the brief is strict about the tech stack. Mongoose, NextAuth v5, Tailwind v4, shadcn-style (copied, not packaged), Zod, `@react-pdf/renderer`, SMS via plain `fetch` (SSL Wireless / MDL — no SDK), `@aws-sdk/{client-s3,s3-request-presigner,credential-providers}`. Adding e.g. React Query or a different ORM needs user approval.
 - **Don't introduce client-side state libraries**: React Server Components + Server Actions are the default. Client components are for interactivity only.
 - **Don't bypass the Server Action pattern**: even one-line updates should route through a Server Action with auth + Zod + ownership check.
 - **Don't write FHIR mapping inline**: it goes through [`lib/fhir/practitioner.ts`](src/lib/fhir/practitioner.ts).
 - **Don't break SEO on `/[slug]`**: the public profile is the product's marketing surface. SSR, JSON-LD, OG meta, and `metadataBase` must stay intact.
-- **Don't bypass `sendSmsBatch` for outbound**: any cohort-scale send must go through the batcher so the 20-per-call rule is honored.
-- **Run `npm test` + `npm run typecheck` + `npm run build` + `npm run lint`** before declaring a change done. All are fast (<90s combined) and currently green (428 tests, lint 0/0).
+- **Don't bypass `sendSmsBatch` for outbound**: any cohort-scale send must go through the batcher so the active provider's per-call batching rules are honored. Don't call a provider directly — go through the `sendSms`/`sendSmsBatch` facade.
+- **Don't reintroduce `chambers[].city`**: the chamber location key is `district` (#19). Source it from [`bd-districts.ts`](src/lib/geo/bd-districts.ts); never hard-code a city/district free-text input.
+- **Run `npm test` + `npm run typecheck` + `npm run build` + `npm run lint`** before declaring a change done. All are fast (<90s combined) and currently green (454 tests, lint 0/0).
 
 ---
 

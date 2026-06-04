@@ -8,7 +8,7 @@ type ChamberInitial = {
   name: string;
   address: string;
   area: string;
-  city: string;
+  district: string;
   division: string;
   phone: string;
   consultationFee: { amount: number; currency: "BDT" | "USD" };

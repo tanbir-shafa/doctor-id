@@ -131,7 +131,7 @@ function buildChambers(doc: IbnSinaDoctor): DoctorChamber[] {
             name: fullName,
             address: b.map || b.name,
             area: addr.area ?? (addr.district ?? "Dhaka"),
-            city: addr.district ?? "Dhaka",
+            district: addr.district ?? "Dhaka",
             division: addr.division ?? "Dhaka",
             coordinates: undefined,
             phone: b.phone ? b.phone.trim() : undefined,
@@ -203,10 +203,10 @@ export function normalizeIbnSinaDoctor(
     const phone = publicPhone;
     const nameKey = normalizeNameForMatch(parsedName.displayName) ?? undefined;
     const primary = specialties[0]?.name?.toLowerCase();
-    const district = chambers[0]?.city?.toLowerCase();
+    const district = chambers[0]?.district?.toLowerCase();
     const specialtyDistrictKey = primary && district ? `${primary}|${district}` : undefined;
     const chamberAddressKeys = chambers
-        .map((c) => `${c.area}|${c.city}`.toLowerCase())
+        .map((c) => `${c.area}|${c.district}`.toLowerCase())
         .filter(Boolean);
 
     return {
