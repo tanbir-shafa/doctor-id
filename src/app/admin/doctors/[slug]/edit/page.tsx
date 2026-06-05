@@ -4,12 +4,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { dbConnect } from "@/lib/db/mongoose";
-import { Doctor, Specialty } from "@/lib/db/models";
+import { Doctor, Specialty, File } from "@/lib/db/models";
+import { getPresignedUrl } from "@/lib/s3/s3-service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PageHeader } from "@/components/admin/page-header";
 import { listAuditLogForEntity } from "@/lib/audit/log";
 import type { DoctorDocLike } from "@/types/doctor";
 import { AdminBasicSection } from "./sections/basic-section";
+import { AdminVerificationSection } from "./sections/verification-section";
 import { AdminContactSection } from "./sections/contact-section";
 import { AdminSpecialtiesSection } from "./sections/specialties-section";
 import { AdminConcentrationsSection } from "./sections/concentrations-section";
@@ -36,6 +38,20 @@ export default async function AdminDoctorEditPage({
   if (!doctorDoc) notFound();
   const doctor = JSON.parse(JSON.stringify(doctorDoc)) as DoctorDocLike;
   const doctorId = String(doctor._id);
+
+  // Presign the verified Gov ID (private bucket) for the Verification card, if any.
+  let identityDocumentUrl: string | null = null;
+  if (doctor.identityDocumentFileId) {
+    const idFile = (await (File as unknown as Loose)
+      .findById(doctor.identityDocumentFileId)
+      .select("s3Bucket s3Key")
+      .lean()) as { s3Bucket?: string; s3Key?: string } | null;
+    if (idFile?.s3Bucket && idFile?.s3Key) {
+      identityDocumentUrl = await getPresignedUrl(idFile.s3Bucket, idFile.s3Key, 3600, {
+        ResponseContentDisposition: "inline",
+      });
+    }
+  }
 
   // Specialty catalog feeds the SpecialtiesEditor's <datalist>.
   const specialtyDocs = await (Specialty as unknown as Loose)
@@ -97,6 +113,31 @@ export default async function AdminDoctorEditPage({
         </CardHeader>
         <CardContent>
           <AdminBasicSection doctor={doctor} doctorId={doctorId} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Verification</CardTitle>
+          <CardDescription>
+            Set BMDC and account/identity verification directly — no request needed.
+            The blue &ldquo;Verified&rdquo; tick needs both.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AdminVerificationSection
+            doctorId={doctorId}
+            initial={{
+              bmdcNumber: doctor.bmdcNumber ?? "",
+              bmdcVerified: doctor.bmdcVerified,
+              nidVerified: doctor.nidVerified,
+              displayName: doctor.name.displayName,
+              first: doctor.name.first,
+              last: doctor.name.last,
+              idDocumentType: doctor.idDocumentType ?? null,
+              identityDocumentUrl,
+            }}
+          />
         </CardContent>
       </Card>
 

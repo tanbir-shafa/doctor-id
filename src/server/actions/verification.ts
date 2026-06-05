@@ -146,9 +146,10 @@ export async function approveClaimAction(claimId: string): Promise<ActionResult>
   claim.set("verifiedAt", now);
   await claim.save();
 
-  // Approval also unlocks the requester's sign-in. New doctor accounts are
-  // created with `approved: false` so they can't log in until this flag is
-  // flipped — see auth.ts:completeRegistrationAction.
+  // Approval flips `User.approved` → true, which UNLOCKS PUBLISHING (not login —
+  // doctors can sign in, edit, and preview while unapproved). New accounts are
+  // `approved: false` until this runs — see auth.ts:completeRegistrationAction
+  // and setPublishStatusAction (the publish gate).
   const requesterId = claim.get("requestedBy");
   if (requesterId) {
     await User.updateOne({ _id: requesterId }, { $set: { approved: true } });
@@ -232,6 +233,10 @@ export async function approveAccountVerificationAction(requestId: string): Promi
   doctor.set("name.displayName", `${prefix} ${first} ${last}`.replace(/\s+/g, " ").trim());
   doctor.set("legalName", { first, last });
   doctor.set("idDocumentType", req.get("idDocumentType"));
+  // Stamp the verified Gov ID onto the doctor so it's retrievable regardless of
+  // path (admin override stores it the same way).
+  const reqDocs = (req.get("documentFileIds") ?? []) as unknown[];
+  if (reqDocs[0]) doctor.set("identityDocumentFileId", reqDocs[0]);
   doctor.set("nidVerified", true);
   doctor.set("nidVerifiedAt", now);
   doctor.set(

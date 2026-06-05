@@ -241,11 +241,10 @@ export async function requestLoginOtpAction(input: { phone: string }): Promise<A
 
   await dbConnect();
   const user = await User.findOne({ phone })
-    .select("_id phoneVerified approved")
+    .select("_id phoneVerified")
     .lean<{
       _id: unknown;
       phoneVerified: boolean;
-      approved: boolean;
     } | null>();
 
   // No account for this phone — surface a clear, actionable message instead of
@@ -259,17 +258,8 @@ export async function requestLoginOtpAction(input: { phone: string }): Promise<A
     };
   }
 
-  // Surface a clear "still waiting on admin" message for accounts that
-  // exist but haven't been approved. This is a known-account path so the
-  // enumeration risk doesn't apply: an attacker already knows the phone
-  // belongs to a (pending) account.
-  if (user.approved === false) {
-    return {
-      ok: false,
-      error:
-        "Your account is pending admin approval. We'll text you once it's ready (usually within 24 hours).",
-    };
-  }
+  // NOTE: no approval gate here — a new (unapproved) doctor can sign in and
+  // edit/preview their profile. `User.approved` gates publishing, not login.
 
   const code = generateOtp();
   const codeHash = hashOtp(code, env().AUTH_SECRET);
@@ -298,14 +288,15 @@ export async function requestLoginOtpAction(input: { phone: string }): Promise<A
 
 /**
  * Step 2 of registration: verify the SMS OTP and materialize the Doctor +
- * ClaimRequest. **Does not sign the user in** — admin approval is required
- * before the doctor can log in. The form shows a "pending approval" landing
- * after this returns ok.
+ * ClaimRequest. Does not create a session itself — the client immediately
+ * auto-signs-in with the same OTP (left valid above). The new account is
+ * `approved: false`, which gates PUBLISHING (not login): the doctor can log in,
+ * edit, and preview, but can't publish until an admin approves.
  */
 export async function completeRegistrationAction(input: {
   phone: string;
   otp: string;
-}): Promise<ActionResult<{ status: "pending_approval" }>> {
+}): Promise<ActionResult> {
   const phone = normalizeBdPhone(input?.phone);
   const otp = (input?.otp ?? "").trim();
   if (!phone || !/^\d{6}$/.test(otp)) {
@@ -380,17 +371,17 @@ export async function completeRegistrationAction(input: {
     return { ok: false, error: msg };
   }
 
-  // Successful materialization: clear OTP + regDraft, mark phone verified,
-  // flag the account `approved: false` (admin must approve before login),
-  // and stamp the free-EMR intent so the admin queue surfaces it.
+  // Successful materialization: clear regDraft, mark phone verified, flag the
+  // account `approved: false` (gates PUBLISHING, not login — the doctor can sign
+  // in immediately), and stamp the free-EMR intent so the admin queue surfaces it.
+  // Leave smsOtpHash/smsOtpExpiresAt intact (reset attempts) so the client can
+  // immediately auto-sign-in with the same code; the sms-otp provider consumes it.
   await User.updateOne(
     { _id: user._id as never },
     {
       $set: {
         phoneVerified: true,
         approved: false,
-        smsOtpHash: null,
-        smsOtpExpiresAt: null,
         smsOtpAttempts: 0,
         regDraft: null,
         "emr.requested": true,
@@ -416,7 +407,7 @@ export async function completeRegistrationAction(input: {
     console.error("Outbound claim-attribution update failed:", err);
   });
 
-  return { ok: true, data: { status: "pending_approval" } };
+  return { ok: true };
 }
 
 /**

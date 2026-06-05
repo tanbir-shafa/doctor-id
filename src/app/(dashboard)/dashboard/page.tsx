@@ -54,21 +54,43 @@ export default async function DashboardOverview({ searchParams }: PageProps) {
   // Read the EMR subdoc so the banner can render the right state. Missing
   // subdoc (legacy users) → treat as "not requested" → banner hidden.
   const userRow = await User.findById(session!.user.id)
-    .select("emr")
-    .lean<{ emr?: { seatStatus?: "pending" | "ready" | "declined"; accountEmail?: string | null } } | null>();
+    .select("emr approved")
+    .lean<{
+      emr?: { seatStatus?: "pending" | "ready" | "declined"; accountEmail?: string | null };
+      approved?: boolean;
+    } | null>();
   const emrStatus = userRow?.emr?.seatStatus ?? null;
   const emrEmail = userRow?.emr?.accountEmail ?? null;
+  // `approved` gates publishing + public visibility (not login). Default true
+  // (admins/legacy/seed); new doctors are false until an admin approves.
+  const approved = userRow?.approved !== false;
 
   return (
     <div className="space-y-6">
       {emrStatus === "pending" || emrStatus === "ready" ? (
         <EmrBanner seatStatus={emrStatus} accountEmail={emrEmail} />
       ) : null}
-      {isWelcome ? (
+      {!approved ? (
+        <aside className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:px-6">
+          <p className="font-semibold">Your account is under review</p>
+          <p className="mt-1">
+            You can edit and{" "}
+            <Link href="/preview" target="_blank" className="font-medium underline">
+              preview
+            </Link>{" "}
+            your profile now. Publishing and your public link unlock once an admin approves —
+            usually within 24 hours.{" "}
+            <Link href="/dashboard/verification" className="font-medium underline">
+              Upload your BMDC certificate
+            </Link>{" "}
+            to speed it up.
+          </p>
+        </aside>
+      ) : isWelcome ? (
         <aside className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 sm:px-6">
           <p className="font-semibold">Welcome to doctor.id.bd, {doctor.name.first}!</p>
           <p className="mt-1">
-            Your profile is claimed. We&apos;ll verify your details within 24 hours.{" "}
+            Your profile is live-ready.{" "}
             <Link href="/dashboard/profile" className="font-medium underline">
               Polish your profile
             </Link>{" "}

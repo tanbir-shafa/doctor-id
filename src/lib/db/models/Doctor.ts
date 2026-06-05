@@ -237,6 +237,10 @@ const DoctorSchema = new Schema(
             enum: ["nid", "passport", "driving_license", null],
             default: null,
         },
+        // The verified Gov photo ID (NID/passport/DL) on file — PRIVATE bucket,
+        // read only via presigned GET. Set on identity approval (doctor flow or
+        // admin override). Admin account verification REQUIRES one.
+        identityDocumentFileId: {type: Schema.Types.ObjectId, ref: "File", default: null},
         verificationLevel: {
             type: String,
             enum: ["unverified", "bmdc_verified", "identity_verified", "fully_verified"],

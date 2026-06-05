@@ -89,10 +89,10 @@ const providers: NextAuthConfig["providers"] = [
         .select("+smsOtpHash +smsOtpExpiresAt +smsOtpAttempts")
         .lean();
       if (!user || user.deletedAt) return null;
-      // Approval gate: a doctor whose ClaimRequest is still pending cannot
-      // sign in. `approved` defaults to `true` so admins / legacy rows pass
-      // through; only explicitly-flagged accounts are blocked.
-      if ((user as { approved?: boolean }).approved === false) return null;
+      // NOTE: `User.approved` is NOT a login gate. New doctors can sign in
+      // immediately; `approved` gates PUBLISHING / public visibility instead
+      // (see setPublishStatusAction + the public profile). The OTP hash +
+      // expiry + attempt cap below are the sign-in trust boundary.
       if (!user.smsOtpHash || !user.smsOtpExpiresAt) return null;
       if (new Date(user.smsOtpExpiresAt) < new Date()) return null;
       if ((user.smsOtpAttempts ?? 0) >= 5) return null;

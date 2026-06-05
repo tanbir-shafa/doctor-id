@@ -6,8 +6,10 @@ import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor } from "@/lib/db/models";
 import { computeCompleteness } from "@/lib/utils/completeness";
-import { resolveVerifiedNameUpdate } from "@/lib/utils/verification";
+import { resolveVerifiedNameUpdate, computeVerificationLevel } from "@/lib/utils/verification";
+import { isValidBmdcFormat, normalizeBmdc } from "@/lib/utils/bmdc";
 import { uploadDoctorPhotoFromForm } from "@/lib/s3/doctor-photo";
+import { uploadDocForPurpose, DOC_MIME_TYPES } from "@/lib/s3/upload-doc";
 import { recordAuditLog } from "@/lib/audit/log";
 import type { DoctorDocLike } from "@/types/doctor";
 import {
@@ -517,6 +519,142 @@ export async function adminSetPublishStatusAction(
 
   revalidateAdminDoctorPaths(doctor.get("slug"));
   return { ok: true };
+}
+
+/**
+ * Admin verification override — set verification directly from the edit page,
+ * no request/queue. Used when ops creates a profile on a doctor's behalf and
+ * already holds their BMDC (and, optionally, has confirmed their identity).
+ *
+ * Sets `bmdcNumber` + `bmdcVerified` and/or `nidVerified`, then recomputes
+ * `verificationLevel` (#20 — the blue tick needs both). Granting identity
+ * **requires a Gov photo ID on file** (NID/passport/DL — uploaded via
+ * `adminUploadIdentityDocAction`), snapshots the **current** profile name as the
+ * `legalName` binding, and locks the display name to "prefix first last",
+ * mirroring approveAccountVerificationAction; a later first/last edit then
+ * revokes it via `resolveVerifiedNameUpdate`.
+ *
+ * Deliberately does NOT touch `User.approved` — login approval stays with the
+ * claim queue (`/admin/verifications`). This is purely the public badge.
+ */
+export async function adminUpdateVerificationAction(
+  doctorId: string,
+  form: FormData,
+): Promise<ActionResult> {
+  const ctx = await loadDoctorAsAdmin(doctorId);
+  if (!ctx.ok) return ctx;
+  const { doctor } = ctx;
+
+  const bmdcRaw = String(form.get("bmdcNumber") ?? "").trim();
+  const bmdcVerified = form.get("bmdcVerified") === "on";
+  const nidVerified = form.get("nidVerified") === "on";
+  const documentFileId = String(form.get("documentFileId") ?? "").trim();
+  const idDocTypeRaw = String(form.get("idDocumentType") ?? "nid");
+  const idDocumentType = (["nid", "passport", "driving_license"] as const).includes(
+    idDocTypeRaw as "nid" | "passport" | "driving_license",
+  )
+    ? (idDocTypeRaw as "nid" | "passport" | "driving_license")
+    : "nid";
+
+  // BMDC number: validate format if present; required to mark BMDC verified.
+  let bmdc: string | null = null;
+  if (bmdcRaw) {
+    if (!isValidBmdcFormat(bmdcRaw)) {
+      return { ok: false, error: "Enter a valid BMDC number (4–7 digits)." };
+    }
+    bmdc = normalizeBmdc(bmdcRaw);
+  }
+  if (bmdcVerified && !bmdc) {
+    return { ok: false, error: "Add the BMDC number before marking BMDC verified." };
+  }
+
+  // Granting account/identity verification requires a Gov photo ID on file —
+  // either one uploaded with this save or one stored from a prior verification.
+  const wasNidVerified = Boolean(doctor.get("nidVerified"));
+  const grantingIdentity = nidVerified && !wasNidVerified;
+  const existingIdentityDoc = doctor.get("identityDocumentFileId");
+  if (grantingIdentity && !documentFileId && !existingIdentityDoc) {
+    return {
+      ok: false,
+      error: "Upload the doctor's NID / Gov photo ID to grant account verification.",
+    };
+  }
+
+  const now = new Date();
+  doctor.set("bmdcNumber", bmdc);
+  doctor.set("bmdcVerified", bmdcVerified);
+  doctor.set("bmdcVerifiedAt", bmdcVerified ? (doctor.get("bmdcVerifiedAt") ?? now) : null);
+
+  doctor.set("nidVerified", nidVerified);
+  if (nidVerified) {
+    doctor.set("nidVerifiedAt", doctor.get("nidVerifiedAt") ?? now);
+    if (documentFileId) doctor.set("identityDocumentFileId", documentFileId);
+    doctor.set("idDocumentType", idDocumentType);
+    // Bind the legal name to the current profile name + lock the display name (#20).
+    const first = String(doctor.get("name.first") ?? "").trim();
+    const last = String(doctor.get("name.last") ?? "").trim();
+    const prefix = String(doctor.get("name.prefix") ?? "Dr.");
+    doctor.set("legalName", { first, last });
+    doctor.set("name.displayName", `${prefix} ${first} ${last}`.replace(/\s+/g, " ").trim());
+  } else {
+    doctor.set("nidVerifiedAt", null);
+    if (wasNidVerified) doctor.set("legalName", null);
+  }
+
+  doctor.set("verificationLevel", computeVerificationLevel(bmdcVerified, nidVerified));
+
+  try {
+    await doctor.save();
+  } catch (e: unknown) {
+    if (typeof e === "object" && e !== null && (e as { code?: number }).code === 11000) {
+      return { ok: false, error: "That BMDC number is already used by another profile." };
+    }
+    throw e;
+  }
+
+  await logAdminEdit({
+    type: "doctor.verification.updated",
+    doctorId: doctor._id,
+    adminId: ctx.adminId,
+    adminEmail: ctx.adminEmail,
+    metadata: {
+      bmdcNumber: bmdc,
+      bmdcVerified,
+      nidVerified,
+      idDocumentType: nidVerified ? idDocumentType : null,
+      verificationLevel: doctor.get("verificationLevel"),
+    },
+  });
+
+  revalidateAdminDoctorPaths(doctor.get("slug"));
+  return { ok: true };
+}
+
+/**
+ * Admin uploads a doctor's Gov photo ID (NID/passport/DL) on their behalf —
+ * streams to the PRIVATE bucket and returns the new File doc id, which
+ * adminUpdateVerificationAction then stores on `Doctor.identityDocumentFileId`.
+ * Read back later via a presigned GET (never a client-built URL).
+ */
+export async function adminUploadIdentityDocAction(
+  doctorId: string,
+  formData: FormData,
+): Promise<ActionResult<{ fileId: string }>> {
+  const ctx = await loadDoctorAsAdmin(doctorId);
+  if (!ctx.ok) return ctx;
+  const { doctor } = ctx;
+
+  const result = await uploadDocForPurpose({
+    purposeKey: "doctor_identity",
+    ownerFolderId: String(doctor._id),
+    file: formData.get("file"),
+    allowed: DOC_MIME_TYPES,
+    linkedEntityId: doctor._id as Types.ObjectId,
+    uploadedBy: ctx.adminId,
+    title: "Government photo ID (admin upload)",
+  });
+  if (!result.ok) return result;
+  return { ok: true, data: { fileId: result.fileId } };
 }
 
 // --- Photo flow (server-side upload) ---

@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +24,7 @@ export function RegisterForm({
   initialStep = "details",
   initialPhone = "",
 }: RegisterFormProps) {
+  const router = useRouter();
   const [step, setStep] = useState<Step>(initialStep === "verify" ? "verify" : "details");
   const [phone, setPhone] = useState(initialPhone);
   const [otp, setOtp] = useState("");
@@ -67,7 +70,16 @@ export function RegisterForm({
         setError(result.error);
         return;
       }
-      setStep("pending");
+      // Auto sign-in with the same OTP (left valid by completeRegistrationAction)
+      // → straight into the dashboard. No second code to enter.
+      const signedIn = await signIn("sms-otp", { phone, otp, redirect: false });
+      if (!signedIn || signedIn.error) {
+        // Materialized but couldn't auto-sign-in — fall back to the login page.
+        setStep("pending");
+        return;
+      }
+      router.push("/dashboard?welcome=1");
+      router.refresh();
     });
   }
 
@@ -77,18 +89,19 @@ export function RegisterForm({
         <div className="flex items-start gap-3 rounded-md border border-emerald-300 bg-emerald-50 p-4 text-emerald-900">
           <CheckCircle2 className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
           <div className="space-y-1">
-            <p className="font-semibold">Your account is created — pending admin approval.</p>
+            <p className="font-semibold">Your account is created.</p>
             <p>
-              We&apos;ll review your registration within 24 hours. You can&apos;t sign in just
-              yet; once we approve, you&apos;ll get a text and can log in by phone.
+              Sign in with your phone to set up your profile. You can edit and preview it
+              right away — publishing unlocks once an admin approves (usually within 24 hours).
             </p>
           </div>
         </div>
-        <p className="text-center text-muted-foreground">
-          <Link href="/" className="text-primary hover:underline">
-            Back to homepage
-          </Link>
-        </p>
+        <Link
+          href="/auth/login"
+          className="block w-full rounded-md bg-primary px-4 py-2 text-center font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Go to sign in
+        </Link>
       </div>
     );
   }

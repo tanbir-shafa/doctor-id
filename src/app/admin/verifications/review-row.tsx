@@ -171,7 +171,7 @@ export function ReviewRow({ claim, nowIso }: Props) {
               role: {claim.requestedBy?.role ?? "—"}
               {claim.requestedBy?.approved === false ? (
                 <span className="ml-1 rounded-full bg-amber-100 px-1.5 text-[10px] text-amber-900">
-                  awaiting approval (login blocked)
+                  awaiting approval (can&apos;t publish yet)
                 </span>
               ) : null}
             </li>
@@ -271,7 +271,7 @@ export function ReviewRow({ claim, nowIso }: Props) {
         ) : (
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={approve} disabled={pending}>
-              <CheckCircle2 className="size-4" aria-hidden="true" /> Approve &amp; unlock login
+              <CheckCircle2 className="size-4" aria-hidden="true" /> Approve &amp; allow publishing
             </Button>
             <Button type="button" variant="outline" onClick={() => setShowRejectBox(true)} disabled={pending}>
               <XCircle className="size-4" aria-hidden="true" /> Reject

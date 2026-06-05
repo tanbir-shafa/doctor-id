@@ -54,7 +54,8 @@ for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-st
 src/
   app/
     (public)/        homepage, /[slug] (polymorphic — see #3), /search,
-                     /[specialty]/[district], /[slug]/[district] (see #19)
+                     /[specialty]/[district], /[slug]/[district] (see #19),
+                     /preview (owner-only profile preview, auth-gated — see #1c)
     (auth)/
       auth/login              doctor phone+OTP sign-in
       auth/register           doctor register: BMDC + phone + name + mandatory
@@ -82,7 +83,8 @@ src/
     robots.ts
   components/
     ui/              shadcn primitives: Button, Input, Label, Card
-    profile/         ProfileHeader, ChamberCard, ScheduleGrid, ShareButton (QR),
+    profile/         DoctorProfileView (shared public + /preview body — #1c),
+                     ProfileHeader, ChamberCard, ScheduleGrid, ShareButton (QR),
                      WhatsappButton, ReportButton, VerifiedBadge,
                      VerifiedBadgeExplainer (click-to-explain public badge — #20),
                      AppointmentRequestForm (A.3)
@@ -174,18 +176,34 @@ the public header bounces signed-in users back to their dashboard instead of
 showing a stale login form.
 
 ### 1b. Doctor auth is phone + SMS OTP, *not* password
-- **Registration** ([startRegistrationAction → completeRegistrationAction](src/server/actions/auth.ts)): doctor submits BMDC + phone + name + **a mandatory live-camera selfie** (email optional) → OTP sent → OTP verified → User + Doctor + ClaimRequest materialized atomically inside `completeRegistrationAction` (which also mints the selfie's `File` doc). **No password is ever set on a doctor User row.** See #17 for the selfie upload/storage path.
-- **Login** ([requestLoginOtpAction + NextAuth `sms-otp` provider](src/server/actions/auth.ts)): phone → OTP → signed in. NextAuth's `sms-otp` Credentials provider in [auth/config.ts](src/lib/auth/config.ts) is the trust boundary — it re-validates the OTP hash, enforces the approval gate, and clears OTP state on success. An **unknown phone returns a clear "No account found with this number. Please register first."** — the old silent enumeration-protection no-op was removed (UX over enumeration resistance; the per-phone rate limiter still applies). If a real SMS provider is configured but the send fails, the action returns an error instead of pretending success (the dev no-op still "succeeds" so offline testing works). Same send-failure handling on registration.
+- **Registration** ([startRegistrationAction → completeRegistrationAction](src/server/actions/auth.ts)): doctor submits BMDC + phone + name + **a mandatory live-camera selfie** (email optional) → OTP sent → OTP verified → User + Doctor + ClaimRequest materialized atomically inside `completeRegistrationAction` (which also mints the selfie's `File` doc). **No password is ever set on a doctor User row.** After verify, the client **auto-signs-in** by reusing the just-entered OTP (`completeRegistrationAction` leaves the OTP valid) and lands on `/dashboard?welcome=1` — no second code. See #17 for the selfie path and #1c for what's gated until approval.
+- **Login** ([requestLoginOtpAction + NextAuth `sms-otp` provider](src/server/actions/auth.ts)): phone → OTP → signed in. NextAuth's `sms-otp` Credentials provider in [auth/config.ts](src/lib/auth/config.ts) is the trust boundary — it re-validates the OTP hash and clears OTP state on success (**no approval gate on login** — see #1c). An **unknown phone returns a clear "No account found with this number. Please register first."** — the old silent enumeration-protection no-op was removed (UX over enumeration resistance; the per-phone rate limiter still applies). If a real SMS provider is configured but the send fails, the action returns an error instead of pretending success (the dev no-op still "succeeds" so offline testing works). Same send-failure handling on registration.
 - **Admin auth** unchanged: email + bcrypt password via the original Credentials provider, at `/auth/admin/login`.
 - Sessions persist for **30 days** via explicit cookie `maxAge` (see [auth/config.ts](src/lib/auth/config.ts) `cookies.sessionToken.options.maxAge`). Without this, NextAuth falls back to a session cookie that drops on browser close.
 
-### 1c. Every doctor account needs admin approval before sign-in
-Registration sets `User.approved: false`. Admin's "Approve" button in
-[`/admin/verifications`](src/app/admin/verifications/page.tsx) (`approveClaimAction`)
-flips it to `true`. While `approved: false`:
-- The `sms-otp` provider's `authorize` callback returns `null` (login blocked).
-- `requestLoginOtpAction` short-circuits with "Your account is pending admin approval. We'll text you once it's ready." — no OTP is sent.
-- Existing admins + legacy rows default to `approved: true`, so this only gates new doctor registrations.
+### 1c. `User.approved` gates PUBLISHING, not login
+A new doctor (`approved: false`) **can log in, edit, and preview immediately** — they are
+NOT blocked from sign-in. `approved` gates whether the profile can go **public**:
+- **Login is open** — neither `requestLoginOtpAction` nor the `sms-otp` `authorize` checks
+  `approved` (that gate was removed). OTP validity is the only sign-in boundary.
+- **Publishing is gated** — [`setPublishStatusAction`](src/server/actions/doctor.ts) refuses
+  to set `status: "published"` while `approved === false`; the dashboard
+  [`PublishToggle`](src/app/(dashboard)/dashboard/profile/publish-toggle.tsx) disables the
+  Publish button and the overview shows an "under review" banner. Unpublish is always allowed.
+- **Public surfaces stay private** — the public `/[slug]`, search, sitemap, OG, and API all
+  gate on `status === "published"`. Because publish is gated by `approved`, an unapproved
+  profile can't be published, so it never appears publicly and the link 404s. (The public
+  page does NOT do a per-render `User.approved` lookup — `status === "published"` already
+  implies the owner was approved, keeping the SEO hot path fast.)
+- **Preview** — the owner sees their profile (any status) via the auth-gated
+  [`/preview`](src/app/(public)/preview/page.tsx) route, which reuses the shared
+  [`DoctorProfileView`](src/components/profile/doctor-profile-view.tsx) (also used by `/[slug]`).
+- **Approval** — admin's "Approve & allow publishing" button in
+  [`/admin/verifications`](src/app/admin/verifications/page.tsx) (`approveClaimAction`) flips
+  `approved → true`, which unlocks the Publish button (the doctor then publishes — approval
+  does not auto-publish).
+- Existing admins + legacy/seed rows default to `approved: true`, so only new doctor
+  registrations are gated.
 
 ### 2. Server Actions: every mutation follows this pattern
 1. `await auth()` — fetch session
@@ -414,6 +432,16 @@ which **must** be called from every action that writes the name — currently
 both [`updateProfileBasicAction`](src/server/actions/doctor.ts) (doctor) and
 [`adminUpdateProfileBasicAction`](src/server/actions/admin-doctor.ts) (admin). A
 prefix-only change does not revoke. New name-write paths must route through it.
+
+**Admin override:** ops can set either axis directly from
+[`/admin/doctors/[slug]/edit`](src/app/admin/doctors/[slug]/edit/page.tsx) (the Verification
+card → [`adminUpdateVerificationAction`](src/server/actions/admin-doctor.ts)) — no
+request/queue — for profiles created on a doctor's behalf. It sets `bmdcNumber` + the two
+flags and recomputes the level. **Granting identity requires uploading a Gov photo ID**
+(`adminUploadIdentityDocAction` → private bucket → stored on `Doctor.identityDocumentFileId`,
+shown back as a presigned "view" link); it then snapshots the **current** profile name as the
+`legalName` binding and locks the display name. It deliberately does **not** touch
+`User.approved` — login stays gated by the BMDC claim queue.
 
 On the **public profile** the badge is click-to-explain:
 [profile-header.tsx](src/components/profile/profile-header.tsx) renders

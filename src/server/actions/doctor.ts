@@ -474,6 +474,19 @@ export async function setPublishStatusAction(publish: boolean): Promise<ActionRe
   const ctx = await loadMyDoctor();
   if (!ctx.ok) return ctx;
   const { doctor } = ctx;
+  // Publishing is gated by admin approval. Unpublishing (→ draft) is always
+  // allowed. `User.approved` defaults true (admins/legacy/seed); new doctors
+  // are false until an admin approves via the BMDC claim queue.
+  if (publish) {
+    const user = await User.findById(ctx.userId).select("approved").lean<{ approved?: boolean } | null>();
+    if (user?.approved === false) {
+      return {
+        ok: false,
+        error:
+          "Your profile can be published once an admin approves your account (usually within 24 hours).",
+      };
+    }
+  }
   doctor.set("status", publish ? "published" : "draft");
   await doctor.save();
   revalidatePath(`/${doctor.get("slug")}`);

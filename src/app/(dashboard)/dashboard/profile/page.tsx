@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
-import { Doctor, Specialty } from "@/lib/db/models";
+import { Doctor, Specialty, User } from "@/lib/db/models";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { SpecialtiesEditor } from "@/components/dashboard/specialties-editor";
 import { ConcentrationsEditor } from "@/components/dashboard/concentrations-editor";
@@ -28,6 +28,12 @@ export default async function EditProfilePage() {
   if (!doctorDoc) return <p>No profile found.</p>;
   const doctor = JSON.parse(JSON.stringify(doctorDoc)) as DoctorDocLike;
 
+  // `approved` gates the Publish button (admin approval = "can go public").
+  const userRow = await User.findById(session!.user.id)
+    .select("approved")
+    .lean<{ approved?: boolean } | null>();
+  const approved = userRow?.approved !== false;
+
   // Specialty catalog — feeds the quick-pick chip palette in
   // <SpecialtiesEditor>. Active rows only, sorted by curated sortOrder.
   const specialtyDocs = await (Specialty as unknown as Loose)
@@ -47,7 +53,7 @@ export default async function EditProfilePage() {
           </p>
         </div>
         <Link
-          href={`/${doctor.slug}`}
+          href="/preview"
           target="_blank"
           className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
         >
@@ -55,7 +61,7 @@ export default async function EditProfilePage() {
         </Link>
       </header>
 
-      <PublishToggle initialStatus={doctor.status} />
+      <PublishToggle initialStatus={doctor.status} approved={approved} />
 
       <Card>
         <CardHeader>

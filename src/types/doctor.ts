@@ -168,6 +168,8 @@ export interface DoctorDocLike {
   legalName?: DoctorLegalName | null;
   /** Which Gov ID type was verified (private). */
   idDocumentType?: IdDocumentType | null;
+  /** File ref to the verified Gov photo ID (private bucket). */
+  identityDocumentFileId?: ObjectIdLike | null;
   verificationLevel: VerificationLevel;
 
   name: DoctorName;
