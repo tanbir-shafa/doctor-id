@@ -24,7 +24,7 @@ export function WhyFreeBand() {
         <ul className="mx-auto mt-6 flex max-w-md flex-col gap-2 text-left text-sm">
           <Point>Free verified public profile — yours to keep</Point>
           <Point>Reviewed within 24 hours by a real person</Point>
-          <Point>6 months of Shafa EMR, free — no card, no catch</Point>
+          <Point>3 months of Shafa EMR, free — no card, no catch</Point>
         </ul>
         <div className="mt-8">
           <Link

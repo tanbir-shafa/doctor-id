@@ -22,6 +22,7 @@ import {
 import { HomeTop } from "@/components/home/home-top";
 import { TrustBand } from "@/components/home/trust-band";
 import { ProofStrip } from "@/components/home/proof-strip";
+import { FoundingDoctorBand } from "@/components/home/founding-doctor-band";
 import { BillboardShowcase } from "@/components/home/billboard-showcase";
 import { SpecialtyGrid } from "@/components/home/specialty-grid";
 import { WhyFreeBand } from "@/components/home/why-free-band";
@@ -68,6 +69,7 @@ export default async function HomePage() {
       <HomeTop totalDoctors={stats.totalDoctors} />
       <TrustBand />
       <ProofStrip stats={stats} views30d={views30d} featured={featured} />
+      <FoundingDoctorBand foundingCount={stats.foundingDoctors} />
       <BillboardShowcase />
       <SpecialtyGrid specialties={specialties} districts={districts} />
       <WhyFreeBand />

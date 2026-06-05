@@ -18,7 +18,7 @@ with cascading division/district dropdowns** (#19) + **two verification axes
 (BMDC + account/identity) with combined blue tick, name binding & click-to-explain
 public badge** (#20).
 Production `next build` green.
-**467 Vitest tests passing** (`npm run lint` clean). Real public-Bangladesh data ingested (Popular
+**494 Vitest tests passing** (`npm run lint` clean). Real public-Bangladesh data ingested (Popular
 Diagnostic, 3,237 doctors). See [`.claude/progress/mvp-progress.md`](./.claude/progress/mvp-progress.md)
 for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-started.md).
 
@@ -33,7 +33,7 @@ for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-st
 | Database | MongoDB Atlas (prod), `docker-compose` Mongo 7 replica set (offline) | Connection via Mongoose 9.6 |
 | Auth driver | NextAuth v5 (`next-auth@5.0.0-beta.31`) | JWT sessions (Credentials provider requires JWT) |
 | Mongo driver | `mongodb@6.21.0` *pinned to 6.x* | `@auth/mongodb-adapter@3.11.2` peer-requires Mongo 6; Mongoose has its own bundled driver and is independent |
-| Email | AWS SES v2 | No-ops to console.log when AWS creds absent |
+| Email | **AWS SES v2** (TS port of shafa `emailService.js`) | Cross-account creds by `NODE_ENV` (same as S3), `From` display name + config set + reply-to, DynamoDB suppression list. No-ops to console.log when AWS creds absent. See #13. |
 | **Storage / uploads** | **AWS S3, server-side** (`@aws-sdk/client-s3` + `s3-request-presigner` + `credential-providers`) | Port of shafa `apps/api`. Creds resolve by `NODE_ENV`: prod → cross-account STS role, else → static keys. **Public** bucket (profile/cover, stable URLs) + **private** bucket (selfie/verification, presigned-GET). See #17. |
 | **SMS** | **SSL Wireless iSMS Plus v3** (JSON API; MDL legacy fallback via `SMS_PROVIDER`) | Server-side `fetch` through a provider facade. Bulk via `/send-sms/bulk` (≤100 same-body) + `/send-sms/dynamic` (≤100 per-number). Same dev-mode no-op as SES. **Request IP must be whitelisted** in the SSL portal for live sends. See #14. |
 | Shared state | Upstash Redis (`@upstash/redis` + `@upstash/ratelimit`) | Limiters degrade to "allow everything" without creds |
@@ -104,7 +104,8 @@ src/
                      buildS3Key/uploadBufferToS3/getPresignedUrl — port of shafa apps/api)
                      + buckets.ts (public/private routing + UPLOAD_PURPOSE) + file-doc.ts
                      + doctor-photo.ts + upload-doc.ts. See #17.
-    email/           ses.ts + templates.ts (inline HTML)
+    email/           ses.ts (SESv2 sendEmail + isSuppressed/SuppressedRecipientError —
+                     port of shafa emailService.js, #13) + templates.ts (inline HTML)
     sms/             client.ts (facade: sendSms/sendSmsBatch) + provider.ts (SMS_PROVIDER
                      selector) + providers/{ssl,mdl}.ts + types.ts + estimate.ts
     redis/           client + ratelimit factories (login + OTP + appointment + outbound limiters)
@@ -302,12 +303,31 @@ the shared [`uploadDoctorPhotoFromForm`](src/lib/s3/doctor-photo.ts) helper
 (used by both the dashboard and admin actions) — `photo.file` is populated, no
 longer null. Linked-entity types currently supported: `USER | ADMIN | DOCTOR`.
 
-### 13. SES is in sandbox by default
-New AWS accounts can only send to verified addresses until SES production
-access is granted (~24h review). Until then, register + verify-email + reset
-flows work only for verified test addresses. The `sendEmail()` helper
-gracefully no-ops to console.log when AWS creds are absent, so dev isn't
-blocked.
+### 13. Email is a TS port of shafa's SES v2 service (+ DynamoDB suppression)
+[`src/lib/email/ses.ts`](src/lib/email/ses.ts) is a faithful TypeScript port of
+`shafa-monorepo/apps/api/app/services/emailService.js` (the two apps share one
+AWS account). It exposes `sendEmail({ email, subject, body })` (HTML body) →
+`{ messageId? }`, plus `isSuppressed(email)` + `SuppressedRecipientError`:
+- **Credentials resolve by `NODE_ENV`, exactly like [`getS3()`](src/lib/s3/client.ts)
+  (#17)**: production → cross-account STS role via the shared
+  [`crossAccountCredentialsProvider`](src/lib/s3/aws-credentials.ts); any other
+  env → static access keys. The SES client never used the cross-account role
+  before this port, so it couldn't authenticate in prod.
+- **From / options**: optional display name (`SES_FROM_NAME` →
+  `"name" <addr>`), optional `ConfigurationSetName` (`SES_CONFIG_SET`), optional
+  `ReplyToAddresses` (`SES_REPLY_TO`); the sender is `SES_FROM_ADDRESS` (renamed
+  from the old `SES_FROM_EMAIL`).
+- **Suppression list**: before every send, `isSuppressed` checks the DynamoDB
+  table named by `SES_SUPPRESSION_TABLE` (partition key `email`, lowercased) via
+  `@aws-sdk/lib-dynamodb`; a hit throws `SuppressedRecipientError` (`code:
+  "SUPPRESSED"`). Unset table or absent creds → returns `false` (skip the check);
+  SES still enforces its own native account-level suppression list on send.
+- **Dev no-op (kept)**: when the active mode's creds are absent, `sendEmail`
+  logs the payload and returns `{}` instead of throwing, so offline dev /
+  register / reset flows stay exercisable (same fallback the SMS client uses).
+- **SES sandbox**: new AWS accounts can only send to verified addresses until
+  SES production access is granted (~24h review); the `From` domain must be
+  SES-verified.
 
 ### 14. SMS provider facade: SSL Wireless (default) + MDL fallback
 `sendSms`/`sendSmsBatch` in [`src/lib/sms/client.ts`](src/lib/sms/client.ts) are
@@ -504,7 +524,7 @@ finished yet, but the integration seam exists:
 ## How to make good changes here
 
 - **Read the plan first**: [`.claude/plans/`](./.claude/plans/) explains *why* the architecture is the way it is. The progress file ([`.claude/progress/mvp-progress.md`](./.claude/progress/mvp-progress.md)) is the authoritative status board — update it in the same commit that completes a step.
-- **Don't add new dependencies casually**: the brief is strict about the tech stack. Mongoose, NextAuth v5, Tailwind v4, shadcn-style (copied, not packaged), Zod, `@react-pdf/renderer`, SMS via plain `fetch` (SSL Wireless / MDL — no SDK), `@aws-sdk/{client-s3,s3-request-presigner,credential-providers}`. Adding e.g. React Query or a different ORM needs user approval.
+- **Don't add new dependencies casually**: the brief is strict about the tech stack. Mongoose, NextAuth v5, Tailwind v4, shadcn-style (copied, not packaged), Zod, `@react-pdf/renderer`, SMS via plain `fetch` (SSL Wireless / MDL — no SDK), `@aws-sdk/{client-s3,s3-request-presigner,credential-providers,client-sesv2,client-dynamodb,lib-dynamodb}`. Adding e.g. React Query or a different ORM needs user approval.
 - **Don't introduce client-side state libraries**: React Server Components + Server Actions are the default. Client components are for interactivity only.
 - **Don't bypass the Server Action pattern**: even one-line updates should route through a Server Action with auth + Zod + ownership check.
 - **Don't write FHIR mapping inline**: it goes through [`lib/fhir/practitioner.ts`](src/lib/fhir/practitioner.ts).

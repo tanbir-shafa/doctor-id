@@ -90,8 +90,14 @@ export async function searchDoctors(params: DoctorSearchParams): Promise<DoctorS
 
   // Sort selection. With the regex-based search we no longer have a
   // textScore-driven relevance ranking — "relevance" now falls back to the
-  // default (verified-first, then completeness). Honest to the user.
+  // default (founding-first, then verified, then completeness). Honest to the
+  // user. `foundingDoctor.isFounding: -1` is the headline Founding Doctor perk:
+  // a boolean -1 puts `true` ahead of `false`/absent, so Founding Doctors top
+  // the default ordering ~most users see (and every /[specialty] listing, which
+  // routes through here). The explicit "name"/"experience" sorts are left as the
+  // user's deliberate choice.
   let sort: Record<string, 1 | -1> = {
+    "foundingDoctor.isFounding": -1,
     verificationLevel: -1,
     profileCompletenessScore: -1,
     updatedAt: -1,
@@ -104,7 +110,7 @@ export async function searchDoctors(params: DoctorSearchParams): Promise<DoctorS
       sort = { profileCompletenessScore: -1, verificationLevel: -1 };
       break;
     case "verified":
-      sort = { verificationLevel: -1, updatedAt: -1 };
+      sort = { "foundingDoctor.isFounding": -1, verificationLevel: -1, updatedAt: -1 };
       break;
     case "experience":
       // Approximate: rely on count of experience entries until we add a derived field.
@@ -152,13 +158,17 @@ export async function listDistricts(): Promise<string[]> {
 /**
  * Helpful counts for the homepage hero stats.
  */
-export async function getStats(): Promise<{ totalDoctors: number; specialties: number; districts: number; verifiedDoctors: number }> {
+export async function getStats(): Promise<{ totalDoctors: number; specialties: number; districts: number; verifiedDoctors: number; foundingDoctors: number }> {
   await dbConnect();
-  const [totalDoctors, verifiedDoctors, districts] = await Promise.all([
+  const [totalDoctors, verifiedDoctors, foundingDoctors, districts] = await Promise.all([
     (Doctor as unknown as Loose).countDocuments({ status: "published" }),
     (Doctor as unknown as Loose).countDocuments({
       status: "published",
       verificationLevel: { $ne: "unverified" },
+    }),
+    (Doctor as unknown as Loose).countDocuments({
+      status: "published",
+      "foundingDoctor.isFounding": true,
     }),
     listDistricts(),
   ]);
@@ -168,6 +178,7 @@ export async function getStats(): Promise<{ totalDoctors: number; specialties: n
   return {
     totalDoctors,
     verifiedDoctors,
+    foundingDoctors,
     districts: districts.length,
     specialties: specialtyNames.length,
   };
@@ -229,7 +240,7 @@ export async function listFeaturedVerifiedDoctors(limit = 6): Promise<FeaturedDo
       "photo.url": { $exists: true, $ne: null },
     })
     .select("slug name specialties chambers photo verificationLevel")
-    .sort({ verificationLevel: -1, updatedAt: -1 })
+    .sort({ "foundingDoctor.isFounding": -1, verificationLevel: -1, updatedAt: -1 })
     .limit(limit)
     .lean();
   return (rows as unknown[]).map((raw) => {

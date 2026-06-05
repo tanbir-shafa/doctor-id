@@ -17,17 +17,22 @@ interface RegisterFormProps {
   claimSlug?: string | null;
   initialStep?: Step | string;
   initialPhone?: string;
+  initialReferralCode?: string;
+  referrerName?: string | null;
 }
 
 export function RegisterForm({
   claimSlug = null,
   initialStep = "details",
   initialPhone = "",
+  initialReferralCode = "",
+  referrerName = null,
 }: RegisterFormProps) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(initialStep === "verify" ? "verify" : "details");
   const [phone, setPhone] = useState(initialPhone);
   const [otp, setOtp] = useState("");
+  const [referralCode, setReferralCode] = useState(initialReferralCode);
   const [selfie, setSelfie] = useState<SelfieData | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +52,14 @@ export function RegisterForm({
     form.set("selfieSize", String(selfie.sizeBytes));
     form.set("selfieMime", selfie.mimeType);
     if (claimSlug) form.set("claimSlug", claimSlug);
+    // Founding Doctor referral: carry the code + how it arrived. "link" when the
+    // code is the untouched value pre-filled from `?ref=`, else "manual".
+    const trimmedReferral = referralCode.trim();
+    form.set("referralCode", trimmedReferral);
+    form.set(
+      "referralSource",
+      initialReferralCode && trimmedReferral === initialReferralCode.trim() ? "link" : "manual",
+    );
 
     setError(null);
     setInfo(null);
@@ -197,6 +210,25 @@ export function RegisterForm({
         <Label htmlFor="email">Email (optional)</Label>
         <Input id="email" name="email" type="email" autoComplete="email" placeholder="you@example.com" />
         <p className="text-xs text-muted-foreground">For notifications. Add later if you prefer.</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="referralCode">Referral code (optional)</Label>
+        <Input
+          id="referralCode"
+          name="referralCode"
+          value={referralCode}
+          onChange={(e) => setReferralCode(e.target.value)}
+          placeholder="A colleague's BMDC number"
+        />
+        {referrerName ? (
+          <p className="text-xs text-emerald-700">Referred by {referrerName}.</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Were you referred? Enter your colleague&apos;s BMDC number (or referral code) to credit
+            them.
+          </p>
+        )}
       </div>
 
       {/* Mandatory live selfie */}

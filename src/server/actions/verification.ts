@@ -9,6 +9,7 @@ import { normalizeBmdc, isValidBmdcFormat } from "@/lib/utils/bmdc";
 import { computeVerificationLevel } from "@/lib/utils/verification";
 import { AccountVerificationSchema } from "@/lib/validators/verification";
 import { recordAuditLog } from "@/lib/audit/log";
+import { qualifyReferralAndRecompute } from "@/lib/referral/service";
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -168,6 +169,22 @@ export async function approveClaimAction(claimId: string): Promise<ActionResult>
       verificationLevel: doctor.get("verificationLevel"),
     },
   });
+
+  // Founding Doctor: approving a referred doctor qualifies their referrer and
+  // may award the badge. Idempotent + non-throwing (see the referral service).
+  const founding = await qualifyReferralAndRecompute(String(doctor._id));
+  if (founding.awarded && founding.referrerSlug) {
+    revalidatePath(`/${founding.referrerSlug}`);
+    await recordAuditLog({
+      type: "founding.awarded",
+      entityType: "Doctor",
+      entityId: String(doctor._id),
+      actorId: guard.userId,
+      actorRole: "admin",
+      actorEmail: guard.email,
+      metadata: { referrerSlug: founding.referrerSlug, referredDoctorId: String(doctor._id) },
+    });
+  }
 
   revalidatePath(`/${doctor.get("slug")}`);
   revalidatePath("/admin/verifications");

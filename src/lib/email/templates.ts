@@ -4,7 +4,8 @@ import { publicEnv } from "@/lib/env";
  * Email templates.
  *
  * Plain inline HTML — no React Email yet (deferred). Each template returns
- * `{ subject, html, text }` so callers just pass it into `sendEmail()`.
+ * `{ subject, html, text }`; callers pass `subject` + `html` (as `body`) into
+ * `sendEmail()` (the SES port sends an HTML body — see ses.ts).
  */
 
 const APP_NAME = "doctor.id.bd";

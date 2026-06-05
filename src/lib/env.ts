@@ -41,8 +41,15 @@ const ServerEnvSchema = z.object({
   MAX_FILE_SIZE_MB: z.coerce.number().int().positive().default(10),
   MAX_FILES_COUNT: z.coerce.number().int().positive().default(5),
   IMAGE_UPLOAD_PRESIGN_EXPIRES_SECONDS: z.coerce.number().int().positive().default(86400),
-  SES_FROM_EMAIL: z.string().email().optional(),
+  // AWS SES (transactional email — same cross-account role as S3). Mirrors the
+  // shafa `emailService.js` config surface; see src/lib/email/ses.ts.
+  SES_FROM_ADDRESS: z.string().email().optional(),
+  SES_FROM_NAME: z.string().optional(),
   SES_REPLY_TO: z.string().email().optional(),
+  SES_CONFIG_SET: z.string().optional(),
+  // DynamoDB table backing the app-level recipient suppression list (partition
+  // key `email`). Unset → the pre-send suppression check is skipped.
+  SES_SUPPRESSION_TABLE: z.string().optional(),
 
   // Upstash
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),

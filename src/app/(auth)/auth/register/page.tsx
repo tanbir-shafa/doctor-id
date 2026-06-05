@@ -4,6 +4,7 @@ import { RegisterForm } from "./register-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor } from "@/lib/db/models";
+import { resolveReferrer } from "@/lib/referral/service";
 
 export const metadata: Metadata = {
   title: "Create your account",
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 interface PageProps {
-  searchParams: Promise<{ slug?: string; step?: string; phone?: string }>;
+  searchParams: Promise<{ slug?: string; step?: string; phone?: string; ref?: string }>;
 }
 
 export default async function RegisterPage({ searchParams }: PageProps) {
@@ -22,6 +23,11 @@ export default async function RegisterPage({ searchParams }: PageProps) {
   const slug = params.slug?.toLowerCase().trim() || undefined;
   const initialStep = params.step === "verify" ? "verify" : "details";
   const initialPhone = params.phone?.trim() || "";
+
+  // Founding Doctor referral: resolve `?ref=` so we can show "Referred by Dr. X"
+  // and pre-fill the code. An unresolved code is ignored — never blocks sign-up.
+  const referralCode = params.ref?.trim() || "";
+  const referrer = referralCode ? await resolveReferrer(referralCode) : null;
 
   // If a slug is present, look up the profile so we can confirm it exists and
   // show its display name in the header. Bad slugs short-circuit early with a
@@ -90,6 +96,8 @@ export default async function RegisterPage({ searchParams }: PageProps) {
           claimSlug={claiming?.slug ?? null}
           initialStep={initialStep}
           initialPhone={initialPhone}
+          initialReferralCode={referralCode}
+          referrerName={referrer?.displayName ?? null}
         />
         <div className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}

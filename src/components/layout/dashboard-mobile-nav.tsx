@@ -17,6 +17,7 @@ import {
   Stethoscope,
   FileText,
   Inbox,
+  Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logoutAction } from "@/server/actions/auth";
@@ -35,6 +36,7 @@ const NAV: Array<{
   { href: "/dashboard/prescription-pad", label: "Prescription pad", icon: FileText },
   { href: "/dashboard/requests", label: "Requests", icon: Inbox, badgeKey: "pendingRequestCount" },
   { href: "/dashboard/verification", label: "Verification", icon: BadgeCheck },
+  { href: "/dashboard/referrals", label: "Refer & earn", icon: Gift },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];

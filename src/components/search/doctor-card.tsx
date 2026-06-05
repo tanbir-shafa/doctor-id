@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { MapPin, Clock, Briefcase, Languages, ChevronRight } from "lucide-react";
 import { VerifiedBadge } from "@/components/profile/verified-badge";
+import { FoundingDoctorBadge } from "@/components/profile/founding-doctor-badge";
 import { cn } from "@/lib/utils";
 import type { DoctorDocLike, ChamberScheduleSlot } from "@/types/doctor";
 
@@ -129,6 +130,7 @@ export function DoctorCard({
             {fullName}
           </h3>
           <VerifiedBadge level={doctor.verificationLevel} />
+          <FoundingDoctorBadge isFounding={doctor.foundingDoctor?.isFounding} />
         </div>
         <p className="mt-0.5 text-sm font-medium text-primary">
           {primarySpecialty?.name ?? "Doctor"}

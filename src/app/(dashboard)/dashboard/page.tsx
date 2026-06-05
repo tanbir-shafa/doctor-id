@@ -1,11 +1,12 @@
 import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ExternalLink, ArrowRight, CheckCircle2, Circle } from "lucide-react";
+import { ExternalLink, ArrowRight, CheckCircle2, Circle, Award } from "lucide-react";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor, ProfileView, User } from "@/lib/db/models";
 import { computeCompleteness } from "@/lib/utils/completeness";
+import { FOUNDING_DOCTOR_THRESHOLD } from "@/lib/utils/referral";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { EmrBanner } from "./emr-banner";
@@ -171,6 +172,28 @@ export default async function DashboardOverview({ searchParams }: PageProps) {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-amber-200 bg-amber-50/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-amber-900">
+            <Award className="size-5" aria-hidden="true" /> Become a Founding Doctor
+          </CardTitle>
+          <CardDescription>
+            {doctor.foundingDoctor?.isFounding
+              ? "You've earned the Founding Doctor badge — thank you for growing the directory."
+              : `Refer ${FOUNDING_DOCTOR_THRESHOLD} doctors who get verified to earn a permanent gold badge and top placement in search.`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link
+            href="/dashboard/referrals"
+            className="inline-flex items-center gap-1 text-sm font-medium text-amber-800 hover:underline"
+          >
+            {doctor.foundingDoctor?.isFounding ? "View your referrals" : "Get your referral link"}{" "}
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Link>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

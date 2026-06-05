@@ -43,7 +43,7 @@ export default async function LoginPage({
           </Link>
         </div>
         <div className="text-center text-xs text-muted-foreground">
-          Are you a Shafa Care admin?{" "}
+          Already added an email?{" "}
           <Link href="/auth/admin/login" className="hover:underline">
             Sign in with email
           </Link>

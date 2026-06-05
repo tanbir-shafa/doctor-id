@@ -6,6 +6,7 @@ import { dbConnect } from "@/lib/db/mongoose";
 import { Specialty } from "@/lib/db/models";
 import { listDoctorsForAdmin } from "@/lib/db/queries/admin";
 import { VerifiedBadge } from "@/components/profile/verified-badge";
+import { FoundingDoctorBadge } from "@/components/profile/founding-doctor-badge";
 import { PageHeader } from "@/components/admin/page-header";
 import { Pagination } from "@/components/search/pagination";
 import { SuspendButton } from "./suspend-button";
@@ -176,7 +177,10 @@ export default async function AdminDoctorsPage({
                     </td>
                     <td className="px-4 py-2 text-muted-foreground">{d.bmdcNumber ?? "—"}</td>
                     <td className="px-4 py-2">
-                      <VerifiedBadge level={d.verificationLevel} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <VerifiedBadge level={d.verificationLevel} />
+                        <FoundingDoctorBadge isFounding={d.foundingDoctor?.isFounding} />
+                      </div>
                     </td>
                     <td className="px-4 py-2 capitalize">{d.status}</td>
                     <td className="px-4 py-2">{d.isClaimed ? "Yes" : "No"}</td>

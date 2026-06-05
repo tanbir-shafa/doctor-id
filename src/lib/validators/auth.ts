@@ -32,6 +32,9 @@ export const RegisterSchema = z.object({
   lastName: z.string().min(1, "Last name is required").max(80),
   email: z.string().email("Enter a valid email").optional().or(z.literal("")),
   claimSlug: z.string().min(1).max(160).optional().or(z.literal("")),
+  // Founding Doctor referral — the referrer's slug (from `?ref=`) or a manually
+  // typed code. Optional; an invalid code is ignored, never blocks sign-up.
+  referralCode: z.string().trim().max(160).optional().or(z.literal("")),
   selfieS3Key: z.string().min(1, "A live selfie is required"),
   agreeTerms: z
     .boolean()

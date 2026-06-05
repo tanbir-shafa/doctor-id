@@ -248,6 +248,19 @@ const DoctorSchema = new Schema(
             index: true,
         },
 
+        // Founding Doctor badge — a referral reward, SEPARATE from
+        // `verificationLevel` (never fold the two together). Earned when a doctor
+        // refers FOUNDING_DOCTOR_THRESHOLD doctors who get approved. `isFounding`
+        // is a denormalized cache (the `Referral` collection is the source of
+        // truth) so the public badge + the founding-first search ranking read
+        // with no join — same denormalization pattern as PhotoSchema (#12).
+        // Permanent once awarded; never auto-revoked.
+        foundingDoctor: {
+            isFounding: {type: Boolean, default: false, index: true},
+            qualifiedReferrals: {type: Number, default: 0, min: 0},
+            awardedAt: {type: Date, default: null},
+        },
+
         name: {type: NameSchema, required: true},
         photo: {type: PhotoSchema, default: null},
         coverPhoto: {type: PhotoSchema, default: null},
@@ -367,6 +380,9 @@ DoctorSchema.index(
 DoctorSchema.index({dupReviewGroup: 1}, {sparse: true});
 // Public listing query (only published, sorted by verification then recency)
 DoctorSchema.index({status: 1, verificationLevel: 1, updatedAt: -1});
+// Founding Doctors rank first in the default search ordering (see searchDoctors).
+// Boolean -1 puts `true` ahead of `false`/absent.
+DoctorSchema.index({status: 1, "foundingDoctor.isFounding": -1, verificationLevel: -1, updatedAt: -1});
 // Free-text search across name, bio, and specialty names.
 //
 // NOTE: this $text index is currently *dormant*. searchDoctors() uses a

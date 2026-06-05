@@ -73,6 +73,12 @@ const UserSchema = new Schema(
           email: { type: String, default: null },
           bmdcNumber: { type: String, default: null },
           claimSlug: { type: String, default: null },
+          // Resolved referrer (Founding Doctor program). Stashed at "start
+          // registration" so the Referral row can be minted at materialization.
+          // Null when no valid referral code was supplied.
+          referrerDoctorId: { type: Schema.Types.ObjectId, ref: "Doctor", default: null },
+          referrerUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+          referralSource: { type: String, default: null },
           // Mandatory live selfie (private bucket). Metadata stashed so the
           // File doc can be created at materialization without re-reading S3.
           selfieKey: { type: String, default: null },

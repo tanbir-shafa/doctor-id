@@ -21,9 +21,11 @@
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.11.2",
+    "@aws-sdk/client-dynamodb": "^3.1062.0",
     "@aws-sdk/client-s3": "^3.1055.0",
     "@aws-sdk/client-sesv2": "^3.1055.0",
     "@aws-sdk/credential-providers": "^3.1058.0",
+    "@aws-sdk/lib-dynamodb": "^3.1062.0",
     "@aws-sdk/s3-request-presigner": "^3.1055.0",
     "@hookform/resolvers": "^5.4.0",
     "@react-pdf/renderer": "^4.5.1",

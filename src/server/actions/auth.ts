@@ -24,6 +24,7 @@ import { resetPasswordTemplate } from "@/lib/email/templates";
 import { generateSlug } from "@/lib/utils/slug";
 import { normalizeBmdc } from "@/lib/utils/bmdc";
 import { normalizeBdPhone } from "@/lib/utils/phone";
+import { resolveReferrer, recordReferral, type ResolvedReferrer } from "@/lib/referral/service";
 import { sendSms } from "@/lib/sms/client";
 import { getSmsProvider } from "@/lib/sms/provider";
 import {
@@ -96,7 +97,8 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const { bmdcNumber, phone, firstName, lastName, email, claimSlug, selfieS3Key } = parsed.data;
+  const { bmdcNumber, phone, firstName, lastName, email, claimSlug, referralCode, selfieS3Key } =
+    parsed.data;
 
   // Selfie upload metadata (returned by uploadRegistrationSelfieAction, carried
   // through hidden form fields) — stashed so the File doc can be minted at
@@ -167,6 +169,18 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
     return { ok: false, error: "Too many code requests. Try again in a few minutes." };
   }
 
+  // Founding Doctor referral attribution. Resolve the code now (best-effort) so
+  // the Referral row can be minted at materialization. A code that doesn't
+  // resolve is silently ignored — referral is a bonus, never a sign-up gate.
+  let referrer: ResolvedReferrer | null = null;
+  let referralSource: "link" | "manual" | null = null;
+  if (referralCode && referralCode.length > 0) {
+    referrer = await resolveReferrer(referralCode);
+    if (referrer) {
+      referralSource = String(form.get("referralSource")) === "link" ? "link" : "manual";
+    }
+  }
+
   // Generate OTP + persist regDraft on a phone-keyed user. We upsert so a
   // doctor who restarts the flow simply overwrites the previous draft.
   const code = generateOtp();
@@ -193,6 +207,9 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
           email: normalizedEmail,
           bmdcNumber: bmdc,
           claimSlug: claimSlug ? claimSlug.toLowerCase() : null,
+          referrerDoctorId: referrer?.doctorId ?? null,
+          referrerUserId: referrer?.userId ?? null,
+          referralSource,
           selfieKey: selfieS3Key,
           selfieSha256,
           selfieSize,
@@ -324,6 +341,9 @@ export async function completeRegistrationAction(input: {
         email?: string | null;
         bmdcNumber?: string | null;
         claimSlug?: string | null;
+        referrerDoctorId?: unknown;
+        referrerUserId?: unknown;
+        referralSource?: string | null;
         selfieKey?: string | null;
         selfieSha256?: string | null;
         selfieSize?: number | null;
@@ -472,6 +492,9 @@ async function materializeRegistration(args: {
     email?: string | null;
     bmdcNumber?: string | null;
     claimSlug?: string | null;
+    referrerDoctorId?: unknown;
+    referrerUserId?: unknown;
+    referralSource?: string | null;
     selfieKey?: string | null;
     selfieSha256?: string | null;
     selfieSize?: number | null;
@@ -488,6 +511,7 @@ async function materializeRegistration(args: {
   const displayName = `Dr. ${firstName} ${lastName}`.replace(/\s+/g, " ").trim();
   const bmdc = draft.bmdcNumber ?? null;
   const claimSlug = draft.claimSlug ?? null;
+  let referredDoctorId = "";
 
   if (claimSlug) {
     const claimed = await Doctor.findOneAndUpdate(
@@ -507,6 +531,7 @@ async function materializeRegistration(args: {
     if (!claimed) {
       throw new Error("This profile has just been claimed by someone else.");
     }
+    referredDoctorId = String(claimed._id);
     const selfie = await buildSelfieClaimFields(String(claimed._id), userId, draft);
     await (ClaimRequest as unknown as Loose).create({
       doctorId: claimed._id,
@@ -539,6 +564,7 @@ async function materializeRegistration(args: {
       claimRequestedBy: userId,
       status: "draft",
     });
+    referredDoctorId = String(doctor._id);
     const selfie = await buildSelfieClaimFields(String(doctor._id), userId, draft);
     await (ClaimRequest as unknown as Loose).create({
       doctorId: doctor._id,
@@ -547,6 +573,23 @@ async function materializeRegistration(args: {
       ...selfie,
       notesFromDoctor: "Live selfie attached at registration.",
       status: "pending",
+    });
+  }
+
+  // Founding Doctor referral: if this sign-up came through a referral link/code,
+  // mint a pending Referral (qualifies when an admin approves this doctor). The
+  // service blocks self-referral, dedups first-touch, and never throws — a
+  // referral hiccup must not break registration.
+  if (draft.referrerDoctorId && draft.referrerUserId && referredDoctorId) {
+    await recordReferral({
+      referrer: {
+        doctorId: String(draft.referrerDoctorId),
+        userId: String(draft.referrerUserId),
+      },
+      referredDoctorId,
+      referredUserId: userId,
+      via: claimSlug ? "claim" : "register",
+      source: draft.referralSource === "link" ? "link" : "manual",
     });
   }
 
@@ -668,7 +711,7 @@ export async function forgotPasswordAction(form: FormData): Promise<ActionResult
     token: rawToken,
     email: user.email,
   });
-  await sendEmail({ to: user.email, ...tpl }).catch((err) => {
+  await sendEmail({ email: user.email, subject: tpl.subject, body: tpl.html }).catch((err) => {
     console.error("Failed to send reset email:", err);
   });
   return { ok: true };

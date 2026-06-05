@@ -172,6 +172,17 @@ export interface DoctorDocLike {
   identityDocumentFileId?: ObjectIdLike | null;
   verificationLevel: VerificationLevel;
 
+  /**
+   * Founding Doctor badge (referral reward) — a SEPARATE axis from
+   * `verificationLevel`. `isFounding` is a denormalized cache; the `Referral`
+   * collection is the source of truth. Permanent once awarded.
+   */
+  foundingDoctor?: {
+    isFounding?: boolean;
+    qualifiedReferrals?: number;
+    awardedAt?: Date | string | null;
+  } | null;
+
   name: DoctorName;
   photo?: DoctorPhoto | null;
   coverPhoto?: DoctorPhoto | null;
