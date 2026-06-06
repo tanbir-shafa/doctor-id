@@ -40,6 +40,15 @@ export interface OptimizeOptions {
   quality: number;
   /** Override the decoded-pixel ceiling (mainly for tests). */
   maxInputPixels?: number;
+  /**
+   * Byte floor below which we skip the lossy re-encode and keep the original
+   * untouched. Re-encoding an already-small/already-compressed image (e.g. a
+   * ~200px thumbnail) tends to add visible artifacts for little or no byte
+   * saving. The decompression-bomb guard still runs first, so a small-byte/
+   * huge-pixel bomb is rejected before the floor applies. Unset = always
+   * optimize (the live upload path's behavior is unchanged).
+   */
+  minBytes?: number;
 }
 
 export type OptimizeResult =
@@ -74,6 +83,13 @@ export async function optimizeImageBuffer(
   }
   if (!meta.width || !meta.height || meta.width * meta.height > maxInputPixels) {
     return { ok: false, error: "That image is too large to process — try a smaller one." };
+  }
+
+  // Size floor: a valid, already-small image is kept as-is — re-encoding it would
+  // risk artifacts for little/no gain. Placed AFTER the bomb guard so a tiny-byte/
+  // huge-pixel image is still rejected above, never silently passed through here.
+  if (opts.minBytes !== undefined && input.length < opts.minBytes) {
+    return { ok: true, buffer: input, sizeBytes: input.length, optimized: false };
   }
 
   // Resize + re-encode. A failure here (after a clean decode) is non-fatal: fall

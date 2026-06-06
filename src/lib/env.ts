@@ -31,8 +31,6 @@ const ServerEnvSchema = z.object({
   // from the ECS task/instance role via the default provider chain.
   AWS_ASSUME_ROLE_ARN: z.string().optional(),
   AWS_S3_EXTERNAL_ID: z.string().optional(),
-  // Legacy single bucket (kept for ingestion + as the public-bucket fallback).
-  S3_BUCKET: z.string().default("doctor-id-uploads"),
   // Multi-bucket model (shafa-style). Public = profile/cover photos served by a
   // stable URL; private = identity docs (selfie, verification) read via presigned GET.
   AWS_PUBLIC_BUCKET_NAME: z.string().optional(),

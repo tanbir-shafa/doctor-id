@@ -13,7 +13,6 @@ import { Doctor } from "@/lib/db/models";
 import { dbConnect } from "@/lib/db/mongoose";
 import { classifySla, VERIFICATION_SLA_MS } from "@/lib/sla";
 import { getPresignedUrl } from "@/lib/s3/s3-service";
-import { env } from "@/lib/env";
 import type { DoctorDocLike, VerificationLevel, IdDocumentType } from "@/types/doctor";
 
 export { classifySla, formatDuration, type SlaTone, type SlaClassification } from "@/lib/sla";
@@ -28,8 +27,7 @@ export interface AdminVerificationItem {
   _id: string;
   status: "pending" | "approved" | "rejected";
   bmdcNumberProvided: string | null;
-  documentsUploaded: string[];
-  /** Verification docs as presigned GET URLs (new File-doc refs + legacy keys). */
+  /** Verification docs as presigned GET URLs (from File-doc refs). */
   documents: AdminVerificationDocument[];
   /** Registration selfie as a presigned GET URL (private bucket). */
   selfieUrl: string | null;
@@ -93,8 +91,7 @@ export async function listPendingClaimRequests(now: Date = new Date()): Promise<
   );
 
   // Verification docs live in the private bucket → hand the admin presigned GET
-  // URLs (inline disposition). Legacy raw keys are presigned via the old bucket.
-  const legacyBucket = env().S3_BUCKET;
+  // URLs (inline disposition).
   const items: AdminVerificationItem[] = await Promise.all(
     raw.map(async (c) => {
       const fromRefs = await Promise.all(
@@ -109,22 +106,13 @@ export async function listPendingClaimRequests(now: Date = new Date()): Promise<
               : null,
         })),
       );
-      const fromLegacy = await Promise.all(
-        (c.documentsUploaded ?? []).map(async (k) => ({
-          name: k.split("/").pop() ?? "document",
-          mimeType: null as string | null,
-          url: await getPresignedUrl(legacyBucket, k, 3600, {
-            ResponseContentDisposition: "inline",
-          }),
-        })),
-      );
       const selfieUrl =
         c.selfieKey && c.selfieBucket
           ? await getPresignedUrl(c.selfieBucket, c.selfieKey, 3600, {
               ResponseContentDisposition: "inline",
             })
           : null;
-      return { ...c, documents: [...fromRefs, ...fromLegacy], selfieUrl };
+      return { ...c, documents: fromRefs, selfieUrl };
     }),
   );
 

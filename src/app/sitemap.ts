@@ -14,6 +14,15 @@ import { publicEnv } from "@/lib/env";
  *
  * Capped at 50 000 URLs per sitemap (Google limit). Way under that for MVP.
  */
+
+// Generated at REQUEST time, not build time: this queries Mongo for every
+// published doctor, so it must run against the live DB on the box — and the CI
+// build has no database. `force-dynamic` removes the build's only DB dependency
+// AND keeps the sitemap always-fresh (build-time generation would freeze it at
+// each deploy). Crawlers fetch it rarely and the query is indexed + capped, so
+// per-request generation is cheap.
+export const dynamic = "force-dynamic";
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   await dbConnect();

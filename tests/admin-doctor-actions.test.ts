@@ -39,7 +39,7 @@ vi.mock("@/lib/db/models", () => ({
 }));
 
 // Bypass real env at import-time in confirm-photo action.
-vi.mock("@/lib/env", () => ({ env: () => ({ S3_BUCKET: "test-bucket" }) }));
+vi.mock("@/lib/env", () => ({ env: () => ({}) }));
 
 // Avoid pulling S3 SDK.
 vi.mock("@/lib/s3/presign", () => ({

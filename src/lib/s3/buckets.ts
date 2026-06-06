@@ -20,11 +20,11 @@ export const BUCKET_TYPE = Object.freeze({
 } as const);
 export type BucketType = (typeof BUCKET_TYPE)[keyof typeof BUCKET_TYPE];
 
-/** Concrete bucket name for a type. Public falls back to the legacy S3_BUCKET. */
+/** Concrete bucket name for a type. */
 export function bucketFor(type: BucketType): string | null {
   const e = env();
   if (type === BUCKET_TYPE.PRIVATE) return e.AWS_PRIVATE_BUCKET_NAME ?? null;
-  return e.AWS_PUBLIC_BUCKET_NAME ?? e.S3_BUCKET ?? null;
+  return e.AWS_PUBLIC_BUCKET_NAME ?? null;
 }
 
 /** File `visibility` enum value for a bucket type. */

@@ -99,6 +99,48 @@ describe("optimizeImageBuffer", () => {
     });
     expect(result.ok).toBe(false);
   });
+
+  it("keeps the original untouched when below the minBytes floor", async () => {
+    const input = await makeImage("jpeg", 100, 100); // a tiny image, well under any floor
+    const result = await optimizeImageBuffer(input, "image/jpeg", {
+      maxEdge: 1024,
+      quality: 80,
+      minBytes: 1_000_000, // floor far above the input → skip the re-encode
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.optimized).toBe(false);
+    expect(result.buffer.equals(input)).toBe(true); // exact original bytes, no recompression
+    expect(result.sizeBytes).toBe(input.length);
+  });
+
+  it("still compresses images at or above the minBytes floor", async () => {
+    const input = await makeImage("jpeg", 2000, 1500);
+    const result = await optimizeImageBuffer(input, "image/jpeg", {
+      maxEdge: 1024,
+      quality: 80,
+      minBytes: 1024, // input is larger than this → optimize as normal
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.optimized).toBe(true);
+    expect(Math.max((await sharp(result.buffer).metadata()).width ?? 0, 0)).toBeLessThanOrEqual(
+      1024,
+    );
+  });
+
+  it("still rejects a decompression bomb even when it is below the minBytes floor", async () => {
+    const input = await makeImage("jpeg", 2000, 1500); // small bytes, 3,000,000 px
+    const result = await optimizeImageBuffer(input, "image/jpeg", {
+      maxEdge: 1024,
+      quality: 80,
+      maxInputPixels: 1_000_000, // bomb guard should fire…
+      minBytes: 10_000_000, // …before the floor (input bytes are well under this)
+    });
+    expect(result.ok).toBe(false); // guard runs before the floor early-return
+  });
 });
 
 describe("generateBlurDataUrl", () => {

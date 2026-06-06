@@ -24,8 +24,6 @@ const ClaimRequestSchema = new Schema(
     doctorId: { type: Schema.Types.ObjectId, ref: "Doctor", required: true, index: true },
     requestedBy: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     bmdcNumberProvided: { type: String, default: null },
-    // Legacy: raw S3 keys of uploaded verification docs (pre File-doc migration).
-    documentsUploaded: { type: [String], default: [] },
     // File-doc refs for verification documents (private bucket, read via presigned GET).
     documentFileIds: { type: [{ type: Schema.Types.ObjectId, ref: "File" }], default: [] },
     // Mandatory registration selfie (private bucket). `selfieFileId` is the

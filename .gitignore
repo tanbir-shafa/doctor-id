@@ -52,3 +52,4 @@ next-env.d.ts
 # ...except the curated chamber-location catalog — small reference data (47 rows),
 # committed and seeded into the Chamber collection by scripts/seed.ts.
 !/data/chambers/
+.pem

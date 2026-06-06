@@ -1,0 +1,12 @@
+{
+  "_comment": "Inline policy for the EC2 instance role (the box's identity). The ONLY thing the box needs from AWS is to assume the shafa cross-account role the app uses at RUNTIME for S3 (photos) + SES (email) — CLAUDE.md #17; base creds come from THIS instance role via the default chain. No deploy-bucket and no SSM permissions: deploy is over SSH. SSM Session Manager is optional break-glass — if you want a no-SSH admin path, ALSO attach the AWS-managed 'AmazonSSMManagedInstanceCore'. Replace <CROSS_ACCOUNT_ROLE_ARN>.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AssumeShafaCrossAccountRole",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "<CROSS_ACCOUNT_ROLE_ARN>"
+    }
+  ]
+}

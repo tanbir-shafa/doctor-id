@@ -1,14 +1,10 @@
 import type { NextConfig } from "next";
 
-// AWS S3 bucket name from env so Next/image accepts uploaded photos.
-// Falls back to a placeholder so dev boots before the bucket is configured.
-const s3Bucket = process.env.S3_BUCKET ?? "doctor-id-uploads";
 const awsRegion = process.env.AWS_REGION ?? "ap-south-1";
-// Public/private buckets (shafa-style multi-bucket). Public defaults to the
-// legacy single bucket so existing setups keep working. next/image only needs
-// the PUBLIC bucket host (profile/cover photos); the private bucket is read via
+// Public/private buckets (shafa-style multi-bucket). next/image only needs the
+// PUBLIC bucket host (profile/cover photos); the private bucket is read via
 // presigned GET + a plain <img>, but we whitelist it too for completeness.
-const publicBucket = process.env.AWS_PUBLIC_BUCKET_NAME ?? s3Bucket;
+const publicBucket = process.env.AWS_PUBLIC_BUCKET_NAME;
 const privateBucket = process.env.AWS_PRIVATE_BUCKET_NAME;
 
 // Hosts allowed to invoke Server Actions. Behind nginx the forwarded Host can
@@ -34,7 +30,7 @@ const serverActionOrigins = (() => {
   return [...hosts];
 })();
 const s3Buckets = Array.from(
-  new Set([s3Bucket, publicBucket, privateBucket].filter(Boolean) as string[]),
+  new Set([publicBucket, privateBucket].filter(Boolean) as string[]),
 );
 const s3RemotePatterns = s3Buckets.flatMap((b) => [
   { protocol: "https" as const, hostname: `${b}.s3.${awsRegion}.amazonaws.com` },
@@ -62,15 +58,7 @@ const nextConfig: NextConfig = {
     // the precise size instead of rounding up to the nearest deviceSize.
     imageSizes: [36, 40, 56, 72, 80, 96, 112, 144, 192, 288, 576],
     remotePatterns: [
-      ...s3RemotePatterns,
-      // Seeded placeholder portraits — only used by the seed script in dev/staging.
-      { protocol: "https", hostname: "i.pravatar.cc" },
-      { protocol: "https", hostname: "images.unsplash.com" },
-      // Popular Diagnostic ingestion fallback — used when S3 isn't configured,
-      // we point Doctor.photo.url at Popular's CDN instead of re-uploading.
-      { protocol: "https", hostname: "old.populardiagnostic.com" },
-      { protocol: "https", hostname: "populardiagnostic.com" },
-      { protocol: "https", hostname: "www.populardiagnostic.com" },
+      ...s3RemotePatterns
     ],
   },
 
@@ -92,19 +80,6 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "12mb",
       allowedOrigins: serverActionOrigins,
     },
-  },
-
-  // Permanent slug redirects from the specialty-catalog reshuffle:
-  //   - Obstetrics (394585009) was renamed to Obstetrics & Gynaecology because
-  //     its SNOMED code is actually the COMBINED entry.
-  //   - Forensic Medicine was dropped (had no SNOMED match in either SIL Thailand
-  //     or HL7 c80-practice-codes value sets; 1 source occurrence).
-  // See .claude/plans/act-like-a-data-sparkling-orbit.md.
-  async redirects() {
-    return [
-      {source: "/obstetrics", destination: "/obstetrics-gynecology", permanent: true},
-      {source: "/forensic-medicine", destination: "/", permanent: true},
-    ];
   },
 };
 
