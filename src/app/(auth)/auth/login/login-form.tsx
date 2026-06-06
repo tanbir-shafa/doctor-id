@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestLoginOtpAction } from "@/server/actions/auth";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 
 type Step = "phone" | "otp";
 
@@ -27,13 +28,17 @@ export function DoctorLoginForm({ defaultPhone = "", next }: { defaultPhone?: st
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [tsReset, setTsReset] = useState(0);
 
   function submitPhone(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setInfo(null);
     startTransition(async () => {
-      const result = await requestLoginOtpAction({ phone });
+      const result = await requestLoginOtpAction({ phone, turnstileToken });
+      // Re-arm the single-use challenge for any subsequent attempt.
+      setTsReset((n) => n + 1);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -115,6 +120,7 @@ export function DoctorLoginForm({ defaultPhone = "", next }: { defaultPhone?: st
           required
         />
       </div>
+      <TurnstileWidget onToken={setTurnstileToken} resetSignal={tsReset} />
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
       <Button type="submit" className="w-full" disabled={pending}>
         {pending ? "Sending code…" : "Send sign-in code"}

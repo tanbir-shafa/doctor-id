@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // PM2 deploy descriptor (CommonJS, not app source).
+    "ecosystem.config.cjs",
   ]),
   // A leading underscore marks an intentionally-unused binding (the common TS
   // convention for "I know — it's deliberately unused").

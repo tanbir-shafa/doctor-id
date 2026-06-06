@@ -14,8 +14,8 @@
  */
 
 import type { Loose } from "@/lib/db/models/loose";
-import crypto from "node:crypto";
 import { headers } from "next/headers";
+import { clientIpHash } from "@/lib/utils/request-ip";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
@@ -76,12 +76,8 @@ export async function createAppointmentRequestAction(
   // Rate-limit per IP, then per phone. Both share the canonical Upstash
   // limiter — falls back to allow-all without Redis (dev path).
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
-  const ipHash = crypto
-    .createHash("sha256")
-    .update(`${ip}|${env().AUTH_SECRET}`)
-    .digest("hex")
-    .slice(0, 32);
+  // Trusted-proxy IP (nginx), peppered so the stored fingerprint isn't reversible.
+  const ipHash = clientIpHash(h, { pepper: env().AUTH_SECRET, length: 32 });
 
   const ipRl = await appointmentByIpLimiter.limit(`ip:${ipHash}`);
   if (!ipRl.success) {

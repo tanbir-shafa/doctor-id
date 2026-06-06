@@ -14,7 +14,7 @@ WORKDIR /app
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 # Force NextAuth to skip auth-secret validation during build (real secret comes
-# in at runtime via the ECS task definition).
+# in at runtime via the container environment).
 ENV AUTH_SECRET=build-only-placeholder-32-chars-aaaaa
 ENV MONGO_URI=mongodb://placeholder/build
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -42,7 +42,7 @@ USER nextjs
 EXPOSE 3000
 ENV PORT=3000 HOSTNAME=0.0.0.0
 
-# Healthcheck — ECS uses this to decide if the task is healthy.
+# Healthcheck — the container orchestrator uses this to decide if it's healthy.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD wget -q -O- http://127.0.0.1:3000/api/health | grep -q '"status":"ok"' || exit 1
 

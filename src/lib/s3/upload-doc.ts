@@ -10,6 +10,7 @@ import type { Types } from "mongoose";
 import { uploadBufferToS3, computeSha256, buildS3Key } from "./s3-service";
 import { bucketFor, visibilityFor, securityClassFor, UPLOAD_PURPOSE, type UploadPurpose } from "./buckets";
 import { createFileDoc } from "./file-doc";
+import { optimizeImageBuffer } from "@/lib/images/optimize";
 import { FILE_LINKED_ENTITY_TYPE, type FileLinkedEntityType } from "@/lib/db/models/files";
 import { env } from "@/lib/env";
 
@@ -53,7 +54,14 @@ export async function uploadDocForPurpose(opts: {
   const bucket = bucketFor(purpose.bucketType);
   if (!bucket) return { ok: false, error: "Uploads aren't configured in this environment." };
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const rawBuffer = Buffer.from(await file.arrayBuffer());
+  // Recompress image docs (Gov ID / BMDC cert) before storing — conservative
+  // settings (large edge, high quality) so the text/photo stays legible for
+  // admin review. PDFs pass through untouched (the helper skips non-image MIME).
+  const optimized = await optimizeImageBuffer(rawBuffer, file.type, { maxEdge: 2400, quality: 85 });
+  if (!optimized.ok) return { ok: false, error: optimized.error };
+  const buffer = optimized.buffer;
+
   const ext = MIME_EXT[file.type] ?? "bin";
   const key = buildS3Key(`${purpose.folder}/${opts.ownerFolderId}`, `${opts.purposeKey}.${ext}`);
   const sha256 = computeSha256(buffer);

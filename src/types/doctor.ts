@@ -39,6 +39,8 @@ export interface DoctorName {
 export interface DoctorPhoto {
   url: string;
   s3Key: string;
+  /** Tiny base64 blur preview for next/image placeholder="blur". */
+  blurDataUrl?: string | null;
 }
 
 export interface DoctorSpecialty {

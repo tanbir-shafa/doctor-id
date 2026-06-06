@@ -5,7 +5,7 @@ import { Types } from "mongoose";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor } from "@/lib/db/models";
-import { computeCompleteness } from "@/lib/utils/completeness";
+import { computeCompleteness, missingPublishRequirements } from "@/lib/utils/completeness";
 import { resolveVerifiedNameUpdate, computeVerificationLevel } from "@/lib/utils/verification";
 import { isValidBmdcFormat, normalizeBmdc } from "@/lib/utils/bmdc";
 import { uploadDoctorPhotoFromForm } from "@/lib/s3/doctor-photo";
@@ -506,6 +506,11 @@ export async function adminSetPublishStatusAction(
   const { doctor } = ctx;
   const next = publish ? "published" : "draft";
   const prev = doctor.get("status");
+  // Admin can publish regardless of the mandatory-field gate (override), but we
+  // record when they publish an incomplete profile.
+  const incompleteOverride =
+    publish &&
+    missingPublishRequirements(JSON.parse(JSON.stringify(doctor.toObject())) as DoctorDocLike).length > 0;
   doctor.set("status", next);
   await doctor.save();
 
@@ -514,7 +519,7 @@ export async function adminSetPublishStatusAction(
     doctorId: doctor._id,
     adminId: ctx.adminId,
     adminEmail: ctx.adminEmail,
-    metadata: { from: prev, to: next },
+    metadata: { from: prev, to: next, incompleteOverride },
   });
 
   revalidateAdminDoctorPaths(doctor.get("slug"));

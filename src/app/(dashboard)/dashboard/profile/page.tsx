@@ -16,6 +16,7 @@ import { ExperienceEditor } from "./experience-editor";
 import { StatusEditor } from "./status-editor";
 import { CredentialsEditor } from "./credentials-editor";
 import { PublishToggle } from "./publish-toggle";
+import { missingPublishRequirements } from "@/lib/utils/completeness";
 import type { DoctorDocLike } from "@/types/doctor";
 
 export const metadata: Metadata = { title: "Edit profile" };
@@ -33,6 +34,11 @@ export default async function EditProfilePage() {
     .select("approved")
     .lean<{ approved?: boolean } | null>();
   const approved = userRow?.approved !== false;
+  // Mandatory fields still missing — publishing stays blocked until these are filled.
+  const missingToPublish = missingPublishRequirements(doctor).map((s) => ({
+    key: s.key,
+    label: s.label,
+  }));
 
   // Specialty catalog — feeds the quick-pick chip palette in
   // <SpecialtiesEditor>. Active rows only, sorted by curated sortOrder.
@@ -61,7 +67,7 @@ export default async function EditProfilePage() {
         </Link>
       </header>
 
-      <PublishToggle initialStatus={doctor.status} approved={approved} />
+      <PublishToggle initialStatus={doctor.status} approved={approved} missing={missingToPublish} />
 
       <Card>
         <CardHeader>

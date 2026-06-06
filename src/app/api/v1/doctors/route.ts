@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { searchDoctors } from "@/lib/db/queries/doctors";
-import { withApiHandler } from "@/lib/api/response";
+import { withApiHandler, corsHeaders } from "@/lib/api/response";
 import { toFhirPractitioner } from "@/lib/fhir/practitioner";
 
 /**
@@ -38,14 +38,7 @@ export async function GET(req: NextRequest) {
   );
 }
 
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Max-Age": "86400",
-    },
-  });
+export async function OPTIONS(req: NextRequest) {
+  // CORS preflight — echo the allowlisted origin only (never `*`).
+  return new Response(null, { status: 204, headers: corsHeaders(req.headers) });
 }

@@ -26,9 +26,6 @@ export function SiteFooter() {
           <Link href="/terms" className="hover:text-foreground">
             Terms
           </Link>
-          <Link href="/api/v1/doctors" className="hover:text-foreground">
-            API
-          </Link>
         </nav>
       </div>
     </footer>

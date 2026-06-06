@@ -31,12 +31,29 @@ export interface DoctorSearchResult {
 }
 
 const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 50;
+const MIN_PAGE_SIZE = 5;
+// Cap how deep pagination can go. `.skip()` is O(skip) in Mongo, so an
+// unbounded `?page=` (this query backs the public API) is a cheap DoS:
+// page=999999999 would make Mongo walk billions of docs. 500 pages × 50/page =
+// 25k docs is far past any real browsing depth.
+export const MAX_PAGE = 500;
+
+/** Clamp a caller-supplied page to [1, MAX_PAGE]; coerces junk to 1. */
+export function clampPage(page: unknown): number {
+  return Math.min(MAX_PAGE, Math.max(1, Number(page) || 1));
+}
+
+/** Clamp a caller-supplied pageSize to [MIN_PAGE_SIZE, MAX_PAGE_SIZE]. */
+export function clampPageSize(pageSize: unknown): number {
+  return Math.min(MAX_PAGE_SIZE, Math.max(MIN_PAGE_SIZE, Number(pageSize) || DEFAULT_PAGE_SIZE));
+}
 
 export async function searchDoctors(params: DoctorSearchParams): Promise<DoctorSearchResult> {
   await dbConnect();
 
-  const page = Math.max(1, Number(params.page) || 1);
-  const pageSize = Math.min(50, Math.max(5, Number(params.pageSize) || DEFAULT_PAGE_SIZE));
+  const page = clampPage(params.page);
+  const pageSize = clampPageSize(params.pageSize);
   const skip = (page - 1) * pageSize;
 
   // Build the filter incrementally so empty params don't bloat the index hint.

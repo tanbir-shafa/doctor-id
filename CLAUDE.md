@@ -16,9 +16,10 @@ registration** (#17) + **SSL Wireless SMS** (#14) + **contact-private-by-default
 & opt-in WhatsApp appointment button** (#18) + **chamber `city`→`district` rename
 with cascading division/district dropdowns** (#19) + **two verification axes
 (BMDC + account/identity) with combined blue tick, name binding & click-to-explain
-public badge** (#20).
+public badge** (#20) + **server-side image optimization on upload (sharp),
+`next/image` delivery tuning & blur-up placeholders** (#22).
 Production `next build` green.
-**494 Vitest tests passing** (`npm run lint` clean). Real public-Bangladesh data ingested (Popular
+**542 Vitest tests passing** (`npm run lint` clean). Real public-Bangladesh data ingested (Popular
 Diagnostic, 3,237 doctors). See [`.claude/progress/mvp-progress.md`](./.claude/progress/mvp-progress.md)
 for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-started.md).
 
@@ -35,8 +36,9 @@ for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-st
 | Mongo driver | `mongodb@6.21.0` *pinned to 6.x* | `@auth/mongodb-adapter@3.11.2` peer-requires Mongo 6; Mongoose has its own bundled driver and is independent |
 | Email | **AWS SES v2** (TS port of shafa `emailService.js`) | Cross-account creds by `NODE_ENV` (same as S3), `From` display name + config set + reply-to, DynamoDB suppression list. No-ops to console.log when AWS creds absent. See #13. |
 | **Storage / uploads** | **AWS S3, server-side** (`@aws-sdk/client-s3` + `s3-request-presigner` + `credential-providers`) | Port of shafa `apps/api`. Creds resolve by `NODE_ENV`: prod → cross-account STS role, else → static keys. **Public** bucket (profile/cover, stable URLs) + **private** bucket (selfie/verification, presigned-GET). See #17. |
+| **Image processing** | **`sharp@0.34.5`** (pinned exact; matches Next's bundled copy → npm dedupes to one install) | Server-side resize + recompress on upload, **format-preserving** + blur-up data URIs. See #22. Do **not** add to `serverExternalPackages`. |
 | **SMS** | **SSL Wireless iSMS Plus v3** (JSON API; MDL legacy fallback via `SMS_PROVIDER`) | Server-side `fetch` through a provider facade. Bulk via `/send-sms/bulk` (≤100 same-body) + `/send-sms/dynamic` (≤100 per-number). Same dev-mode no-op as SES. **Request IP must be whitelisted** in the SSL portal for live sends. See #14. |
-| Shared state | Upstash Redis (`@upstash/redis` + `@upstash/ratelimit`) | Limiters degrade to "allow everything" without creds |
+| Shared state | Upstash Redis — **REST/HTTPS** (`@upstash/redis` + `@upstash/ratelimit`) | REST is required by `@upstash/ratelimit` and runs fine on long-running EC2 (no TCP/`ioredis` client). Limiters degrade to "allow everything" without creds in dev / **fail closed** in prod. |
 | Styling | Tailwind v4 + shadcn-style primitives (copied, not packaged) | Tokens in [`src/app/globals.css`](src/app/globals.css) |
 | Forms | React Hook Form + Zod | Same Zod schemas used client- and server-side |
 | **PDF** | **`@react-pdf/renderer`** (JSX-based, server-rendered) | A.2 Rx pad. Sibling lib `qrcode` for server-side QR data URLs. |
@@ -44,7 +46,7 @@ for the changelog. New devs start at [`doc/getting-started.md`](./doc/getting-st
 | OG images | `next/og` (Satori) | 1200×630, day-long CDN cache, no emoji glyphs |
 | i18n | `next-intl` patterns, English-only catalog at launch | Structure in place for future locales |
 | Tests | Vitest + Testing Library (jsdom) | DB-less unit tests; no integration tests yet |
-| Deploy target | AWS ECS Fargate behind ALB | `output: 'standalone'` in [next.config.ts](next.config.ts); Docker multi-stage |
+| Deploy target | **AWS EC2 + PM2 + nginx** | `next start` under PM2 ([ecosystem.config.cjs](ecosystem.config.cjs)), bound to `127.0.0.1`, behind nginx (TLS + reverse proxy). `output: 'standalone'` + multi-stage [Dockerfile](Dockerfile) retained as an alternative container path. |
 
 ---
 
@@ -77,7 +79,7 @@ src/
     api/v1/          public REST API (doctors, doctors/[slug], specialties,
                      search) — FHIR Practitioner shape on /doctors endpoints
     api/og/[slug]/   dynamic OG image route (renders verified pill)
-    api/health/      ECS healthcheck (Mongo ping)
+    api/health/      health probe (Mongo ping) — nginx upstream / PM2 / uptime monitor
     api/auth/[...nextauth]/  NextAuth handlers
     sitemap.ts       dynamic XML sitemap
     robots.ts
@@ -104,6 +106,8 @@ src/
                      buildS3Key/uploadBufferToS3/getPresignedUrl — port of shafa apps/api)
                      + buckets.ts (public/private routing + UPLOAD_PURPOSE) + file-doc.ts
                      + doctor-photo.ts + upload-doc.ts. See #17.
+    images/          optimize.ts — optimizeImageBuffer (resize/recompress on
+                     upload, format-preserving) + generateBlurDataUrl. See #22.
     email/           ses.ts (SESv2 sendEmail + isSuppressed/SuppressedRecipientError —
                      port of shafa emailService.js, #13) + templates.ts (inline HTML)
     sms/             client.ts (facade: sendSms/sendSmsBatch) + provider.ts (SMS_PROVIDER
@@ -145,7 +149,7 @@ scripts/
   fetch-*.ts         one-shot snapshot scripts (Popular, Ibn Sina)
 data/
   popular-diagnostic/{doctor-ids,details,photos,meta}.json   (3,237 doctors)
-tests/               46 files, 467 tests — Vitest, DB-less
+tests/               57 files, 542 tests — Vitest, DB-less
 doc/                 developer guides (getting-started.md)
 .claude/
   plans/             roadmaps + plan files
@@ -191,6 +195,14 @@ NOT blocked from sign-in. `approved` gates whether the profile can go **public**
   to set `status: "published"` while `approved === false`; the dashboard
   [`PublishToggle`](src/app/(dashboard)/dashboard/profile/publish-toggle.tsx) disables the
   Publish button and the overview shows an "under review" banner. Unpublish is always allowed.
+- **Plus a quality gate** — even when approved, a doctor can't publish until the profile has
+  the 4 **mandatory fields** (name & title, profile photo, ≥1 specialty, ≥1 qualification),
+  checked via [`missingPublishRequirements`](src/lib/utils/completeness.ts) (a filter over the
+  existing `computeCompleteness` sections — keys `basic`/`photo`/`specialties`/`qualifications`).
+  `setPublishStatusAction` blocks with the missing labels; the toggle disables + lists them;
+  the overview tags those 4 "required to publish". **Admins can override** (force-publish an
+  incomplete profile from the editor) but see a warning and the action records
+  `incompleteOverride` in the audit log.
 - **Public surfaces stay private** — the public `/[slug]`, search, sitemap, OG, and API all
   gate on `status === "published"`. Because publish is gated by `approved`, an unapproved
   profile can't be published, so it never appears publicly and the link 404s. (The public
@@ -379,7 +391,7 @@ Doctor.
 A TypeScript port of `shafa-monorepo/apps/api`'s S3 service (the two apps can
 share one S3 setup). Rules that will bite if forgotten:
 - **All uploads stream server-side** through a Server Action → [`uploadBufferToS3`](src/lib/s3/s3-service.ts) (SSE-AES256) → authoritative `File` doc. The old browser presigned-PUT path is **gone**. Because files now pass through Server Actions, [next.config.ts](next.config.ts) raises `experimental.serverActions.bodySizeLimit` to `12mb`.
-- **Credentials resolve strictly by `NODE_ENV`** in [`getS3()`](src/lib/s3/client.ts): `production` → cross-account STS role (`AWS_ASSUME_ROLE_ARN` + `AWS_S3_EXTERNAL_ID`, base creds from the ECS task role via the default chain); any other env → static keys (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`). `getS3()` returns `null` when the selected mode's creds are absent → actions surface a "not configured" error (no silent dev no-op — uploads genuinely require S3).
+- **Credentials resolve strictly by `NODE_ENV`** in [`getS3()`](src/lib/s3/client.ts): `production` → cross-account STS role (`AWS_ASSUME_ROLE_ARN` + `AWS_S3_EXTERNAL_ID`, base creds from the EC2 instance profile (or ECS task role) via the default chain); any other env → static keys (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`). `getS3()` returns `null` when the selected mode's creds are absent → actions surface a "not configured" error (no silent dev no-op — uploads genuinely require S3).
 - **Two buckets** ([`buckets.ts`](src/lib/s3/buckets.ts)): `AWS_PUBLIC_BUCKET_NAME` (profile/cover photos → stable region-qualified URL, so SSR/OG/`next/image` keep working) and `AWS_PRIVATE_BUCKET_NAME` (identity docs — selfie, verification — **read only via presigned GET**). Public falls back to `S3_BUCKET`; the **private bucket has no fallback** (selfie/verification uploads need it set, including in local dev).
 - **`File`-doc persistence** via [`createFileDoc`](src/lib/s3/file-doc.ts). Admin claim review reads private objects through `getPresignedUrl` (inline disposition) in [admin.ts](src/lib/db/queries/admin.ts) — never reconstruct an S3 URL client-side.
 - **Loose model casts**: the deliberately-untyped `Model<unknown>` exports are reached via `(X as unknown as Loose)` ([`loose.ts`](src/lib/db/models/loose.ts)) — **not** the old `{ method: Function }` shape (which trips `@typescript-eslint/no-unsafe-function-type`).
@@ -470,6 +482,100 @@ client popover that breaks down the BMDC + identity state for that profile — i
 the bare `VerifiedBadge`. The badge stays **static everywhere else** (admin list, search
 cards, home, dashboard), so only the public surface pays for the client island.
 
+### 21. Security hardening: trusted IP, fail-closed limits, first-party API, Turnstile
+
+A layered abuse-defense stack — don't unravel a layer without understanding why
+it's there:
+
+- **Trusted client IP** — never read `x-forwarded-for[0]` (spoofable). All IP
+  rate-limit keys go through [`clientIp`/`clientIpHash`](src/lib/utils/request-ip.ts),
+  which prefer nginx's `X-Real-IP` then the right-most `TRUSTED_PROXY_HOPS` (default
+  1) of XFF. The app must bind to `127.0.0.1` behind nginx (see
+  [`doc/getting-started.md`](doc/getting-started.md) §11.5). New rate-limited code
+  must use this helper, not parse XFF itself.
+- **Rate limiting fails closed in production** — [`env.ts`](src/lib/env.ts) hard-fails
+  the boot if `UPSTASH_*` is unset in prod, and [`ratelimit.ts`](src/lib/redis/ratelimit.ts)
+  returns `success:false` (deny) when Redis is absent in prod (allow-all only in
+  dev/test). The limiters are the backbone of the OTP/login/API defenses.
+- **OTP/email sends are gated** — register / login / forgot-password verify
+  [`verifyTurnstile`](src/lib/security/turnstile.ts) **before any SMS/email**, plus a
+  **per-IP** OTP limiter (`smsOtpByIpLimiter`) alongside the per-phone one, plus an
+  app-wide `globalSmsBudgetLimiter` checked inside [`sendSms`](src/lib/sms/client.ts).
+  Turnstile no-ops to "pass" in dev (keys unset) and **fails closed in prod**. The
+  reusable client widget is [`TurnstileWidget`](src/components/security/turnstile-widget.tsx).
+  Any NEW SMS/email-send-on-public-input path must route through Turnstile + a limiter.
+  (The appointment form is intentionally NOT Turnstile-gated — its SMS goes to the
+  doctor, not an attacker-chosen number, and it's already honeypot + dual-rate-limited;
+  adding a CAPTCHA there would hurt patient-booking conversion.)
+- **`/api/v1/*` is first-party only** — [`withApiHandler`](src/lib/api/response.ts)
+  runs `enforceFirstParty` (403 on foreign/absent Origin/Referer) and reflects CORS
+  only for allowlisted origins (`NEXT_PUBLIC_APP_URL` + `EXTRA_ALLOWED_ORIGINS`),
+  **never `*`**. The homepage typeahead uses [`searchTypeaheadAction`](src/server/actions/search.ts),
+  not the public API. CORS/Origin can't stop a forged-Origin script — that's the
+  nginx `limit_req`/WAF's job. `next.config.ts` sets `serverActions.allowedOrigins`
+  so the framework's Server Action CSRF check works behind nginx.
+- **Misc**: `searchDoctors` clamps `page` to `MAX_PAGE` (skip-DoS guard); the admin
+  list validates `status` against the enum; `/api/health` returns only `{status}`
+  (no infra leak); the unauth selfie upload validates **magic bytes**
+  ([`sniffImageMime`](src/lib/utils/image-sniff.ts)), not the client MIME.
+
+### 22. Images are optimized server-side at upload (sharp), format-preserving
+
+Every uploaded image is resized + recompressed **before** it streams to S3, via
+[`optimizeImageBuffer`](src/lib/images/optimize.ts) (`sharp`). This shrinks S3
+storage and the source the `next/image` optimizer + OG route later fetch — a
+multi-MB phone photo typically drops 80–90%. Rules that will bite if forgotten:
+
+- **Three convergence points, one helper.** Profile/cover photos
+  ([doctor-photo.ts](src/lib/s3/doctor-photo.ts), 1024/1600px @ q80), Gov-ID/BMDC
+  docs ([upload-doc.ts](src/lib/s3/upload-doc.ts), 2400px @ q85 — must stay
+  legible for admin review), registration selfie
+  ([photo.ts](src/server/actions/photo.ts), 1280px @ q82). Admin photo/identity
+  uploads inherit it automatically (same shared helpers — #12/#17).
+- **Format-preserving — do NOT transcode at upload** (jpeg→jpeg, png→png,
+  webp→webp). `next/image` negotiates AVIF/WebP at *display* time, and the
+  private bucket is reviewed as raw bytes, so keeping the container avoids
+  key/MIME/File-doc churn. Dimension-capping is ~90% of the byte win anyway.
+- **Sequence at every call site: `optimize → computeSha256 → uploadBufferToS3`.**
+  `File.sizeBytes`/`sha256`/the stored bytes all reflect the *compressed* buffer
+  (`uploadBufferToS3` returns `buffer.length`). New upload paths MUST keep this
+  order, or the File doc will record the wrong hash/size.
+- **EXIF**: `.rotate()` (no args) bakes orientation into the pixels (phone
+  cameras store sideways pixels + a flag) **and** strips all metadata incl. GPS.
+  It runs *before* `.resize(…, { fit: "inside", withoutEnlargement: true })`.
+- **Robustness / security**: a decompression-bomb guard rejects images over a
+  pixel ceiling (matters most on the **unauth** selfie path). A corrupt/
+  undecodable image is **rejected** (`{ ok: false }` → surfaced as the upload
+  error); but a recompression failure *after* a clean decode **falls back to the
+  original buffer** so a valid upload is never blocked. **PDFs pass through
+  untouched** — the helper skips non-image MIME; never call `sharp` on a PDF.
+- **Delivery tuning** ([next.config.ts](next.config.ts) `images`):
+  `formats: ['image/avif','image/webp']`, `minimumCacheTTL` 1yr (keys are
+  timestamped + immutable via `buildS3Key`, so a replaced photo always gets a new
+  URL), and exact `imageSizes` for the avatar boxes (1x + 2x). **Do NOT add
+  `sharp` to `serverExternalPackages`** — the Next runtime already bundles it for
+  the optimizer; listing it there risks dropping the native binary from the
+  deployed server (the standalone Docker image, or the `node_modules` shipped to EC2).
+- **Blur-up**: a tiny base64 blur (`generateBlurDataUrl`) is generated at upload
+  and cached on `Doctor.photo.blurDataUrl` (denormalized PhotoSchema — #12);
+  [profile-header.tsx](src/components/profile/profile-header.tsx) +
+  [doctor-card.tsx](src/components/search/doctor-card.tsx) render
+  `placeholder="blur"`. Shows on newly-uploaded photos; existing rows are `null`
+  → no fade (graceful, no migration).
+- **Dependency**: `sharp@0.34.5` is a **pinned exact** direct dep (matches Next's
+  bundled copy → npm dedupes). The right `@img/sharp-*` native binary is resolved
+  by `npm ci` **on the target platform**: on EC2 (Amazon Linux / Ubuntu = glibc)
+  that's `@img/sharp-linux-x64`; in the `node:22-alpine` Docker image it's
+  `@img/sharp-linuxmusl-*`. Always run `npm ci` on (or for) the deploy OS — a
+  darwin-arm64 `node_modules` copied to a Linux box won't have the right binary.
+  (For Docker, verify it's traced into `.next/standalone/node_modules/@img/`.)
+- **Deferral**: the durable optimizer-cost fix is **CloudFront in front of
+  `/_next/image`** + the public bucket (the per-instance optimizer cache is local
+  to one EC2 box and lost on instance replacement; AVIF is CPU-heavy to encode).
+  Photos uploaded before this change stay
+  full-size until re-uploaded — a one-off re-optimize script is a possible
+  follow-up.
+
 ---
 
 ## Scripts
@@ -510,7 +616,8 @@ finished yet, but the integration seam exists:
 - **SSL secure OTP endpoint** (`/secure/otp-sms`, HMAC-SHA256 + AES-256-CBC): OTP currently ships via the standard `/send-sms` (the trust boundary is our hashed, TTL'd, rate-limited OTP state, not the channel). The secure endpoint is a future hardening option — add a `sendSecureOtp` provider method behind an env flag; the auth actions already centralize OTP send through `sendSms`, so no call-site change.
 - **MDL retained as fallback**: the legacy MDL gateway stays wired behind `SMS_PROVIDER=mdl` for a one-env rollback if SSL onboarding (IP whitelist, sender-id approval) slips. Remove it once SSL is proven in production.
 - **Real EMR API integration**: A.5 ships the manual queue. The "Open EMR" SSO + provisioning API is deferred until the EMR team's endpoint contract lands.
-- **Image cropper**: `react-easy-crop` is installed but not yet wired into [`PhotoUploader`](src/app/(dashboard)/dashboard/photos/photo-uploader.tsx). Uploads happen at the file's natural dimensions.
+- **Image cropper**: `react-easy-crop` is installed but not yet wired into [`PhotoUploader`](src/app/(dashboard)/dashboard/photos/photo-uploader.tsx) — no interactive crop UI. (Uploads are **no longer** at natural dimensions — they're resized + recompressed server-side, see #22.)
+- **Image optimizer CDN + photo backfill** (#22): CloudFront in front of `/_next/image` + the public bucket is the durable optimizer-cost fix (the per-instance image cache is local to one EC2 box and lost on instance replacement; AVIF is CPU-heavy to encode). Photos uploaded before #22 stay full-size until re-uploaded — a one-off re-optimize script is a possible follow-up.
 - **BMDC verification automation**: admin reviews uploaded certificates manually — no public BMDC API exists.
 - **Email change**: admin-only in MVP (no self-serve UI).
 - **Self-serve doctor account recovery**: a doctor who loses access to their phone has no self-serve path. Admin support handles. Document in any UX that promises "log in again on a new phone".
@@ -524,14 +631,14 @@ finished yet, but the integration seam exists:
 ## How to make good changes here
 
 - **Read the plan first**: [`.claude/plans/`](./.claude/plans/) explains *why* the architecture is the way it is. The progress file ([`.claude/progress/mvp-progress.md`](./.claude/progress/mvp-progress.md)) is the authoritative status board — update it in the same commit that completes a step.
-- **Don't add new dependencies casually**: the brief is strict about the tech stack. Mongoose, NextAuth v5, Tailwind v4, shadcn-style (copied, not packaged), Zod, `@react-pdf/renderer`, SMS via plain `fetch` (SSL Wireless / MDL — no SDK), `@aws-sdk/{client-s3,s3-request-presigner,credential-providers,client-sesv2,client-dynamodb,lib-dynamodb}`. Adding e.g. React Query or a different ORM needs user approval.
+- **Don't add new dependencies casually**: the brief is strict about the tech stack. Mongoose, NextAuth v5, Tailwind v4, shadcn-style (copied, not packaged), Zod, `@react-pdf/renderer`, `sharp` (image resize/recompress on upload — #22), SMS via plain `fetch` (SSL Wireless / MDL — no SDK), `@aws-sdk/{client-s3,s3-request-presigner,credential-providers,client-sesv2,client-dynamodb,lib-dynamodb}`. Adding e.g. React Query or a different ORM needs user approval.
 - **Don't introduce client-side state libraries**: React Server Components + Server Actions are the default. Client components are for interactivity only.
 - **Don't bypass the Server Action pattern**: even one-line updates should route through a Server Action with auth + Zod + ownership check.
 - **Don't write FHIR mapping inline**: it goes through [`lib/fhir/practitioner.ts`](src/lib/fhir/practitioner.ts).
 - **Don't break SEO on `/[slug]`**: the public profile is the product's marketing surface. SSR, JSON-LD, OG meta, and `metadataBase` must stay intact.
 - **Don't bypass `sendSmsBatch` for outbound**: any cohort-scale send must go through the batcher so the active provider's per-call batching rules are honored. Don't call a provider directly — go through the `sendSms`/`sendSmsBatch` facade.
 - **Don't reintroduce `chambers[].city`**: the chamber location key is `district` (#19). Source it from [`bd-districts.ts`](src/lib/geo/bd-districts.ts); never hard-code a city/district free-text input.
-- **Run `npm test` + `npm run typecheck` + `npm run build` + `npm run lint`** before declaring a change done. All are fast (<90s combined) and currently green (467 tests, lint 0/0).
+- **Run `npm test` + `npm run typecheck` + `npm run build` + `npm run lint`** before declaring a change done. All are fast (<90s combined) and currently green (542 tests, lint 0/0).
 
 ---
 

@@ -6,6 +6,7 @@ import { ExternalLink } from "lucide-react";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor, Specialty, File } from "@/lib/db/models";
 import { getPresignedUrl } from "@/lib/s3/s3-service";
+import { missingPublishRequirements } from "@/lib/utils/completeness";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PageHeader } from "@/components/admin/page-header";
 import { listAuditLogForEntity } from "@/lib/audit/log";
@@ -104,7 +105,11 @@ export default async function AdminDoctorEditPage({
         }
       />
 
-      <AdminPublishSection initialStatus={doctor.status} doctorId={doctorId} />
+      <AdminPublishSection
+        initialStatus={doctor.status}
+        doctorId={doctorId}
+        missing={missingPublishRequirements(doctor).map((s) => ({ key: s.key, label: s.label }))}
+      />
 
       <Card>
         <CardHeader>

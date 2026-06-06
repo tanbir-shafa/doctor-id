@@ -1,14 +1,14 @@
 "use server";
 
-import crypto from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor, ProfileView, User, AppointmentRequest } from "@/lib/db/models";
 import type { Loose } from "@/lib/db/models/loose";
-import { profileViewRateLimiter } from "@/lib/redis/ratelimit";
+import { profileViewRateLimiter, reportProfileRateLimiter } from "@/lib/redis/ratelimit";
+import { clientIpHash as ipHash } from "@/lib/utils/request-ip";
 import { auth } from "@/lib/auth/config";
-import { computeCompleteness } from "@/lib/utils/completeness";
+import { computeCompleteness, missingPublishRequirements } from "@/lib/utils/completeness";
 import { resolveVerifiedNameUpdate } from "@/lib/utils/verification";
 import type { DoctorDocLike } from "@/types/doctor";
 import type { HomeScoreboard } from "@/types/home";
@@ -49,12 +49,11 @@ function bumpCompleteness(doc: unknown): number {
 }
 
 async function clientIpHash(): Promise<string> {
-  const h = await headers();
-  const ip =
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
-  // Daily salt so the same viewer counts as one view per day.
+  // Daily salt so the same viewer counts as one view per day. IP is derived via
+  // the trusted-proxy helper (nginx X-Real-IP / right-most XFF), not the
+  // spoofable left-most hop.
   const day = new Date().toISOString().slice(0, 10);
-  return crypto.createHash("sha256").update(`${ip}|${day}`).digest("hex").slice(0, 16);
+  return ipHash(await headers(), { salt: day, length: 16 });
 }
 
 /**
@@ -122,8 +121,17 @@ export async function reportProfileAction(args: {
   slug: string;
   reason: string;
 }): Promise<ActionResult> {
-  if (!args.reason || args.reason.trim().length < 10) {
+  // Unauthenticated public form — rate-limit per trusted IP to stop report spam.
+  const rl = await reportProfileRateLimiter.limit(`report:${ipHash(await headers(), { length: 16 })}`);
+  if (!rl.success) {
+    return { ok: false, error: "Too many reports from your network. Try again later." };
+  }
+  const reason = (args.reason ?? "").trim();
+  if (reason.length < 10) {
     return { ok: false, error: "Please give us at least a sentence describing the issue." };
+  }
+  if (reason.length > 1000) {
+    return { ok: false, error: "Please keep your report under 1000 characters." };
   }
   await dbConnect();
   const doctor = await Doctor.findOne({ slug: args.slug }).select("_id name").lean();
@@ -131,7 +139,7 @@ export async function reportProfileAction(args: {
 
   // In v1 we just log + push to a `reports` collection-less array on the doc.
   // The admin panel reads this in Step 8.
-  console.warn(`[report] slug=${args.slug} reason="${args.reason.slice(0, 200)}"`);
+  console.warn(`[report] slug=${args.slug} reason="${reason.slice(0, 200)}"`);
   revalidatePath(`/admin/doctors`);
   return { ok: true };
 }
@@ -484,6 +492,17 @@ export async function setPublishStatusAction(publish: boolean): Promise<ActionRe
         ok: false,
         error:
           "Your profile can be published once an admin approves your account (usually within 24 hours).",
+      };
+    }
+    // Quality gate: the profile must carry the mandatory fields (name, photo,
+    // ≥1 specialty, ≥1 qualification) before it can go public.
+    const missing = missingPublishRequirements(
+      JSON.parse(JSON.stringify(doctor.toObject())) as DoctorDocLike,
+    );
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        error: `Add these before publishing: ${missing.map((s) => s.label).join(", ")}.`,
       };
     }
   }

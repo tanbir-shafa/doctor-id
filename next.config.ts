@@ -10,6 +10,29 @@ const awsRegion = process.env.AWS_REGION ?? "ap-south-1";
 // presigned GET + a plain <img>, but we whitelist it too for completeness.
 const publicBucket = process.env.AWS_PUBLIC_BUCKET_NAME ?? s3Bucket;
 const privateBucket = process.env.AWS_PRIVATE_BUCKET_NAME;
+
+// Hosts allowed to invoke Server Actions. Behind nginx the forwarded Host can
+// differ from the bound host, so we tell Next which origins are legitimate
+// (its built-in CSRF/Origin check for Server Actions). Sourced from the app URL
+// + EXTRA_ALLOWED_ORIGINS so prod and any extra fronting domains are covered.
+const serverActionOrigins = (() => {
+  const hosts = new Set<string>(["localhost:3000"]);
+  const collect = (raw?: string) => {
+    if (!raw) return;
+    for (const part of raw.split(",")) {
+      const v = part.trim();
+      if (!v) continue;
+      try {
+        hosts.add(new URL(v).host);
+      } catch {
+        // ignore malformed entries
+      }
+    }
+  };
+  collect(process.env.NEXT_PUBLIC_APP_URL);
+  collect(process.env.EXTRA_ALLOWED_ORIGINS);
+  return [...hosts];
+})();
 const s3Buckets = Array.from(
   new Set([s3Bucket, publicBucket, privateBucket].filter(Boolean) as string[]),
 );
@@ -19,12 +42,25 @@ const s3RemotePatterns = s3Buckets.flatMap((b) => [
 ]);
 
 const nextConfig: NextConfig = {
-  // Standalone output keeps the Docker image small for ECS Fargate.
+  // Standalone output: a minimal self-contained server bundle for the Docker
+  // image. (On EC2 we run `next start` under PM2 — see ecosystem.config.cjs.)
   output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
 
   images: {
+    // Serve modern formats (much smaller than JPEG/PNG) when the browser
+    // supports them. Uploads are also capped + recompressed at the source
+    // (src/lib/images/optimize.ts) — this is the delivery half of the win.
+    formats: ["image/avif", "image/webp"],
+    // S3 keys are timestamped + immutable (buildS3Key → `{Date.now()}-{hex}`), so
+    // a replaced photo always gets a new URL. Cache the optimized variants for a
+    // year and stop the optimizer re-validating the upstream S3 object.
+    minimumCacheTTL: 31536000,
+    // The exact widths our fixed-size avatars request (1x + 2x for the 36/40/56/
+    // 96/144 boxes, plus 576 for the retina profile hero) so the optimizer emits
+    // the precise size instead of rounding up to the nearest deviceSize.
+    imageSizes: [36, 40, 56, 72, 80, 96, 112, 144, 192, 288, 576],
     remotePatterns: [
       ...s3RemotePatterns,
       // Seeded placeholder portraits — only used by the seed script in dev/staging.
@@ -54,6 +90,7 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: "12mb",
+      allowedOrigins: serverActionOrigins,
     },
   },
 

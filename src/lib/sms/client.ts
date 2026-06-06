@@ -17,6 +17,7 @@
 import { randomBytes } from "node:crypto";
 import { estimateSegments, isUnicodeBody, resolveSmsType } from "./estimate";
 import { getSmsProvider } from "./provider";
+import { globalSmsBudgetLimiter } from "@/lib/redis/ratelimit";
 import type {
   SmsMessage,
   SmsSendResult,
@@ -60,6 +61,18 @@ export async function sendSms(msg: SmsMessage): Promise<SmsSendResult> {
     console.log(`Type:      ${type}  (${segments} segment${segments === 1 ? "" : "s"})`);
     console.log(`Body:      ${msg.body}`);
     console.log("───────────────────────────────────────────");
+    return { sent: false, segments };
+  }
+
+  // Global circuit breaker: cap total transactional/OTP SMS per hour app-wide.
+  // Bulk campaigns go through sendSmsBatch and are intentionally exempt. If this
+  // trips, an upstream abuse defense (per-IP/per-phone/Turnstile) was likely
+  // bypassed — investigate rather than just raising the cap.
+  const budget = await globalSmsBudgetLimiter.limit("sms:global");
+  if (!budget.success) {
+    console.error(
+      `[SMS budget] global hourly cap reached — refusing transactional send to ${msg.to}.`,
+    );
     return { sent: false, segments };
   }
 

@@ -49,6 +49,9 @@ const PhotoSchema = new Schema(
             default: FILE_VISIBILITY.PUBLIC,
             required: true,
         },
+        // Tiny base64 blur preview for next/image placeholder="blur" (the hero
+        // photo fades in). Denormalized cache, set at upload (CLAUDE.md #12).
+        blurDataUrl: {type: String, default: null},
     },
     {_id: false},
 );

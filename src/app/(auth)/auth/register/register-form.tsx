@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { startRegistrationAction, completeRegistrationAction } from "@/server/actions/auth";
 import { SelfieCapture, type SelfieData } from "./selfie-capture";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 
 type Step = "details" | "verify" | "pending";
 
@@ -37,6 +38,7 @@ export function RegisterForm({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [tsReset, setTsReset] = useState(0);
 
   function submitDetails(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,6 +67,7 @@ export function RegisterForm({
     setInfo(null);
     startTransition(async () => {
       const result = await startRegistrationAction(form);
+      setTsReset((n) => n + 1);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -255,6 +258,7 @@ export function RegisterForm({
           <Link href="/privacy" className="underline">privacy policy</Link>.
         </span>
       </label>
+      <TurnstileWidget resetSignal={tsReset} />
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}

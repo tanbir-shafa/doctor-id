@@ -126,3 +126,21 @@ export function computeCompleteness(doc: DoctorDocLike): CompletenessResult {
   const score = total === 0 ? 0 : Math.round((earned / total) * 100);
   return { score, sections };
 }
+
+/**
+ * The minimum a profile must contain before it can be PUBLISHED — a quality
+ * gate on top of admin approval. These map 1:1 onto completeness section keys
+ * (name & display title, profile photo, ≥1 specialty, ≥1 qualification).
+ */
+export const MANDATORY_PUBLISH_KEYS = ["basic", "photo", "specialties", "qualifications"] as const;
+
+/**
+ * The mandatory-for-publish sections that are NOT yet complete. An empty array
+ * means the profile is publish-ready (subject to admin approval). Pure +
+ * DB-less — reused by `setPublishStatusAction`, the dashboard publish toggle,
+ * and the admin editor.
+ */
+export function missingPublishRequirements(doc: DoctorDocLike): CompletenessSection[] {
+  const mandatory = new Set<string>(MANDATORY_PUBLISH_KEYS);
+  return computeCompleteness(doc).sections.filter((s) => mandatory.has(s.key) && !s.done);
+}

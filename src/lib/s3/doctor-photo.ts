@@ -16,6 +16,7 @@ import {
   publicObjectUrl,
 } from "./buckets";
 import { createFileDoc } from "./file-doc";
+import { optimizeImageBuffer, generateBlurDataUrl } from "@/lib/images/optimize";
 import { env } from "@/lib/env";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -63,10 +64,21 @@ export async function uploadDoctorPhotoFromForm(opts: {
   }
 
   const docId = doctor._id as Types.ObjectId;
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const rawBuffer = Buffer.from(await file.arrayBuffer());
+  // Resize + recompress before storing. Profile photos render at ≤288px, so a
+  // 1024 long-edge cap leaves retina headroom; cover gets more. This shrinks S3
+  // storage and the source the next/image optimizer + OG route later fetch.
+  const optimized = await optimizeImageBuffer(rawBuffer, file.type, {
+    maxEdge: kind === "profile" ? 1024 : 1600,
+    quality: 80,
+  });
+  if (!optimized.ok) return { ok: false, error: optimized.error };
+  const buffer = optimized.buffer;
+
   const ext = MIME_EXT[file.type] ?? "jpg";
   const key = buildS3Key(`${purpose.folder}/${String(docId)}`, `${kind}.${ext}`);
   const sha256 = computeSha256(buffer);
+  const blurDataUrl = await generateBlurDataUrl(buffer);
 
   const uploaded = await uploadBufferToS3({ buffer, bucket, key, mimeType: file.type });
   if (!uploaded) {
@@ -99,6 +111,7 @@ export async function uploadDoctorPhotoFromForm(opts: {
     s3Bucket: bucket,
     s3Key: key,
     visibility: visibilityFor(purpose.bucketType),
+    blurDataUrl,
   });
   await doctor.save();
 

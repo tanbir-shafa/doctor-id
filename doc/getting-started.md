@@ -86,7 +86,7 @@ cp .env.example .env.local
 | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` + `AWS_PUBLIC_BUCKET_NAME` + `AWS_PRIVATE_BUCKET_NAME` | Server-side S3 uploads — profile/cover photos (public bucket) + **mandatory registration selfie** & verification docs (private bucket). | Profile photos fall back to Popular CDN URLs; **selfie/verification uploads fail**, so registration can't complete without the private bucket set (even in dev). See CLAUDE.md #17. |
 | `SES_FROM_EMAIL` | Email-verification + password-reset mail goes out via AWS SES. | `sendEmail()` logs the email to the console — fine for verifying tokens manually. |
 | `SSL_SMS_API_TOKEN` + `SSL_SMS_SID` (`SMS_PROVIDER=ssl`, default) | Real SMS via **SSL Wireless iSMS Plus v3** (login OTPs, registration OTPs, appointment notifications, outbound campaigns). **Live sends require the request IP to be whitelisted** in the SSL portal. MDL is a one-env fallback (`SMS_PROVIDER=mdl` + `MDL_SMS_*`). | `sendSms()` logs the SMS body + 6-digit OTP to the dev console. **You can complete a full registration / login flow this way.** |
-| `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | Real rate-limiting on login, OTPs, appointment submissions, outbound. | Limiters return `{ success: true }` — fine for solo dev, never for prod. |
+| `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | Real rate-limiting on login, OTPs, appointment submissions, outbound. Uses Upstash's **REST** API (works on long-running EC2; `@upstash/ratelimit` requires it — no TCP client). | Limiters return `{ success: true }` — fine for solo dev, never for prod. |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth on admin login. | Credentials-only login still works. |
 | `ADMIN_EMAILS` | Comma-separated list of emails granted `role: 'admin'` at signup or seed-bootstrap. | The seed script defaults to `admin@doctor.id.bd`. |
 | `NEXT_PUBLIC_APP_URL` | Used in absolute-URL contexts (OG image, claim links, QR codes in the Rx pad). | Defaults to `http://localhost:3000`. |
@@ -447,10 +447,77 @@ npm run seed:unified                 # or: npm run seed -- --source=popular-diag
 | OTP never arrives | SMS creds unset (expected in dev) | Check the `npm run dev` console — the OTP prints there. If SSL creds **are** set but no SMS arrives, confirm your egress IP is whitelisted in the SSL portal (the server logs `[ssl SMS] … failed: …`). |
 | Claim succeeds but doctor can't log in | Admin approval gate (intentional); login is unlocked by the **BMDC** queue only | Approve at `/admin/verifications`. (Account/identity verification at `/admin/account-verifications` does **not** affect login.) |
 | `npm test` failing on seed dependencies | jsdom can't load server modules | Use `// @vitest-environment node` for any test touching `env()` / Mongoose |
+| `/api/v1/*` returns `403 forbidden` | Request has no/foreign `Origin` (it's first-party only now) | Call it from the app origin, or add the caller's origin to `EXTRA_ALLOWED_ORIGINS`. curl/Postman are intentionally blocked. |
+| Register/login OTP form rejects with "complete the verification challenge" | `TURNSTILE_SECRET_KEY` set but the widget didn't produce a token | Ensure `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is also set (client widget) and the Turnstile script isn't blocked. In dev, leave both unset to no-op. |
+| Boot fails: `UPSTASH_… required in production` | Production deploy without Redis | Set `UPSTASH_REDIS_REST_URL` + `…_TOKEN`. Rate limiting must not silently disable in prod. |
+| Per-IP limits not triggering behind nginx | nginx not forwarding the real IP | Set `proxy_set_header X-Real-IP $remote_addr` (see §11.5) and `TRUSTED_PROXY_HOPS`. |
 
 For deeper debugging, the progress log at
 [`.claude/progress/mvp-progress.md`](../.claude/progress/mvp-progress.md)
 documents every shipped change in chronological order.
+
+---
+
+## 11.5 Deployment: reverse proxy & security hardening
+
+The app runs as a **PM2**-managed Node process behind **nginx** (EC2 + Elastic
+IP). Several abuse defenses depend on nginx forwarding the *real* client IP and
+on a few env vars — get these right or per-IP rate limits become spoofable and
+OTP/API protections weaken.
+
+**nginx site config (the important headers):**
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name doctor.id.bd;
+
+  location / {
+    proxy_pass         http://127.0.0.1:3000;   # app bound to localhost ONLY
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;             # real client IP
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Host  $host;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+  }
+
+  # Optional but recommended: an edge rate-limit as a first line of defense.
+  # (define `limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;` in http{})
+  location /api/ { limit_req zone=api burst=20 nodelay; proxy_pass http://127.0.0.1:3000; }
+}
+```
+
+- **Bind the Node app to `127.0.0.1:3000`**, never `0.0.0.0` — otherwise a
+  client could bypass nginx and forge `X-Real-IP`. Under PM2 this is handled by
+  [`ecosystem.config.cjs`](../ecosystem.config.cjs), which runs
+  `next start -H 127.0.0.1`. Note: `next start` **ignores** a `HOSTNAME` env var,
+  so the bind host must be passed via the `-H` flag (the standalone Docker
+  `server.js` is the opposite — it reads `HOSTNAME`). Boot it with
+  `pm2 start ecosystem.config.cjs && pm2 save` (then `pm2 startup` for reboot).
+- `X-Real-IP $remote_addr` **overwrites** any client-sent value, so it's the
+  trusted source the app reads (`src/lib/utils/request-ip.ts`).
+- Set **`TRUSTED_PROXY_HOPS=1`** (just nginx). If you later add Cloudflare/an LB
+  in front of nginx, bump it to match the hop count.
+
+**Security env checklist for production** (see `.env.example`):
+
+| Var | Why |
+|---|---|
+| `UPSTASH_REDIS_REST_URL` / `…_TOKEN` | **Required** — rate limiting fails closed without it; the app won't boot. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` | Human check on register/login/forgot-password before any SMS/email. Unset in prod ⇒ those forms fail closed. |
+| `TRUSTED_PROXY_HOPS` | Trustworthy client IP for rate limits (nginx = `1`). |
+| `EXTRA_ALLOWED_ORIGINS` | Any extra first-party origins for `/api/v1` + Server Actions (e.g. `www.` or staging). |
+| `SMS_GLOBAL_HOURLY_CAP` | App-wide OTP/SMS circuit breaker (cost ceiling). |
+
+**What's locked down:**
+- `/api/v1/*` is **first-party only** — CORS is restricted to your origin(s)
+  (never `*`) and requests with a foreign/absent `Origin`/`Referer` get `403`.
+  The homepage typeahead now uses a Server Action, not the public API. (This
+  stops cross-site browsers + naive scrapers; a forged-`Origin` script is only
+  stopped by the nginx/WAF rate limit — keep the `limit_req` above.)
+- OTP sends are capped **per phone AND per IP**, gated by Turnstile, and bounded
+  by a global hourly SMS budget.
+- `/api/health` returns only `{status}` (no uptime/Mongo-latency/error leak).
 
 ---
 

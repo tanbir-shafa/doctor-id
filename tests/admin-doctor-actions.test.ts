@@ -53,6 +53,7 @@ vi.mock("@/lib/s3/presign", () => ({
 // Avoid heavy completeness import side effects.
 vi.mock("@/lib/utils/completeness", () => ({
   computeCompleteness: () => ({ score: 50, fields: {} }),
+  missingPublishRequirements: () => [],
 }));
 
 const { AuditLog } = await import("@/lib/db/models");

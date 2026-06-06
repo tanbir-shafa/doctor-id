@@ -26,6 +26,8 @@ export function ProfileHeader({ doctor }: { doctor: DoctorDocLike }) {
               height={288}
               className="size-full object-cover"
               priority
+              placeholder={doctor.photo.blurDataUrl ? "blur" : "empty"}
+              blurDataURL={doctor.photo.blurDataUrl ?? undefined}
             />
           ) : (
             <div className="flex size-full items-center justify-center text-3xl font-semibold text-muted-foreground">

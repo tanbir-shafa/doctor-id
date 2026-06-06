@@ -1,6 +1,6 @@
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor } from "@/lib/db/models";
-import { withApiHandler, notFoundResponse } from "@/lib/api/response";
+import { withApiHandler, ApiNotFoundError } from "@/lib/api/response";
 import { toFhirPractitioner } from "@/lib/fhir/practitioner";
 import type { DoctorDocLike } from "@/types/doctor";
 
@@ -18,10 +18,16 @@ export async function GET(
   ctx: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await ctx.params;
-  await dbConnect();
-  const doc = await Doctor.findOne({ slug: slug.toLowerCase(), status: "published" }).lean();
-  if (!doc) return notFoundResponse("Doctor not found.");
-
-  const doctor = JSON.parse(JSON.stringify(doc)) as DoctorDocLike;
-  return withApiHandler(async () => toFhirPractitioner(doctor), { cacheSeconds: 60 });
+  // The DB lookup runs INSIDE withApiHandler so the first-party + rate-limit
+  // gates fire before we touch Mongo.
+  return withApiHandler(
+    async () => {
+      await dbConnect();
+      const doc = await Doctor.findOne({ slug: slug.toLowerCase(), status: "published" }).lean();
+      if (!doc) throw new ApiNotFoundError("Doctor not found.");
+      const doctor = JSON.parse(JSON.stringify(doc)) as DoctorDocLike;
+      return toFhirPractitioner(doctor);
+    },
+    { cacheSeconds: 60 },
+  );
 }

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Search, ArrowRight, Loader2, UserPlus } from "lucide-react";
 import { VerifiedBadge } from "@/components/profile/verified-badge";
+import { searchTypeaheadAction } from "@/server/actions/search";
 import type { VerificationLevel } from "@/types/doctor";
 
 /**
@@ -54,7 +55,9 @@ export function ClaimMirrorHero({ totalDoctors }: { totalDoctors: number }) {
 
   useEffect(() => {
     const q = query.trim();
-    const ctrl = new AbortController();
+    // Server Actions can't be aborted like fetch; guard against stale responses
+    // with an `active` flag so a slow earlier query can't overwrite a newer one.
+    let active = true;
     // All state updates happen inside the debounce timeout (never synchronously
     // in the effect body) so we don't trigger cascading renders.
     const timer = setTimeout(() => {
@@ -64,15 +67,18 @@ export function ClaimMirrorHero({ totalDoctors }: { totalDoctors: number }) {
         return;
       }
       setLoading(true);
-      fetch(`/api/v1/search?q=${encodeURIComponent(q)}&pageSize=6`, { signal: ctrl.signal })
-        .then((r) => r.json())
-        .then((json) => setResults((json?.results ?? []) as SearchResult[]))
+      searchTypeaheadAction(q)
+        .then((rows) => {
+          if (active) setResults(rows as SearchResult[]);
+        })
         .catch(() => {})
-        .finally(() => setLoading(false));
+        .finally(() => {
+          if (active) setLoading(false);
+        });
     }, 250);
     return () => {
+      active = false;
       clearTimeout(timer);
-      ctrl.abort();
     };
   }, [query]);
 

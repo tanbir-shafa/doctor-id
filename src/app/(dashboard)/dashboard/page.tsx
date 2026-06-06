@@ -5,7 +5,7 @@ import { ExternalLink, ArrowRight, CheckCircle2, Circle, Award } from "lucide-re
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor, ProfileView, User } from "@/lib/db/models";
-import { computeCompleteness } from "@/lib/utils/completeness";
+import { computeCompleteness, MANDATORY_PUBLISH_KEYS } from "@/lib/utils/completeness";
 import { FOUNDING_DOCTOR_THRESHOLD } from "@/lib/utils/referral";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -212,6 +212,11 @@ export default async function DashboardOverview({ searchParams }: PageProps) {
                 <span className={cn(s.done ? "text-muted-foreground line-through" : "text-foreground")}>
                   {s.label}
                 </span>
+                {(MANDATORY_PUBLISH_KEYS as readonly string[]).includes(s.key) ? (
+                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                    required to publish
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>

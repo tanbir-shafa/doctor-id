@@ -24,6 +24,7 @@ import { resetPasswordTemplate } from "@/lib/email/templates";
 import { generateSlug } from "@/lib/utils/slug";
 import { normalizeBmdc } from "@/lib/utils/bmdc";
 import { normalizeBdPhone } from "@/lib/utils/phone";
+import { clientIp as getClientIp } from "@/lib/utils/request-ip";
 import { resolveReferrer, recordReferral, type ResolvedReferrer } from "@/lib/referral/service";
 import { sendSms } from "@/lib/sms/client";
 import { getSmsProvider } from "@/lib/sms/provider";
@@ -31,8 +32,10 @@ import {
   loginRateLimiter,
   tokenRequestRateLimiter,
   smsOtpRequestLimiter,
+  smsOtpByIpLimiter,
   smsOtpVerifyLimiter,
 } from "@/lib/redis/ratelimit";
+import { verifyTurnstile } from "@/lib/security/turnstile";
 import {
   RegisterSchema,
   LoginSchema,
@@ -60,12 +63,7 @@ import {
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false, error: string };
 
 async function clientIp(): Promise<string> {
-  const h = await headers();
-  return (
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    h.get("x-real-ip") ||
-    "unknown"
-  );
+  return getClientIp(await headers());
 }
 
 function sha256(s: string): string {
@@ -114,6 +112,20 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
   }
   const bmdc = normalizeBmdc(bmdcNumber);
   const normalizedEmail = email && email.length > 0 ? email.toLowerCase() : null;
+
+  // Abuse defense for the SMS send (in order: cheapest + broadest first).
+  // (1) Per-IP cap so one source can't blast OTPs at many different numbers.
+  const ip = await clientIp();
+  const ipRl = await smsOtpByIpLimiter.limit(`ip:${ip}`);
+  if (!ipRl.success) {
+    return { ok: false, error: "Too many code requests from your network. Try again later." };
+  }
+  // (2) Turnstile BEFORE the per-phone limiter, so a bot can't exhaust a victim
+  //     phone's request budget with junk tokens (a registration-DoS on that number).
+  const turnstile = await verifyTurnstile(String(form.get("turnstileToken") ?? ""), ip);
+  if (!turnstile.ok) {
+    return { ok: false, error: turnstile.error };
+  }
 
   await dbConnect();
 
@@ -245,10 +257,26 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
  * Returns `{ ok: true }` regardless of whether the phone matches a real
  * account, so attackers can't enumerate which phones are signed up.
  */
-export async function requestLoginOtpAction(input: { phone: string }): Promise<ActionResult> {
+export async function requestLoginOtpAction(input: {
+  phone: string;
+  turnstileToken?: string;
+}): Promise<ActionResult> {
   const phone = normalizeBdPhone(input?.phone);
   if (!phone) {
     return { ok: false, error: "Enter a valid Bangladesh phone number." };
+  }
+
+  // Per-IP cap first (stops cross-number SMS-bombing from one source), then
+  // Turnstile before the per-phone limiter (so junk tokens can't burn a victim
+  // number's request budget).
+  const ip = await clientIp();
+  const ipRl = await smsOtpByIpLimiter.limit(`ip:${ip}`);
+  if (!ipRl.success) {
+    return { ok: false, error: "Too many code requests from your network. Try again later." };
+  }
+  const turnstile = await verifyTurnstile(input?.turnstileToken ?? "", ip);
+  if (!turnstile.ok) {
+    return { ok: false, error: turnstile.error };
   }
 
   const rl = await smsOtpRequestLimiter.limit(`phone:${phone}`);
@@ -689,6 +717,9 @@ export async function forgotPasswordAction(form: FormData): Promise<ActionResult
   const ip = await clientIp();
   const rl = await tokenRequestRateLimiter.limit(`ip:${ip}`);
   if (!rl.success) return { ok: false, error: "Too many requests. Try again later." };
+
+  const turnstile = await verifyTurnstile(String(form.get("turnstileToken") ?? ""), ip);
+  if (!turnstile.ok) return { ok: false, error: turnstile.error };
 
   const parsed = ForgotPasswordSchema.safeParse(Object.fromEntries(form.entries()));
   if (!parsed.success) return { ok: false, error: "Enter a valid email." };

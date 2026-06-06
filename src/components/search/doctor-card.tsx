@@ -114,6 +114,8 @@ export function DoctorCard({
             width={56}
             height={56}
             className="size-full object-cover"
+            placeholder={doctor.photo.blurDataUrl ? "blur" : "empty"}
+            blurDataURL={doctor.photo.blurDataUrl ?? undefined}
           />
         ) : (
           <div className="grid size-full place-items-center bg-accent text-base font-semibold text-primary ring-1 ring-inset ring-primary/15">

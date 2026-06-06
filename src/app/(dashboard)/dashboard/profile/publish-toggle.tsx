@@ -13,19 +13,27 @@ export function PublishToggle({
   initialStatus,
   submitAction,
   approved = true,
+  missing = [],
+  blockOnMissing = true,
 }: {
   initialStatus: DoctorStatus;
   submitAction?: SubmitAction;
   /** When false, publishing is locked (admin hasn't approved yet). Unpublish still allowed. */
   approved?: boolean;
+  /** Mandatory-for-publish fields not yet filled (label per item). */
+  missing?: { key: string; label: string }[];
+  /** Doctor view blocks publish on missing fields; admin view only warns. */
+  blockOnMissing?: boolean;
 }) {
   const [status, setStatus] = useState(initialStatus);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const published = status === "published";
-  // Publishing is locked until approved; unpublishing a (somehow) published
-  // profile is always allowed.
-  const publishLocked = !approved && !published;
+  const incomplete = missing.length > 0;
+  const missingLabels = missing.map((m) => m.label).join(", ");
+  // Publishing is locked until approved AND (for doctors) the mandatory fields
+  // are filled. Unpublishing a (somehow) published profile is always allowed.
+  const publishLocked = !published && (!approved || (blockOnMissing && incomplete));
 
   function flip() {
     setError(null);
@@ -48,16 +56,26 @@ export function PublishToggle({
           <p className="text-sm text-muted-foreground">
             {published
               ? "Patients can find you in search and through your profile URL."
-              : publishLocked
+              : !approved
                 ? "Publishing unlocks once an admin approves your account (usually within 24 hours). You can edit and preview it meanwhile."
-                : "Your profile is hidden from public search and search engines."}
+                : incomplete
+                  ? blockOnMissing
+                    ? `Add these before publishing: ${missingLabels}.`
+                    : `Missing for a complete profile: ${missingLabels}. You can still publish.`
+                  : "Your profile is hidden from public search and search engines."}
           </p>
         </div>
         <Button
           onClick={flip}
           disabled={pending || publishLocked}
           variant={published ? "outline" : "default"}
-          title={publishLocked ? "Publishing unlocks after admin approval" : undefined}
+          title={
+            publishLocked
+              ? !approved
+                ? "Publishing unlocks after admin approval"
+                : "Complete the required fields to publish"
+              : undefined
+          }
         >
           {published ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
           {pending ? "…" : published ? "Unpublish" : "Publish"}

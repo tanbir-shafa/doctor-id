@@ -51,9 +51,30 @@ const ServerEnvSchema = z.object({
   // key `email`). Unset → the pre-send suppression check is skipped.
   SES_SUPPRESSION_TABLE: z.string().optional(),
 
-  // Upstash
+  // Upstash. Optional in dev/test (limiters degrade per NODE_ENV — see
+  // redis/ratelimit.ts), but REQUIRED in production: parseServerEnv() below
+  // hard-fails the boot if they're missing under NODE_ENV=production, because
+  // the rate limiters are the backbone of the OTP/login/API abuse defenses.
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+
+  // Number of trusted reverse-proxy hops in front of the app (nginx = 1). Used
+  // by request-ip.ts to pick the real client IP from X-Forwarded-For instead of
+  // the spoofable left-most hop. Bump this if you add a CDN/LB in front of nginx.
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().positive().default(1),
+
+  // Cloudflare Turnstile (human-verification challenge on OTP/email send paths).
+  // When the secret is unset, verifyTurnstile() no-ops to "pass" in dev/test and
+  // FAILS CLOSED in production (see lib/security/turnstile.ts).
+  TURNSTILE_SECRET_KEY: z.string().optional(),
+
+  // Extra origins allowed to call /api/v1 and submit Server Actions, beyond
+  // NEXT_PUBLIC_APP_URL. Comma-separated absolute origins (scheme+host[:port]).
+  EXTRA_ALLOWED_ORIGINS: z.string().optional(),
+
+  // App-wide circuit breaker: max OTP/transactional SMS sends per hour across
+  // ALL users. Bounds cost/blast-radius if an upstream layer is bypassed.
+  SMS_GLOBAL_HOURLY_CAP: z.coerce.number().int().positive().default(2000),
 
   // SMS provider switch. `ssl` (SSL Wireless iSMS Plus v3) is the default;
   // `mdl` selects the legacy in-house gateway as a one-env-var fallback.
@@ -86,6 +107,9 @@ const ServerEnvSchema = z.object({
 
 const PublicEnvSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  // Cloudflare Turnstile public site key — rendered by the client widget on the
+  // register/login OTP forms. Unset → the widget is skipped (dev).
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
 });
 
 // During `next build` Next will collect referenced env vars; we still want the
@@ -102,6 +126,26 @@ function parseServerEnv() {
       .join("\n");
     throw new Error(`Invalid server environment variables:\n${formatted}`);
   }
+
+  // Fail fast in production if the rate-limiter backend is missing. Without it
+  // every per-IP / per-phone limiter would silently allow-all (see
+  // redis/ratelimit.ts), gutting the OTP, login, and API abuse defenses. We'd
+  // rather refuse to boot than run wide open.
+  //
+  // Skip during `next build` (NEXT_PHASE === phase-production-build): the build
+  // runs with NODE_ENV=production but secrets may legitimately be absent then —
+  // we only require Upstash when actually SERVING in production.
+  const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+  if (result.data.NODE_ENV === "production" && !isBuildPhase) {
+    if (!result.data.UPSTASH_REDIS_REST_URL || !result.data.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error(
+        "Invalid server environment variables:\n" +
+          "  - UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN: required in production " +
+          "(rate limiting fails closed without Redis).",
+      );
+    }
+  }
+
   return result.data;
 }
 
@@ -114,6 +158,7 @@ export function env() {
 
 export const publicEnv = PublicEnvSchema.parse({
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
 });
 
 export function adminEmails(): string[] {
@@ -123,4 +168,28 @@ export function adminEmails(): string[] {
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
+}
+
+/**
+ * The set of origins allowed to call /api/v1 and invoke Server Actions: the
+ * app's own URL plus any `EXTRA_ALLOWED_ORIGINS`. Normalized to bare origins
+ * (scheme + host + optional port), lowercased, no trailing slash.
+ */
+export function allowedOrigins(): string[] {
+  const out = new Set<string>();
+  const add = (raw?: string) => {
+    if (!raw) return;
+    for (const part of raw.split(",")) {
+      const v = part.trim();
+      if (!v) continue;
+      try {
+        out.add(new URL(v).origin.toLowerCase());
+      } catch {
+        // Ignore malformed entries rather than crash the request path.
+      }
+    }
+  };
+  add(publicEnv.NEXT_PUBLIC_APP_URL);
+  add(env().EXTRA_ALLOWED_ORIGINS);
+  return [...out];
 }

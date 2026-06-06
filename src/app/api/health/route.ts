@@ -12,23 +12,17 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const start = Date.now();
   try {
     await dbConnect();
     const admin = mongoose.connection.db?.admin();
     if (!admin) throw new Error("Mongo admin handle unavailable");
     await admin.ping();
-    return NextResponse.json({
-      status: "ok",
-      uptimeSeconds: Math.round(process.uptime()),
-      mongoLatencyMs: Date.now() - start,
-      timestamp: new Date().toISOString(),
-    });
+    // Minimal body on purpose: this endpoint is unauthenticated, so we don't
+    // hand anonymous callers infra detail (uptime, Mongo latency, error strings).
+    // ECS only needs the 200/503 status code; failure detail goes to logs.
+    return NextResponse.json({ status: "ok" });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "unknown error";
-    return NextResponse.json(
-      { status: "degraded", error: message, timestamp: new Date().toISOString() },
-      { status: 503 },
-    );
+    console.error("[health] Mongo ping failed:", err);
+    return NextResponse.json({ status: "degraded" }, { status: 503 });
   }
 }

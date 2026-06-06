@@ -264,6 +264,9 @@ export interface AdminDoctorListResult {
 const ADMIN_DEFAULT_PAGE_SIZE = 20;
 const ADMIN_MIN_PAGE_SIZE = 10;
 const ADMIN_MAX_PAGE_SIZE = 100;
+const ADMIN_MAX_PAGE = 10000;
+/** Valid Doctor.status values — guards the admin list filter (see Doctor model). */
+const DOCTOR_STATUSES: readonly string[] = ["draft", "published", "suspended"];
 
 /**
  * Lists doctors for the admin /admin/doctors table.
@@ -277,7 +280,7 @@ const ADMIN_MAX_PAGE_SIZE = 100;
 export async function listDoctorsForAdmin(params: AdminDoctorListParams): Promise<AdminDoctorListResult> {
   await dbConnect();
 
-  const page = Math.max(1, Number(params.page) || 1);
+  const page = Math.min(ADMIN_MAX_PAGE, Math.max(1, Number(params.page) || 1));
   const pageSize = Math.min(
     ADMIN_MAX_PAGE_SIZE,
     Math.max(ADMIN_MIN_PAGE_SIZE, Number(params.pageSize) || ADMIN_DEFAULT_PAGE_SIZE),
@@ -285,7 +288,12 @@ export async function listDoctorsForAdmin(params: AdminDoctorListParams): Promis
   const skip = (page - 1) * pageSize;
 
   const filter: Record<string, unknown> = {};
-  if (params.status) filter.status = params.status;
+  // Constrain `status` to the known enum before it reaches the Mongoose filter —
+  // never let an arbitrary value (or, defensively, a non-string operator object)
+  // flow straight into the query.
+  if (typeof params.status === "string" && DOCTOR_STATUSES.includes(params.status)) {
+    filter.status = params.status;
+  }
   if (params.claimed === "true") filter.isClaimed = true;
   if (params.claimed === "false") filter.isClaimed = false;
   if (params.specialty && params.specialty.trim()) {

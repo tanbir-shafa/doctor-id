@@ -31,7 +31,7 @@ EMR without a schema rewrite.
 | OG images | `next/og` (Satori) — 1200 × 630, day-long CDN cache |
 | i18n | `next-intl` patterns, English-only catalog at launch |
 | Tests | Vitest + Testing Library — 467 tests (DB-less) |
-| Deployment | Docker (multi-stage standalone) → AWS ECS Fargate behind ALB |
+| Deployment | **AWS EC2** — `next start` under PM2, behind nginx (TLS + reverse proxy). Multi-stage Docker image also provided. |
 
 ---
 
@@ -111,7 +111,7 @@ src/
     admin/           # /admin/* (role-gated)
     api/v1/          # public REST API, FHIR-shaped doctor endpoints
     api/og/[slug]/   # dynamic OG image (1200×630)
-    api/health/      # ECS healthcheck
+    api/health/      # health probe (Mongo ping)
     sitemap.ts       # dynamic XML sitemap
     robots.ts
   components/
@@ -216,43 +216,92 @@ click-to-explain (a popover breaks down what's verified). See CLAUDE.md #20.
 
 ---
 
-## Deploying to AWS ECS
+## Deploying to AWS EC2 (PM2 + nginx)
 
-This section assumes you already have:
-- an AWS account with IAM permissions to create ECS, ECR, ALB, IAM, and SES
-- an MongoDB Atlas cluster (M10+ recommended for prod) and its URI
-- an Upstash Redis instance and its REST URL + token
-- a verified SES sender domain *or* the patience to file a sandbox-removal request
+The app runs as a long-lived Node process managed by **PM2**, behind **nginx**
+(TLS termination + reverse proxy), on a single EC2 instance. Redis stays on
+**Upstash over its REST API** — that runs fine on a long-running server, and
+`@upstash/ratelimit` requires it (no TCP/`ioredis` client needed).
 
-### One-time setup
+This section assumes you have:
+- an **EC2 instance** (Amazon Linux 2023 or Ubuntu 22.04+, **≥ 2 GB RAM** — sharp
+  + the image optimizer are memory-hungry) with an **Elastic IP**
+- an **IAM instance profile** attached, so the production cross-account S3/SES
+  role is assumed with no static keys (see `AWS_ASSUME_ROLE_ARN`, CLAUDE.md #17)
+- two S3 buckets (public + private), a MongoDB Atlas URI, an Upstash Redis
+  **REST** URL + token, and a verified SES sender (or a pending sandbox request)
+- DNS for `doctor.id.bd` pointed at the Elastic IP
 
-1. **Create the S3 upload bucket** with public-read disabled, CORS allowing PUT
-   from the app's origin, and a bucket policy that lets the app's IAM role
-   write under any prefix.
+### 1. Install the runtime
 
-2. **Push to ECR**
-   ```bash
-   aws ecr create-repository --repository-name doctor-id
-   docker build -t doctor-id .
-   docker tag doctor-id:latest $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/doctor-id:latest
-   aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
-   docker push $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/doctor-id:latest
-   ```
+```bash
+# Node 22 LTS via NodeSource (Amazon Linux / RHEL shown; on Ubuntu use the apt variant)
+curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -
+sudo dnf install -y nodejs gcc-c++ make nginx     # Ubuntu: apt-get install -y nodejs build-essential nginx
+sudo npm install -g pm2
+```
 
-3. **Task definition** — minimum:
-   - 0.5 vCPU / 1 GB memory (homepage + profile page peak under this)
-   - Port mapping 3000 → 3000
-   - Healthcheck command: `[ "CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/api/health | grep -q '\"status\":\"ok\"'" ]`
-   - Env vars from Secrets Manager: `MONGO_URI`, `AUTH_SECRET`, `AWS_*` (via task IAM role; the explicit access-key env vars are only required for local Docker), `UPSTASH_*`, `SES_FROM_EMAIL`
-   - Task role with `s3:PutObject`/`GetObject` on the upload bucket and `ses:SendEmail`
+### 2. Build the app
 
-4. **ALB → ECS service**
-   - HTTPS listener on 443 (ACM cert for `doctor.id.bd`)
-   - HTTP → HTTPS redirect on 80
-   - Target group health check: `/api/health`, expects 200, deregistration delay 30s
-   - Min 2 tasks for HA; auto-scale on `CPUUtilization > 60%`
+```bash
+git clone <repo> /var/www/doctor-id && cd /var/www/doctor-id
+npm ci                       # resolves the glibc @img/sharp-linux-* binary on THIS host
+npm run build
+```
 
-5. **DNS** — Route 53 alias from `doctor.id.bd` → the ALB.
+Put production secrets in **`.env.production.local`** (gitignored; `next start`
+loads it automatically at boot). At minimum: `MONGO_URI`, `AUTH_SECRET`,
+`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `AWS_REGION`,
+`AWS_ASSUME_ROLE_ARN`, `AWS_PUBLIC_BUCKET_NAME`, `AWS_PRIVATE_BUCKET_NAME`,
+`SES_FROM_ADDRESS`, `SSL_SMS_API_TOKEN`, `SSL_SMS_SID`, `NEXT_PUBLIC_APP_URL`,
+`TURNSTILE_SECRET_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. See `.env.example`.
+
+### 3. Run under PM2
+
+```bash
+pm2 start ecosystem.config.cjs     # → next start -H 127.0.0.1 -p 3000 (localhost only!)
+pm2 save                           # snapshot the process list
+pm2 startup                        # prints a systemd command to relaunch on boot — run it
+```
+
+`ecosystem.config.cjs` hard-codes `-H 127.0.0.1` so the app is reachable **only**
+through nginx. Never bind it to `0.0.0.0` — a directly-reachable port lets a
+client forge `X-Real-IP` and bypass the per-IP rate limits (see
+[`doc/getting-started.md`](doc/getting-started.md) §11.5 and CLAUDE.md #21).
+
+Redeploy: `git pull && npm ci && npm run build && pm2 reload doctor-id`.
+
+### 4. nginx (TLS + reverse proxy)
+
+Full config + rationale in [`doc/getting-started.md`](doc/getting-started.md)
+§11.5. The essentials:
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name doctor.id.bd;
+  # ssl_certificate / ssl_certificate_key — issue with: sudo certbot --nginx -d doctor.id.bd
+
+  client_max_body_size 12m;       # match next.config serverActions.bodySizeLimit (photo uploads)
+
+  location / {
+    proxy_pass         http://127.0.0.1:3000;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;        # the trusted client IP
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+  }
+}
+# Also add a :80 server block that 301-redirects to https.
+```
+
+Set **`TRUSTED_PROXY_HOPS=1`** (just nginx; bump it if you later add Cloudflare or
+an LB in front). `/api/health` returns `{"status":"ok"}` for an uptime monitor.
+
+### 5. Security group
+
+Inbound: **80 + 443 only** (plus 22 from your admin IP). Port 3000 must **not**
+be open — the app binds to localhost.
 
 ### SES sandbox heads-up
 New SES accounts are sandboxed: only verified recipients receive mail. File a
@@ -261,8 +310,8 @@ production-access request (typically reviewed in ~24h). Until granted, register
 the SES console.
 
 ### Atlas hardening
-- Enable **IP access list**: ECS task NAT egress IP only, or use AWS PrivateLink
-  for private connectivity
+- Enable **IP access list**: the EC2 instance's **Elastic IP** only, or use AWS
+  PrivateLink for private connectivity
 - Rotate the `db-production-user` credentials before launch
 - Enable backup snapshots (built-in on Atlas M10+)
 

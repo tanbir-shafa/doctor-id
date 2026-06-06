@@ -5,11 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { forgotPasswordAction } from "@/server/actions/auth";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 
 export function ForgotPasswordForm() {
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tsReset, setTsReset] = useState(0);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -17,6 +19,7 @@ export function ForgotPasswordForm() {
     setError(null);
     startTransition(async () => {
       const result = await forgotPasswordAction(form);
+      setTsReset((n) => n + 1);
       if (!result.ok) setError(result.error);
       else setDone(true);
     });
@@ -36,6 +39,7 @@ export function ForgotPasswordForm() {
         <Label htmlFor="email">Email</Label>
         <Input id="email" name="email" type="email" autoComplete="email" required />
       </div>
+      <TurnstileWidget resetSignal={tsReset} />
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}

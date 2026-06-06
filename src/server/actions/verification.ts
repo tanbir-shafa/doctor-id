@@ -10,12 +10,18 @@ import { computeVerificationLevel } from "@/lib/utils/verification";
 import { AccountVerificationSchema } from "@/lib/validators/verification";
 import { recordAuditLog } from "@/lib/audit/log";
 import { qualifyReferralAndRecompute } from "@/lib/referral/service";
+import { verificationRequestLimiter } from "@/lib/redis/ratelimit";
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
 export async function requestVerificationAction(form: FormData): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: "Not signed in." };
+
+  const rl = await verificationRequestLimiter.limit(`user:${session.user.id}`);
+  if (!rl.success) {
+    return { ok: false, error: "Too many verification requests. Try again later." };
+  }
 
   const bmdcRaw = String(form.get("bmdcNumber") ?? "").trim();
   if (!isValidBmdcFormat(bmdcRaw)) {
@@ -61,6 +67,11 @@ export async function requestVerificationAction(form: FormData): Promise<ActionR
 export async function requestAccountVerificationAction(form: FormData): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: "Not signed in." };
+
+  const rl = await verificationRequestLimiter.limit(`user:${session.user.id}`);
+  if (!rl.success) {
+    return { ok: false, error: "Too many verification requests. Try again later." };
+  }
 
   const parsed = AccountVerificationSchema.safeParse({
     legalFirstName: form.get("legalFirstName"),
