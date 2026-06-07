@@ -53,3 +53,5 @@ next-env.d.ts
 # committed and seeded into the Chamber collection by scripts/seed.ts.
 !/data/chambers/
 .pem
+deploy_key.pub
+deploy_key

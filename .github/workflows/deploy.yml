@@ -1,0 +1,90 @@
+name: Deploy (doctor.shafa.care)
+
+# Build on a Linux ARM64 runner (so the @img/sharp-linux-arm64 native binary
+# matches the t4g.medium box — CLAUDE.md #22), then ship the artifact to the box
+# over SSH and run the release there. No AWS involvement in the pipeline: auth is
+# a single dedicated SSH deploy key (GitHub secret), the host key is pinned, and
+# the target user (appuser) has no sudo. Secrets never touch CI — they live only
+# in /srv/doctor-id/shared/.env.production.local on the box.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# One deploy at a time; let an in-flight run finish rather than cancel it.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04-arm        # ARM64 glibc → correct sharp binary for Graviton
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        # NEXT_PUBLIC_* are INLINED AT BUILD TIME (they end up in the client
+        # bundle), so they MUST be the real production values here — set them as
+        # GitHub Actions *variables* (they're public, not secret). Everything
+        # else is read at runtime on the box. AUTH_SECRET/MONGO_URI are dummy
+        # placeholders only to satisfy env.ts validation during `next build`
+        # (the build statically renders the sitemap, which calls env()); the real
+        # values come from .env.production.local at runtime.
+        env:
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+          AUTH_SECRET: build-only-placeholder-32-chars-aaaaa
+          MONGO_URI: mongodb://placeholder/build
+        run: npm run build
+
+      - name: Strip dev dependencies
+        run: npm prune --omit=dev
+
+      - name: Package release
+        id: pkg
+        run: |
+          TAG="$(date +%Y%m%d_%H%M%S)_${GITHUB_SHA::7}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          # `next start` needs only the compiled output + prod deps + config —
+          # no source. node_modules carries the arm64 sharp binary.
+          tar -czf release.tar.gz \
+            .next public package.json package-lock.json node_modules \
+            next.config.ts tsconfig.json ecosystem.config.cjs
+          ls -lh release.tar.gz
+
+      - name: Set up SSH (key from secret, host key pinned)
+        env:
+          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_DEPLOY_KEY"  > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+
+      - name: Ship + deploy over SSH
+        env:
+          TAG: ${{ steps.pkg.outputs.tag }}
+          SSH_HOST: ${{ vars.SSH_HOST }}        # 13.232.159.121
+          SSH_USER: ${{ vars.SSH_USER }}        # appuser
+        run: |
+          set -euo pipefail
+          # IdentitiesOnly: use only our key. StrictHostKeyChecking=yes against the
+          # pinned known_hosts: aborts on any host-key mismatch (MITM defense).
+          SSH_OPTS="-o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -i $HOME/.ssh/deploy_key"
+          scp $SSH_OPTS release.tar.gz "${SSH_USER}@${SSH_HOST}:/tmp/${TAG}.tar.gz"
+          # release.sh health-gates + auto-rolls-back; a non-zero exit fails the job.
+          ssh $SSH_OPTS "${SSH_USER}@${SSH_HOST}" "/srv/doctor-id/bin/release.sh ${TAG} /tmp/${TAG}.tar.gz"
