@@ -149,6 +149,48 @@ These fail **silently** if skipped — do them now:
 
 ---
 
+# Part 3.5 — Seed the production database  *(run from your LAPTOP, not the box)*
+
+The box can't seed: the CI artifact is a lean runtime bundle — **no `scripts/`, no
+`data/`, and `tsx` is pruned** — and `npm run seed` refuses to run with
+`NODE_ENV=production`. So run seeds from your full local repo, pointed at the
+**production Atlas** database. You only need to do this once (it's idempotent).
+
+1. **Allowlist your laptop in Atlas** → *Network Access* → add your current IP
+   (temporarily; remove it when done). The box's Elastic IP was added in Part 3.
+2. **Point the seed at production** — temporarily set these in `.env.local`:
+   ```
+   MONGO_URI=<your production Atlas SRV string>
+   ADMIN_EMAILS=you@shafa.care          # the admin account the seed creates
+   ```
+   Make sure `NODE_ENV` is unset / `development` in your shell (the seed refuses prod).
+3. **Bootstrap seed** — admin user + 36-specialty catalog (idempotent, no fake doctors):
+   ```bash
+   npm run seed
+   ```
+4. *(Optional)* **Ingest real BD doctor profiles** (~3,237 unclaimed, for SEO + the
+   claim funnel):
+   ```bash
+   npm run seed -- --source=popular-diagnostic --dry-run   # preview, writes nothing
+   npm run seed -- --source=popular-diagnostic             # real ingest (~10 min)
+   ```
+   Photo-uploading steps additionally need AWS keys with access to the prod buckets in
+   `.env.local` (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` + the bucket names) — the
+   non-production credential mode uses static keys, not the instance role.
+5. **Clean up**: restore `.env.local` to your dev values and **remove your laptop's IP**
+   from Atlas Network Access.
+
+After seeding, the admin login is `https://doctor.shafa.care/auth/admin/login` —
+your `ADMIN_EMAILS` address with the seed's default password (`ChangeMe!2026`).
+**Change/secure that account before launch.**
+
+> Alternative: you can instead `git clone` the repo onto the box, `npm ci`, and run
+> the seed there (the box's Elastic IP is already allowlisted in Atlas, so you skip
+> step 1). Keep that clone separate from `/srv/doctor-id` and delete it after — it's
+> not part of the deployed release.
+
+---
+
 # Part 4 — Prepare the box
 
 ### 4.1 Generate the CI deploy key  *(on your laptop)*
@@ -161,11 +203,37 @@ ssh-keygen -t ed25519 -C "doctor-id-ci" -f deploy_key -N ""
 Keep `deploy_key` secret; it's the only thing that can deploy.
 
 ### 4.2 Copy the deployment files to the box  *(on your laptop)*
-Use your launch key (the `ubuntu` admin login) or EC2 Instance Connect:
+You log in as `ubuntu` with the **EC2 key pair you chose at launch** (step 1.1).
+Keep that `.pem` in `~/.ssh` with strict perms — **never put it in the repo** (a
+private key doesn't belong in a project tree, even gitignored):
 ```bash
-scp -r deployment/ec2 ubuntu@13.232.159.121:~/deploy
-scp deploy_key.pub    ubuntu@13.232.159.121:~/deploy/
+# one-time: stage your launch key with read-only perms (SSH ignores it otherwise)
+cp /path/to/your-launch-key.pem ~/.ssh/doctor-id.pem
+chmod 400 ~/.ssh/doctor-id.pem
+
+scp -i ~/.ssh/doctor-id.pem -r deployment/ec2 ubuntu@13.232.159.121:~/deploy
+scp -i ~/.ssh/doctor-id.pem deploy_key.pub    ubuntu@13.232.159.121:~/deploy/
 ```
+Optional — add an alias to `~/.ssh/config` so you can drop the `-i` everywhere
+(then `ssh ubuntu@13.232.159.121` and `scp … ubuntu@…` just work):
+```
+Host 13.232.159.121
+    User ubuntu
+    IdentityFile ~/.ssh/doctor-id.pem
+```
+
+**Two SSH errors you may hit on first connect:**
+- `REMOTE HOST IDENTIFICATION HAS CHANGED` / `Host key verification failed` — the
+  Elastic IP was previously on another box, so `~/.ssh/known_hosts` holds a stale key.
+  Clear it, then reconnect and accept the new key (optionally verify the fingerprint
+  against **EC2 Console → instance → Actions → Monitor and troubleshoot → Get system log**):
+  ```bash
+  ssh-keygen -R 13.232.159.121
+  ```
+- `Permission denied (publickey)` — SSH reached the box but no key matched. Use the
+  exact key pair from 1.1 via `-i`. If you launched with a different/no key pair, use
+  **EC2 Instance Connect** (browser SSH from the console) to add a key to
+  `~ubuntu/.ssh/authorized_keys`.
 
 ### 4.3 Run bootstrap  *(on the box, as `ubuntu`)*
 ```bash
