@@ -75,8 +75,8 @@ const PHOTO_VISIBILITY = visibilityFor(PURPOSE.bucketType);
 const PHOTO_SECURITY = securityClassFor(PURPOSE.bucketType);
 // Mirror buildS3Key's env split. (The production guard above means this is "dev/" in
 // practice; the cast sidesteps TS narrowing NODE_ENV away from "production" after that guard.)
-const ENV_PREFIX = (process.env.NODE_ENV as string) === "production" ? "" : "dev/";
-const SEED_KEY_ROOT = `${ENV_PREFIX}${PURPOSE.folder}/_seed`; // e.g. dev/doctor/profile-picture/_seed
+
+const SEED_KEY_ROOT = `${PURPOSE.folder}/_seed`; // e.g. doctor/profile-picture/_seed
 
 const EXT_FOR_MIME: Record<SniffedImageMime, string> = {
   "image/jpeg": "jpg",
