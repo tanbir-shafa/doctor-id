@@ -18,7 +18,7 @@ import { isValidBmdcFormat } from "@/lib/utils/bmdc";
  * launched from the "Claim this profile" CTA on `/[slug]`.
  *
  * No password. Doctors authenticate by phone + SMS OTP only — admins keep
- * the email + password flow on `/auth/admin/login`.
+ * the email + password flow on `/auth/email/login`.
  */
 export const RegisterSchema = z.object({
   bmdcNumber: z

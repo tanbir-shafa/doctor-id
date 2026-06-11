@@ -17,7 +17,7 @@ import { AdminShell } from "@/components/admin/shell";
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session?.user?.id) redirect("/auth/admin/login?next=/admin");
+  if (!session?.user?.id) redirect("/auth/email/login?next=/admin");
   if (session.user.role !== "admin") redirect("/dashboard");
 
   await dbConnect();

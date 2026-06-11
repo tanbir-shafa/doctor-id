@@ -236,3 +236,19 @@ export const ChangePasswordSchema = z
     message: "Passwords do not match",
     path: ["confirmPassword"],
   });
+
+/**
+ * Minimal payload for admin-created doctor profiles (/admin/doctors/new).
+ * Name is required; primary specialty and BMDC are optional. `primarySpecialty`
+ * is a catalog NAME validated against the live Specialty catalog in the action;
+ * `bmdcNumber` format is checked in the action via isValidBmdcFormat so the
+ * message matches the rest of the admin flow.
+ */
+export const CreateDoctorSchema = z.object({
+  prefix: z.enum(["Dr.", "Prof. Dr.", "Asst. Prof. Dr.", "Assoc. Prof. Dr."]).default("Dr."),
+  firstName: z.string().trim().min(1, "First name is required").max(80),
+  lastName: z.string().trim().min(1, "Last name is required").max(80),
+  primarySpecialty: z.string().trim().max(120).optional().or(z.literal("")),
+  bmdcNumber: z.string().trim().max(20).optional().or(z.literal("")),
+});
+export type CreateDoctorInput = z.infer<typeof CreateDoctorSchema>;

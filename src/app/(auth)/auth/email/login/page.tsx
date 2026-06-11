@@ -2,22 +2,22 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
-import { AdminLoginForm } from "./admin-login-form";
+import { EmailLoginForm } from "./email-login-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "Admin sign in" };
+export const metadata: Metadata = { title: "Sign in with Email" };
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminLoginPage({
+export default async function EmailLoginPage({
   searchParams,
 }: {
   searchParams: Promise<{ next?: string; error?: string }>;
 }) {
   const sp = await searchParams;
 
-  // Skip the form when already signed in — admins land on /admin, doctors
-  // get bounced to their dashboard so they don't see the wrong login page.
+  // Skip the form when already signed in — admins land on /admin, everyone
+  // else on their dashboard, so they don't see the wrong login page.
   const session = await auth();
   if (session?.user?.id) {
     const requestedNext = sp.next ?? "";
@@ -28,11 +28,11 @@ export default async function AdminLoginPage({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Admin sign in</CardTitle>
-        <CardDescription>For Shafa Care staff only. Doctors sign in by phone.</CardDescription>
+        <CardTitle>Sign in with Email</CardTitle>
+        <CardDescription>Sign in with your email and password.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <AdminLoginForm next={sp.next} initialError={sp.error} />
+        <EmailLoginForm next={sp.next} initialError={sp.error} />
         <div className="text-center text-sm">
           <Link href="/auth/forgot-password" className="text-muted-foreground hover:underline">
             Forgot your password?

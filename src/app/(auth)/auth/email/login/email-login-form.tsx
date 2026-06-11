@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label";
 import { loginAction } from "@/server/actions/auth";
 
 /**
- * Email + password sign-in for admins. Routes to /admin on success. The
- * underlying server action (`loginAction`) hasn't changed — only the URL
- * has, so doctors land on the phone+OTP flow at /auth/login by default.
+ * Email + password sign-in. Used by admins and any user who has set an email +
+ * password; `loginAction` returns the role-appropriate landing page (/admin for
+ * admins, /dashboard otherwise). Doctors without a password use the phone+OTP
+ * flow at /auth/login.
  */
-export function AdminLoginForm({ next, initialError }: { next?: string; initialError?: string }) {
+export function EmailLoginForm({ next, initialError }: { next?: string; initialError?: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -28,7 +29,7 @@ export function AdminLoginForm({ next, initialError }: { next?: string; initialE
         setError(result.error);
         return;
       }
-      router.push(result.data?.next ?? "/admin");
+      router.push(result.data?.next ?? "/dashboard");
       router.refresh();
     });
   }

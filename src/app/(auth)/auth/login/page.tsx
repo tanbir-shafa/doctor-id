@@ -44,7 +44,7 @@ export default async function LoginPage({
         </div>
         <div className="text-center text-xs text-muted-foreground">
           Already added an email?{" "}
-          <Link href="/auth/admin/login" className="hover:underline">
+          <Link href="/auth/email/login" className="hover:underline">
             Sign in with email
           </Link>
         </div>

@@ -30,7 +30,7 @@ npm run dev
 # → open http://localhost:3000
 ```
 
-Admin login: `admin@doctor.id.bd` / `ChangeMe!2026` at `/auth/admin/login`.
+Admin login: `admin@doctor.id.bd` / `ChangeMe!2026` at `/auth/email/login`.
 
 ---
 
@@ -163,7 +163,7 @@ Outputs:
 │ admins            │ 1      │
 │ doctors           │ 0      │
 └───────────────────┴────────┘
-  Admin login: admin@doctor.id.bd / ChangeMe!2026 at /auth/admin/login
+  Admin login: admin@doctor.id.bd / ChangeMe!2026 at /auth/email/login
 ```
 
 What this does:
@@ -224,7 +224,7 @@ Visit:
 | `http://localhost:3000/<slug>` | Public profile (e.g. `/dr-m-nazrul-islam-cardiologist`) |
 | `http://localhost:3000/auth/login` | Doctor sign-in (phone + OTP) |
 | `http://localhost:3000/auth/register` | Doctor registration (phone + OTP + BMDC) |
-| `http://localhost:3000/auth/admin/login` | Admin sign-in (email + password) |
+| `http://localhost:3000/auth/email/login` | Admin sign-in (email + password) |
 | `http://localhost:3000/admin` | Admin portal (login-gated) |
 | `http://localhost:3000/dashboard` | Doctor portal (login-gated) |
 
@@ -249,7 +249,7 @@ to your `npm run dev` console**. Walk through it:
    ```
 
 5. Enter the OTP on the page → registration completes. **You'll see a "pending admin approval" card**, not a dashboard.
-6. Log in as the seed admin at `/auth/admin/login`. Open `/admin/verifications` — the new ClaimRequest appears with a 24-hour SLA chip.
+6. Log in as the seed admin at `/auth/email/login`. Open `/admin/verifications` — the new ClaimRequest appears with a 24-hour SLA chip.
 7. Click **"Approve & unlock login"** — flips `User.approved: true` and `Doctor.bmdcVerified: true`.
 8. In the doctor's browser, hit `/auth/login` and enter the same phone → OTP arrives in the console → enter it → land on `/dashboard?welcome=1`.
 

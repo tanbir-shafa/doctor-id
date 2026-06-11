@@ -62,7 +62,7 @@ src/
       auth/login              doctor phone+OTP sign-in
       auth/register           doctor register: BMDC + phone + name + mandatory
                               live selfie (selfie-capture.tsx, getUserMedia) → OTP
-      auth/admin/login        admin email+password sign-in (new)
+      auth/email/login        admin email+password sign-in (new)
       auth/{forgot,reset,verify-email}
     (dashboard)/     /dashboard/* (auth-gated by proxy + layout guard)
       dashboard/{profile,chambers,photos,analytics,settings}
@@ -171,19 +171,19 @@ logic must avoid DB/native deps.
 
 ### 1a. Role-based portal isolation + login URL by role
 Two separate portals, both gated by [`src/proxy.ts`](src/proxy.ts):
-- `/admin/*` — **admin only**. Doctors get bounced to `/dashboard`. Unauthed visits → `/auth/admin/login`.
+- `/admin/*` — **admin only**. Doctors get bounced to `/dashboard`. Unauthed visits → `/auth/email/login`.
 - `/dashboard/*` — **doctor only**. Admins get bounced to `/admin`. Unauthed visits → `/auth/login` (phone-OTP).
 
 Login pages themselves redirect already-authenticated visitors to the right portal
 (see [auth/login/page.tsx](src/app/(auth)/auth/login/page.tsx) and
-[auth/admin/login/page.tsx](src/app/(auth)/auth/admin/login/page.tsx)), so "Sign in" on
+[auth/email/login/page.tsx](src/app/(auth)/auth/email/login/page.tsx)), so "Sign in" on
 the public header bounces signed-in users back to their dashboard instead of
 showing a stale login form.
 
 ### 1b. Doctor auth is phone + SMS OTP, *not* password
 - **Registration** ([startRegistrationAction → completeRegistrationAction](src/server/actions/auth.ts)): doctor submits BMDC + phone + name + **a mandatory live-camera selfie** (email optional) → OTP sent → OTP verified → User + Doctor + ClaimRequest materialized atomically inside `completeRegistrationAction` (which also mints the selfie's `File` doc). **No password is ever set on a doctor User row.** After verify, the client **auto-signs-in** by reusing the just-entered OTP (`completeRegistrationAction` leaves the OTP valid) and lands on `/dashboard?welcome=1` — no second code. See #17 for the selfie path and #1c for what's gated until approval.
 - **Login** ([requestLoginOtpAction + NextAuth `sms-otp` provider](src/server/actions/auth.ts)): phone → OTP → signed in. NextAuth's `sms-otp` Credentials provider in [auth/config.ts](src/lib/auth/config.ts) is the trust boundary — it re-validates the OTP hash and clears OTP state on success (**no approval gate on login** — see #1c). An **unknown phone returns a clear "No account found with this number. Please register first."** — the old silent enumeration-protection no-op was removed (UX over enumeration resistance; the per-phone rate limiter still applies). If a real SMS provider is configured but the send fails, the action returns an error instead of pretending success (the dev no-op still "succeeds" so offline testing works). Same send-failure handling on registration.
-- **Admin auth** unchanged: email + bcrypt password via the original Credentials provider, at `/auth/admin/login`.
+- **Admin auth** unchanged: email + bcrypt password via the original Credentials provider, at `/auth/email/login`.
 - Sessions persist for **30 days** via explicit cookie `maxAge` (see [auth/config.ts](src/lib/auth/config.ts) `cookies.sessionToken.options.maxAge`). Without this, NextAuth falls back to a session cookie that drops on browser close.
 
 ### 1c. `User.approved` gates PUBLISHING, not login
@@ -594,7 +594,7 @@ multi-MB phone photo typically drops 80–90%. Rules that will bite if forgotten
 | `npm run format` | Prettier (writes) |
 
 ### Default seed credentials
-- Admin: `admin@doctor.id.bd` / `ChangeMe!2026` (or the first email in `ADMIN_EMAILS`). Login at `/auth/admin/login`. Upserted with `approved: true` so the new-doctor approval gate doesn't trap them.
+- Admin: `admin@doctor.id.bd` / `ChangeMe!2026` (or the first email in `ADMIN_EMAILS`). Login at `/auth/email/login`. Upserted with `approved: true` so the new-doctor approval gate doesn't trap them.
 - 36 specialties (Cardiology, Gynecology, …, Nutrition & Dietetics) upserted by slug. Re-running never flips a manually-deactivated specialty back to active.
 - **No fake doctor profiles.** The default seed is purely a bootstrap. To populate doctors, run `npm run seed -- --source=popular-diagnostic` — that ingests the ~3,237 real BD doctors in `data/popular-diagnostic/` (claim flow binds via seeded phone, not BMDC#).
 

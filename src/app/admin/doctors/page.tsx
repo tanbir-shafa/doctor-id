@@ -1,7 +1,7 @@
 import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ExternalLink, Pencil } from "lucide-react";
+import { ExternalLink, Pencil, Plus } from "lucide-react";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Specialty } from "@/lib/db/models";
 import { listDoctorsForAdmin } from "@/lib/db/queries/admin";
@@ -65,6 +65,14 @@ export default async function AdminDoctorsPage({
             : `Showing ${rangeStart.toLocaleString()}–${rangeEnd.toLocaleString()} of ${total.toLocaleString()} doctors`
         }
         breadcrumb={[{ label: "Doctors" }]}
+        toolbar={
+          <Link
+            href="/admin/doctors/new"
+            className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="size-4" aria-hidden="true" /> New doctor
+          </Link>
+        }
       />
 
       <form className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-sm">

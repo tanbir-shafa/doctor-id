@@ -328,6 +328,156 @@ export async function listDoctorsForAdmin(params: AdminDoctorListParams): Promis
   };
 }
 
+// --- Admin chamber list (flattened across all doctors) ---
+
+export interface AdminChamberListParams {
+  q?: string;
+  division?: string;
+  district?: string;
+  /** Filter by the parent doctor's status (draft/published/suspended). */
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface AdminChamberRow {
+  doctorId: string;
+  slug: string;
+  doctorName: string;
+  doctorStatus: string;
+  chamberId: string;
+  name: string;
+  address: string;
+  area: string;
+  district: string;
+  division: string;
+  phone: string | null;
+  floor: string | null;
+  room: string | null;
+  consultationFee: { amount: number; currency: "BDT" | "USD" } | null;
+  scheduleCount: number;
+  isPrimary: boolean;
+}
+
+export interface AdminChamberListResult {
+  chambers: AdminChamberRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+/**
+ * Flattens every doctor's embedded `chambers[]` into a single global list for
+ * the /admin/chambers oversight page. Chambers are subdocuments (no top-level
+ * collection — see CLAUDE.md #19), so we `$unwind` them and carry the parent
+ * doctor's slug/name/status onto each row.
+ *
+ * Filters: free-text `q` (chamber name/address/area OR doctor display name),
+ * exact `division`/`district`, and the parent doctor's `status`. When a
+ * division/district filter is set we pre-`$match` before the unwind so the
+ * `{"chambers.district": 1}` index narrows the candidate docs, then re-match
+ * the exact chamber after the unwind (one doctor may have chambers in several
+ * districts, and the unwind would otherwise keep the non-matching ones).
+ */
+export async function listChambersForAdmin(
+  params: AdminChamberListParams,
+): Promise<AdminChamberListResult> {
+  await dbConnect();
+
+  const page = Math.min(ADMIN_MAX_PAGE, Math.max(1, Number(params.page) || 1));
+  const pageSize = Math.min(
+    ADMIN_MAX_PAGE_SIZE,
+    Math.max(ADMIN_MIN_PAGE_SIZE, Number(params.pageSize) || ADMIN_DEFAULT_PAGE_SIZE),
+  );
+  const skip = (page - 1) * pageSize;
+
+  const q = typeof params.q === "string" ? params.q.trim() : "";
+  const division = typeof params.division === "string" ? params.division.trim() : "";
+  const district = typeof params.district === "string" ? params.district.trim() : "";
+  const status =
+    typeof params.status === "string" && DOCTOR_STATUSES.includes(params.status)
+      ? params.status
+      : "";
+
+  // Pre-unwind narrowing — leans on the chambers.district / status indexes.
+  const preMatch: Record<string, unknown> = {};
+  if (status) preMatch.status = status;
+  if (district) preMatch["chambers.district"] = district;
+  if (division) preMatch["chambers.division"] = division;
+
+  // Per-chamber exact match after the unwind (drops sibling chambers in other
+  // districts that rode along on a matching parent doc).
+  const chamberMatch: Record<string, unknown> = {};
+  if (district) chamberMatch["chambers.district"] = district;
+  if (division) chamberMatch["chambers.division"] = division;
+  if (q) {
+    const rx = new RegExp(escapeRegex(q), "i");
+    chamberMatch.$or = [
+      { "chambers.name": rx },
+      { "chambers.address": rx },
+      { "chambers.area": rx },
+      { "name.displayName": rx },
+    ];
+  }
+
+  const pipeline: unknown[] = [
+    ...(Object.keys(preMatch).length ? [{ $match: preMatch }] : []),
+    { $unwind: "$chambers" },
+    ...(Object.keys(chamberMatch).length ? [{ $match: chamberMatch }] : []),
+    { $sort: { "chambers.district": 1, "name.displayName": 1, "chambers.name": 1 } },
+    {
+      $facet: {
+        rows: [
+          { $skip: skip },
+          { $limit: pageSize },
+          {
+            $project: {
+              _id: 0,
+              doctorId: "$_id",
+              slug: "$slug",
+              doctorName: "$name.displayName",
+              doctorStatus: "$status",
+              chamberId: "$chambers._id",
+              name: "$chambers.name",
+              address: "$chambers.address",
+              area: "$chambers.area",
+              district: "$chambers.district",
+              division: "$chambers.division",
+              phone: "$chambers.phone",
+              floor: "$chambers.floor",
+              room: "$chambers.room",
+              consultationFee: "$chambers.consultationFee",
+              isPrimary: "$chambers.isPrimary",
+              scheduleCount: { $size: { $ifNull: ["$chambers.schedule", []] } },
+            },
+          },
+        ],
+        total: [{ $count: "n" }],
+      },
+    },
+  ];
+
+  const agg = (await (Doctor as unknown as Loose).aggregate(pipeline)) as Array<{
+    rows: unknown[];
+    total: { n: number }[];
+  }>;
+
+  const facet = agg[0] ?? { rows: [], total: [] };
+  const total = facet.total[0]?.n ?? 0;
+  const chambers = (facet.rows as unknown[]).map(
+    (r) => JSON.parse(JSON.stringify(r)) as AdminChamberRow,
+  );
+
+  return {
+    chambers,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

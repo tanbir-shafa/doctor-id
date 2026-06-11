@@ -30,10 +30,13 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminDoctorEditPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ created?: string }>;
 }) {
   const { slug } = await params;
+  const { created } = await searchParams;
   await dbConnect();
   const doctorDoc = await Doctor.findOne({ slug }).lean();
   if (!doctorDoc) notFound();
@@ -104,6 +107,12 @@ export default async function AdminDoctorEditPage({
           </Link>
         }
       />
+
+      {created === "1" ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Doctor created. Fill in the remaining details (photo, specialties, chambers), then publish.
+        </div>
+      ) : null}
 
       <AdminPublishSection
         initialStatus={doctor.status}
@@ -242,15 +251,17 @@ export default async function AdminDoctorEditPage({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Chambers</CardTitle>
-          <CardDescription>Locations, schedule, map pin, fee.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AdminChambersSection initialChambers={chambersInitial} doctorId={doctorId} />
-        </CardContent>
-      </Card>
+      <div id="chambers" className="scroll-mt-20">
+        <Card>
+          <CardHeader>
+            <CardTitle>Chambers</CardTitle>
+            <CardDescription>Locations, schedule, map pin, fee.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AdminChambersSection initialChambers={chambersInitial} doctorId={doctorId} />
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>

@@ -18,7 +18,7 @@ type Step = "phone" | "otp";
  *   account exists for the number, so the user knows to register).
  * Step 2: enter the 6-digit OTP → `signIn("sms-otp")` mints the session.
  *
- * Admins use `/auth/admin/login` instead.
+ * Admins use `/auth/email/login` instead.
  */
 export function DoctorLoginForm({ defaultPhone = "", next }: { defaultPhone?: string; next?: string }) {
   const router = useRouter();

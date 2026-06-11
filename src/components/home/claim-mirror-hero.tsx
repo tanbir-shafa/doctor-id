@@ -131,11 +131,13 @@ export function ClaimMirrorHero({ totalDoctors }: { totalDoctors: number }) {
               {results && results.length > 0 ? (
                 <ul className="divide-y divide-border">
                   {results.map((d) => (
-                    // flex-wrap so the action button drops to its own full-width
-                    // line on mobile (sm:flex-nowrap keeps it inline on desktop).
+                    // `relative` so the row-link's ::after overlay (below) is
+                    // positioned against the whole <li>; flex-wrap drops the
+                    // secondary claim action to its own full-width line on mobile
+                    // (sm:flex-nowrap keeps it inline on desktop).
                     <li
                       key={d.slug}
-                      className="flex flex-wrap items-center gap-x-3 gap-y-2.5 p-3 sm:flex-nowrap"
+                      className="relative flex flex-wrap items-center gap-x-3 gap-y-2.5 p-3 hover:bg-accent sm:flex-nowrap"
                     >
                       {d.photo ? (
                         <Image
@@ -152,9 +154,13 @@ export function ClaimMirrorHero({ totalDoctors }: { totalDoctors: number }) {
                       )}
                       <div className="min-w-0 flex-1">
                         {/* full name shown in full — wraps instead of truncating,
-                            with the verified badge trailing inline */}
+                            with the verified badge trailing inline. The name links
+                            to the public profile; its `after:inset-0` overlay makes
+                            the entire row clickable → the doctor's public page. */}
                         <p className="font-medium text-foreground">
-                          {d.name}
+                          <Link href={d.url} className="after:absolute after:inset-0 after:content-['']">
+                            {d.name}
+                          </Link>
                           <VerifiedBadge
                             level={d.verificationLevel}
                             className="ml-1.5 align-middle"
@@ -164,22 +170,19 @@ export function ClaimMirrorHero({ totalDoctors }: { totalDoctors: number }) {
                           {[d.specialty, d.district].filter(Boolean).join(" · ") || "Doctor"}
                         </p>
                       </div>
-                      {d.isClaimed ? (
-                        <Link
-                          href={d.url}
-                          className="inline-flex w-full shrink-0 justify-center rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent sm:w-auto"
-                        >
-                          View profile
-                        </Link>
-                      ) : (
+                      {/* Unclaimed profiles keep a secondary "claim" CTA, lifted
+                          above the row overlay (relative z-10) so it stays
+                          independently clickable while the rest of the row opens
+                          the public profile. */}
+                      {!d.isClaimed ? (
                         <Link
                           href={`/auth/register?slug=${encodeURIComponent(d.slug)}`}
-                          className="inline-flex w-full shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 sm:w-auto"
+                          className="relative z-10 inline-flex w-full shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 sm:w-auto"
                         >
                           Is this you? Claim free
                           <ArrowRight className="size-3.5" aria-hidden="true" />
                         </Link>
-                      )}
+                      ) : null}
                     </li>
                   ))}
                 </ul>

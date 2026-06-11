@@ -8,6 +8,7 @@ import {
   IdCard,
   Users,
   Tag,
+  Building2,
   Stethoscope,
   ChevronRight,
   Sparkles,
@@ -92,6 +93,13 @@ export function AdminSidebar({
           active={pathname.startsWith("/admin/doctors")}
         >
           Doctors
+        </NavItem>
+        <NavItem
+          href="/admin/chambers"
+          icon={Building2}
+          active={pathname.startsWith("/admin/chambers")}
+        >
+          Chambers
         </NavItem>
         <NavItem
           href="/admin/specialties"

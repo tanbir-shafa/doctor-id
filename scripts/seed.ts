@@ -210,7 +210,7 @@ async function main() {
   };
   console.log("\n✓ Seed complete:");
   console.table(counts);
-  console.log(`  Admin login: ${adminEmail} / ChangeMe!2026 at /auth/admin/login`);
+  console.log(`  Admin login: ${adminEmail} / ChangeMe!2026 at /auth/email/login`);
   console.log(
     "  Tip: run `npm run seed -- --source=popular-diagnostic` to ingest real BD doctor profiles.",
   );
