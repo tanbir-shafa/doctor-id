@@ -257,7 +257,7 @@ The new `File` model and updated `PhotoSchema` introduced several issues that ne
      3. Load Doctor by slug; require `isClaimed: false`.
      4. **Phone-as-identity-proxy:** if `Doctor.contact.publicPhone` (normalized) !== entered phone → return `{ ok: true }` (silent no-op). Popular Diagnostic data has no BMDC#; the seeded phone is the binding key.
      5. Upsert User by phone; generate 6-digit OTP; hash with sha256 + `AUTH_SECRET`; store with `smsOtpExpiresAt = now + 10min`; reset attempts.
-     6. `sendSms({ to: phone, body: "doctor.id.bd: your code is XXXXXX. Claim: <short-link> ..." })`.
+     6. `sendSms({ to: phone, body: "Daktar.Link: your code is XXXXXX. Claim: <short-link> ..." })`.
      7. Return `{ ok: true }`.
    - `verifySmsOtpAndClaimAction({ phone, otp, slug })`:
      1. `smsOtpVerifyLimiter`.
@@ -478,7 +478,7 @@ Also new model `src/lib/db/models/OptOut.ts` — `phone: string` unique (E.164).
 3. Outbound script `scripts/outbound.ts`:
    - CLI: `--cohort=city=Dhaka,specialty=Cardiology --limit=N --dry-run`.
    - Iterates `Doctor.find({ isClaimed: false, status: 'published', ...filters })`.
-   - Per doctor: pick best phone (`contact.publicPhone` → fallback `chambers[0].phone`); normalize; check `OptOut`; pick template (Bangla preferred for BD names); generate `shortToken`; render body with `{{shortLink}} = https://doctor.id.bd/c/<token>`; `sendSms`; persist `OutboundMessage`; respect per-day cap; exponential backoff on failure.
+   - Per doctor: pick best phone (`contact.publicPhone` → fallback `chambers[0].phone`); normalize; check `OptOut`; pick template (Bangla preferred for BD names); generate `shortToken`; render body with `{{shortLink}} = https://daktar.link/c/<token>`; `sendSms`; persist `OutboundMessage`; respect per-day cap; exponential backoff on failure.
    - Idempotency by `(doctorId, templateId)` within 7 days — don't re-send.
 4. Attribution in `verifySmsOtpAndClaimAction` (A.4): if request URL had `?t=<shortToken>` (added by the short-link redirect via query), set `OutboundMessage.claimedAt: now`.
 5. **Webhook (if MDL supports it)** — `POST /api/webhooks/sms` updating `deliveredAt` + `status`. HMAC-verified with `MDL_SMS_WEBHOOK_SECRET`. If MDL doesn't expose webhooks, skip — `deliveredAt` stays null and reporting uses `sent` as the success signal.

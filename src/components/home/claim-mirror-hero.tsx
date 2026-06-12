@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Search, ArrowRight, Loader2, UserPlus } from "lucide-react";
 import { VerifiedBadge } from "@/components/profile/verified-badge";
+import { BrandMark } from "@/components/layout/brand-mark";
 import { searchTypeaheadAction } from "@/server/actions/search";
 import type { VerificationLevel } from "@/types/doctor";
 
@@ -91,6 +92,7 @@ export function ClaimMirrorHero({ totalDoctors }: { totalDoctors: number }) {
       className="scroll-mt-20 border-b border-border bg-gradient-to-b from-primary/5 to-background"
     >
       <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:py-20">
+        <BrandMark className="mx-auto mb-6 block size-16 drop-shadow-sm sm:size-20" />
         <p className="text-sm font-medium uppercase tracking-wider text-primary">
           Bangladesh&apos;s verified doctor directory
         </p>

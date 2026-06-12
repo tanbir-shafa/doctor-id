@@ -1,6 +1,6 @@
 # Getting started
 
-This is the **doctor.id.bd** local dev setup guide. It assumes nothing beyond
+This is the **Daktar.Link** local dev setup guide. It assumes nothing beyond
 a working Node toolchain and gets you from `git clone` to a running app with
 real seed data in about 10 minutes.
 
@@ -30,7 +30,7 @@ npm run dev
 # → open http://localhost:3000
 ```
 
-Admin login: `admin@doctor.id.bd` / `ChangeMe!2026` at `/auth/email/login`.
+Admin login: `admin@daktar.link` / `ChangeMe!2026` at `/auth/email/login`.
 
 ---
 
@@ -88,7 +88,7 @@ cp .env.example .env.local
 | `SSL_SMS_API_TOKEN` + `SSL_SMS_SID` (`SMS_PROVIDER=ssl`, default) | Real SMS via **SSL Wireless iSMS Plus v3** (login OTPs, registration OTPs, appointment notifications, outbound campaigns). **Live sends require the request IP to be whitelisted** in the SSL portal. MDL is a one-env fallback (`SMS_PROVIDER=mdl` + `MDL_SMS_*`). | `sendSms()` logs the SMS body + 6-digit OTP to the dev console. **You can complete a full registration / login flow this way.** |
 | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | Real rate-limiting on login, OTPs, appointment submissions, outbound. Uses Upstash's **REST** API (works on long-running EC2; `@upstash/ratelimit` requires it — no TCP client). | Limiters return `{ success: true }` — fine for solo dev, never for prod. |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth on admin login. | Credentials-only login still works. |
-| `ADMIN_EMAILS` | Comma-separated list of emails granted `role: 'admin'` at signup or seed-bootstrap. | The seed script defaults to `admin@doctor.id.bd`. |
+| `ADMIN_EMAILS` | Comma-separated list of emails granted `role: 'admin'` at signup or seed-bootstrap. | The seed script defaults to `admin@daktar.link`. |
 | `NEXT_PUBLIC_APP_URL` | Used in absolute-URL contexts (OG image, claim links, QR codes in the Rx pad). | Defaults to `http://localhost:3000`. |
 
 The env loader at [`src/lib/env.ts`](../src/lib/env.ts) validates each var
@@ -151,7 +151,7 @@ Outputs:
 
 ```
 → Bootstrap mode (admin + specialty catalog)
-  ✓ admin: admin@doctor.id.bd
+  ✓ admin: admin@daktar.link
   ✓ 36 specialties ready
 
 ✓ Seed complete:
@@ -163,12 +163,12 @@ Outputs:
 │ admins            │ 1      │
 │ doctors           │ 0      │
 └───────────────────┴────────┘
-  Admin login: admin@doctor.id.bd / ChangeMe!2026 at /auth/email/login
+  Admin login: admin@daktar.link / ChangeMe!2026 at /auth/email/login
 ```
 
 What this does:
 
-- **Upserts the admin user** at `admin@doctor.id.bd` (or the first email in
+- **Upserts the admin user** at `admin@daktar.link` (or the first email in
   `ADMIN_EMAILS`), with `role: "admin"` and `approved: true`. Password is
   set on insert only — re-runs never overwrite a rotated password.
 - **Upserts 36 specialties** by slug (Cardiology, Gynecology, Pediatrics, …
@@ -245,7 +245,7 @@ to your `npm run dev` console**. Walk through it:
    ```
    ─── [SSL SMS no-op] would have sent SMS ───
    To:        +8801711563450
-   Body:      doctor.id.bd: Your verification code is 348127. ...
+   Body:      Daktar.Link: Your verification code is 348127. ...
    ```
 
 5. Enter the OTP on the page → registration completes. **You'll see a "pending admin approval" card**, not a dashboard.
@@ -365,7 +365,7 @@ The full architectural rationale lives in
 
 ### Create a new admin
 
-The seed script auto-bootstraps `admin@doctor.id.bd` with role=admin. To
+The seed script auto-bootstraps `admin@daktar.link` with role=admin. To
 promote a different email, set `ADMIN_EMAILS=foo@example.com,bar@example.com`
 in `.env.local` before running the seed. Or update the User directly in
 Mongo (Compass: set `role: "admin"`, `approved: true`).
@@ -470,7 +470,7 @@ OTP/API protections weaken.
 ```nginx
 server {
   listen 443 ssl;
-  server_name doctor.id.bd;
+  server_name Daktar.Link;
 
   location / {
     proxy_pass         http://127.0.0.1:3000;   # app bound to localhost ONLY

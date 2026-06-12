@@ -27,7 +27,7 @@ const EXPLAIN: Record<VerificationLevel, Explanation> = {
   fully_verified: {
     title: "Verified profile",
     summary:
-      "doctor.id.bd has confirmed both this doctor's professional registration and their identity.",
+      "Daktar.Link has confirmed both this doctor's professional registration and their identity.",
     bmdc: true,
     identity: true,
   },
@@ -46,7 +46,7 @@ const EXPLAIN: Record<VerificationLevel, Explanation> = {
   },
   unverified: {
     title: "Not verified yet",
-    summary: "doctor.id.bd hasn't verified this profile yet.",
+    summary: "Daktar.Link hasn't verified this profile yet.",
     bmdc: false,
     identity: false,
   },
@@ -115,7 +115,7 @@ export function VerifiedBadgeExplainer({
             </ul>
             <p className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">
               {level === "fully_verified"
-                ? "This is the highest trust level on doctor.id.bd."
+                ? "This is the highest trust level on Daktar.Link."
                 : "The blue Verified tick is granted once both checks pass."}
             </p>
           </div>

@@ -201,7 +201,7 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
   const draftExpiresAt = new Date(Date.now() + REG_DRAFT_TTL_MIN * 60 * 1000);
 
   const setOnInsert: Record<string, unknown> = {
-    email: normalizedEmail ?? `${normalizedPhone.replace(/[^\d]/g, "")}@phone.doctor.id.bd`,
+    email: normalizedEmail ?? `${normalizedPhone.replace(/[^\d]/g, "")}@phone.daktar.link`,
     role: "doctor",
   };
 
@@ -235,7 +235,7 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
   );
 
   const verifyUrl = `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/register?phone=${encodeURIComponent(normalizedPhone)}&step=verify${claimSlug ? `&slug=${encodeURIComponent(claimSlug)}` : ""}`;
-  const body = `doctor.id.bd: Your verification code is ${code}. Valid for ${OTP_TTL_MINUTES} minutes. ${verifyUrl}`;
+  const body = `Daktar.Link: Your verification code is ${code}. Valid for ${OTP_TTL_MINUTES} minutes. ${verifyUrl}`;
   const smsResult = await sendSms({ to: normalizedPhone, body });
   // When a real SMS provider is configured but the send fails (gateway/IP/auth
   // error), tell the user instead of advancing to the code screen. In dev with
@@ -320,7 +320,7 @@ export async function requestLoginOtpAction(input: {
     },
   );
 
-  const body = `doctor.id.bd: Your sign-in code is ${code}. Valid for ${OTP_TTL_MINUTES} minutes.`;
+  const body = `Daktar.Link: Your sign-in code is ${code}. Valid for ${OTP_TTL_MINUTES} minutes.`;
   const smsResult = await sendSms({ to: phone, body });
   if (!smsResult.sent && getSmsProvider().isConfigured()) {
     return {
@@ -621,9 +621,9 @@ async function materializeRegistration(args: {
     });
   }
 
-  // Swap a synthetic phone@phone.doctor.id.bd placeholder for the real
+  // Swap a synthetic phone@phone.daktar.link placeholder for the real
   // email the doctor supplied, if any.
-  if (draft.email && existingEmail.endsWith("@phone.doctor.id.bd")) {
+  if (draft.email && existingEmail.endsWith("@phone.daktar.link")) {
     await User.updateOne({ _id: userId as never }, { $set: { email: draft.email } });
   }
 }

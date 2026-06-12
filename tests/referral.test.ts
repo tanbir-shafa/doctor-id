@@ -28,20 +28,20 @@ describe("isFoundingQualified", () => {
 
 describe("buildReferralLink", () => {
   it("builds a register link with a BMDC number as ?ref=", () => {
-    expect(buildReferralLink("https://doctor.id.bd", "12345")).toBe(
-      "https://doctor.id.bd/auth/register?ref=12345",
+    expect(buildReferralLink("https://daktar.link", "12345")).toBe(
+      "https://daktar.link/auth/register?ref=12345",
     );
   });
 
   it("still works with a slug (legacy links stay valid)", () => {
-    expect(buildReferralLink("https://doctor.id.bd", "karim-rahman-cardiologist")).toBe(
-      "https://doctor.id.bd/auth/register?ref=karim-rahman-cardiologist",
+    expect(buildReferralLink("https://daktar.link", "karim-rahman-cardiologist")).toBe(
+      "https://daktar.link/auth/register?ref=karim-rahman-cardiologist",
     );
   });
 
   it("trims a trailing slash on the base URL", () => {
-    expect(buildReferralLink("https://doctor.id.bd/", "x-slug")).toBe(
-      "https://doctor.id.bd/auth/register?ref=x-slug",
+    expect(buildReferralLink("https://daktar.link/", "x-slug")).toBe(
+      "https://daktar.link/auth/register?ref=x-slug",
     );
   });
 

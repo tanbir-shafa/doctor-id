@@ -28,9 +28,9 @@ import { SpecialtyGrid } from "@/components/home/specialty-grid";
 import { WhyFreeBand } from "@/components/home/why-free-band";
 
 export const metadata: Metadata = {
-  title: { absolute: "doctor.id.bd — Claim your verified doctor profile in Bangladesh" },
+  title: { absolute: "Daktar.Link — Claim your verified doctor profile in Bangladesh" },
   description:
-    "Your patients are already searching for you. Claim your free, BMDC-verified profile on doctor.id.bd — shareable on WhatsApp, your prescription pad, and Google.",
+    "Your patients are already searching for you. Claim your free, BMDC-verified profile on Daktar.Link — shareable on WhatsApp, your prescription pad, and Google.",
   alternates: { canonical: "/" },
 };
 

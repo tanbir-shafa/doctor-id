@@ -114,7 +114,7 @@ export async function GET(
                                     display: "flex",
                                 }}
                             />
-                            <div style={{display: "flex"}}>doctor.id.bd</div>
+                            <div style={{display: "flex"}}>Daktar.Link</div>
                         </div>
                         <div
                             style={{
@@ -205,7 +205,7 @@ export async function GET(
                     />
                     <div style={{fontSize: 18, color: "#475569", display: "flex"}}>Scan to view profile</div>
                     <div style={{fontSize: 14, color: "#94a3b8", display: "flex"}}>
-                        doctor.id.bd / {doc.slug}
+                        daktar.link / {doc.slug}
                     </div>
                 </div>
             </div>

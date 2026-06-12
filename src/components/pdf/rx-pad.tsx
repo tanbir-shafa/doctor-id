@@ -157,7 +157,7 @@ export function RxPad({ dto }: { dto: RxPadDto }) {
     dto.degrees.length > 80 ? `${dto.degrees.slice(0, 77).trim()}…` : dto.degrees;
 
   return (
-    <Document title={`Rx pad — ${dto.displayName}`} author="doctor.id.bd">
+    <Document title={`Rx pad — ${dto.displayName}`} author="Daktar.Link">
       <Page size="A5" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
@@ -186,7 +186,7 @@ export function RxPad({ dto }: { dto: RxPadDto }) {
             {/* qrDataUrl is injected by the route handler */}
             {/* eslint-disable-next-line jsx-a11y/alt-text */}
             <Image src={(dto as RxPadDto & { qrDataUrl: string }).qrDataUrl} style={styles.qr} />
-            <Text style={styles.qrLabel}>doctor.id.bd</Text>
+            <Text style={styles.qrLabel}>Daktar.Link</Text>
           </View>
         </View>
 
@@ -215,7 +215,7 @@ export function RxPad({ dto }: { dto: RxPadDto }) {
         {/* Footer */}
         <View style={styles.footer}>
           <View>
-            <Text>doctor.id.bd — verified professional identity</Text>
+            <Text>Daktar.Link — verified professional identity</Text>
             <Text style={{ marginTop: 1, color: "#cbd5e1" }}>
               Identity card · Powered by Shafa Care Ltd
             </Text>

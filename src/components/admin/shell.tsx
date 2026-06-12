@@ -139,7 +139,7 @@ export function AdminShell({
         {/* Footer */}
         <footer className="border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>© Shafa Care Ltd · doctor.id.bd admin</span>
+            <span>© Shafa Care Ltd · Daktar.Link admin</span>
             <span className="text-slate-400">v0.1 · Sprint A</span>
           </div>
         </footer>

@@ -23,7 +23,7 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Email change is admin-only in MVP — contact support@doctor.id.bd to change yours.
+            Email change is admin-only in MVP — contact support@daktar.link to change yours.
           </p>
         </CardContent>
       </Card>

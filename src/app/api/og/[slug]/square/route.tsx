@@ -35,7 +35,7 @@ export async function GET(
         return new ImageResponse(
             (
                 <div style={{...fallbackStyle, display: "flex"}}>
-                    <div style={{fontSize: 56, fontWeight: 700, display: "flex"}}>doctor.id.bd</div>
+                    <div style={{fontSize: 56, fontWeight: 700, display: "flex"}}>Daktar.Link</div>
                     <div style={{fontSize: 28, color: "#64748b", display: "flex"}}>Profile not found</div>
                 </div>
             ),
@@ -56,7 +56,7 @@ export async function GET(
             ? "Fully verified"
             : doc.verificationLevel === "bmdc_verified"
               ? "BMDC verified"
-              : "Profile on doctor.id.bd";
+              : "Profile on Daktar.Link";
 
     return new ImageResponse(
         (
@@ -83,7 +83,7 @@ export async function GET(
                             display: "flex",
                         }}
                     />
-                    <div style={{display: "flex"}}>doctor.id.bd</div>
+                    <div style={{display: "flex"}}>Daktar.Link</div>
                 </div>
 
                 {/* Main column */}
@@ -197,7 +197,7 @@ export async function GET(
                         opacity: 0.9,
                     }}
                 >
-                    <div style={{display: "flex"}}>doctor.id.bd / {doc.slug}</div>
+                    <div style={{display: "flex"}}>daktar.link / {doc.slug}</div>
                 </div>
             </div>
         ),

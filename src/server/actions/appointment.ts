@@ -129,7 +129,7 @@ export async function createAppointmentRequestAction(
     normalizeBdPhone(doctor.contact?.whatsapp ?? null);
   if (doctorPhone) {
     const inboxUrl = `${publicEnv.NEXT_PUBLIC_APP_URL}/dashboard/requests`;
-    const smsBody = `doctor.id.bd: New appointment request from ${data.patientName.trim()} (${phone}). Open your inbox: ${inboxUrl}`;
+    const smsBody = `Daktar.Link: New appointment request from ${data.patientName.trim()} (${phone}). Open your inbox: ${inboxUrl}`;
     sendSms({ to: doctorPhone, body: smsBody })
       .then((r) => {
         if (r.sent) {

@@ -1,10 +1,12 @@
 import type { Loose } from "@/lib/db/models/loose";
 import Link from "next/link";
-import { Stethoscope, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { auth } from "@/lib/auth/config";
 import { redirect } from "next/navigation";
 import { DashboardNav } from "@/components/layout/dashboard-nav";
 import { DashboardMobileNav } from "@/components/layout/dashboard-mobile-nav";
+import { BrandWordmark } from "@/components/layout/brand-wordmark";
+import { BrandMark } from "@/components/layout/brand-mark";
 import { logoutAction } from "@/server/actions/auth";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor, AppointmentRequest } from "@/lib/db/models";
@@ -43,8 +45,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
               pendingRequestCount={pendingRequestCount}
             />
             <Link href="/" className="flex items-center gap-2 font-semibold">
-              <Stethoscope className="size-5 text-primary" aria-hidden="true" />
-              <span>doctor.id.bd</span>
+              <BrandMark className="size-7" />
+              <BrandWordmark />
               <span className="ml-2 hidden rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary sm:inline">
                 Dashboard
               </span>

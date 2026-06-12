@@ -70,7 +70,7 @@ export default async function PrescriptionPadPage() {
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Prescription pad</h1>
         <p className="text-sm text-muted-foreground">
           A free A5 PDF with your identity, BMDC#, chambers, and a QR code to your public profile.
-          Print and use as your chamber pad — patients see <strong>doctor.id.bd</strong> on every
+          Print and use as your chamber pad — patients see <strong>Daktar.Link</strong> on every
           prescription you hand out.
         </p>
       </header>
@@ -148,7 +148,7 @@ export default async function PrescriptionPadPage() {
               />
               <p className="mt-3 text-xs text-muted-foreground">
                 Identity card only — no medical content. The QR links to{" "}
-                <strong>doctor.id.bd/{doctor.slug}</strong> so patients can verify your profile
+                <strong>daktar.link/{doctor.slug}</strong> so patients can verify your profile
                 online.
               </p>
             </CardContent>

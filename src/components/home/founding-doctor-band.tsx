@@ -25,7 +25,7 @@ export function FoundingDoctorBand({ foundingCount = 0 }: { foundingCount?: numb
             Become a Founding Doctor
           </h2>
           <p className="mt-3 text-muted-foreground">
-            Refer {FOUNDING_DOCTOR_THRESHOLD} doctors who get verified on doctor.id.bd and earn a
+            Refer {FOUNDING_DOCTOR_THRESHOLD} doctors who get verified on Daktar.Link and earn a
             permanent Founding Doctor badge — with benefits worth a lifetime.
             {foundingCount > 0
               ? ` Join ${Intl.NumberFormat("en-IN").format(foundingCount)} founding ${foundingCount === 1 ? "doctor" : "doctors"} already onboard.`

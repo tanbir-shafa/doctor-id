@@ -135,7 +135,7 @@ async function ensureChambers(dryRun = false): Promise<number> {
 
 /**
  * Upsert the bootstrap admin user. Email comes from `ADMIN_EMAILS[0]`
- * when set, otherwise the default `admin@doctor.id.bd`. The password is
+ * when set, otherwise the default `admin@daktar.link`. The password is
  * set only on insert — re-running never overwrites a rotated password.
  *
  * `approved: true` is set explicitly so the approval gate (which defaults
@@ -143,7 +143,7 @@ async function ensureChambers(dryRun = false): Promise<number> {
  */
 async function ensureBootstrapAdmin(): Promise<{ adminId: mongoose.Types.ObjectId; email: string }> {
   const adminEmail = (
-    process.env.ADMIN_EMAILS?.split(",")[0]?.trim() || "admin@doctor.id.bd"
+    process.env.ADMIN_EMAILS?.split(",")[0]?.trim() || "admin@daktar.link"
   ).toLowerCase();
   const adminPassword = "ChangeMe!2026";
   const adminHash = await bcrypt.hash(adminPassword, 12);

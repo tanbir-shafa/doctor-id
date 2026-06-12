@@ -14,11 +14,12 @@ import {
   BarChart3,
   Settings,
   LogOut,
-  Stethoscope,
   FileText,
   Inbox,
   Gift,
 } from "lucide-react";
+import { BrandWordmark } from "@/components/layout/brand-wordmark";
+import { BrandMark } from "@/components/layout/brand-mark";
 import { cn } from "@/lib/utils";
 import { logoutAction } from "@/server/actions/auth";
 
@@ -99,8 +100,8 @@ export function DashboardMobileNav({
           <div className="absolute left-0 top-0 flex h-full w-72 max-w-[80vw] flex-col bg-background shadow-xl">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <Link href="/" className="inline-flex items-center gap-2 font-semibold">
-                <Stethoscope className="size-5 text-primary" aria-hidden="true" />
-                doctor.id.bd
+                <BrandMark className="size-7" />
+                <BrandWordmark />
               </Link>
               <button
                 type="button"

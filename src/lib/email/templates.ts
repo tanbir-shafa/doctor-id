@@ -8,7 +8,7 @@ import { publicEnv } from "@/lib/env";
  * `sendEmail()` (the SES port sends an HTML body — see ses.ts).
  */
 
-const APP_NAME = "doctor.id.bd";
+const APP_NAME = "Daktar.Link";
 
 function shell(body: string): string {
   return `<!doctype html>

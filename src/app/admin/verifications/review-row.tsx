@@ -84,7 +84,7 @@ export function ReviewRow({ claim, nowIso }: Props) {
 
   const sla = classifySla(claim, new Date(nowIso));
   const requesterEmail = claim.requestedBy?.email ?? "—";
-  const isSyntheticEmail = requesterEmail.endsWith("@phone.doctor.id.bd");
+  const isSyntheticEmail = requesterEmail.endsWith("@phone.daktar.link");
   const requesterPhone = claim.requestedBy?.phone ?? "—";
   const bmdcChanged =
     claim.bmdcNumberProvided &&

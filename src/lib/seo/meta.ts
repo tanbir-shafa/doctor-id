@@ -20,7 +20,7 @@ export function buildProfileMetadata(doc: DoctorDocLike): Metadata {
   const description =
     doc.seoDescription ||
     (doc.bio?.slice(0, 160) ??
-      `${fullName} is a ${specialtyLabel}${cityLabel}. View chambers, schedule, qualifications, and contact details on doctor.id.bd.`);
+      `${fullName} is a ${specialtyLabel}${cityLabel}. View chambers, schedule, qualifications, and contact details on Daktar.Link.`);
 
   const url = `${publicEnv.NEXT_PUBLIC_APP_URL}/${doc.slug}`;
   const ogImageUrl = `${publicEnv.NEXT_PUBLIC_APP_URL}/api/og/${doc.slug}`;
@@ -34,7 +34,7 @@ export function buildProfileMetadata(doc: DoctorDocLike): Metadata {
       description,
       url,
       type: "profile",
-      siteName: "doctor.id.bd",
+      siteName: "Daktar.Link",
       images: [
         {
           url: ogImageUrl,

@@ -38,7 +38,7 @@ export const OUTBOUND_TEMPLATES: Record<string, OutboundTemplate> = {
     id: "en-claim-rx-pad",
     description:
       "English broadcast — identical body for every doctor. Batchable 20-per-call.",
-    body: "doctor.id.bd: Your professional profile is ready. Claim it free + get a printable A5 prescription pad: https://doctor.id.bd/claim. Reply STOP to opt out.",
+    body: "Daktar.Link: Your professional profile is ready. Claim it free + get a printable A5 prescription pad: https://daktar.link/claim. Reply STOP to opt out.",
     personalized: false,
     language: "en",
   },
@@ -46,7 +46,7 @@ export const OUTBOUND_TEMPLATES: Record<string, OutboundTemplate> = {
     id: "bn-claim-rx-pad",
     description:
       "Bangla broadcast — identical body for every doctor. Batchable 20-per-call.",
-    body: "doctor.id.bd: আপনার প্রোফাইল প্রস্তুত। বিনামূল্যে দাবি করুন + ফ্রি প্রেসক্রিপশন প্যাড পান: https://doctor.id.bd/claim। বন্ধ করতে STOP লিখে রিপ্লাই করুন।",
+    body: "Daktar.Link: আপনার প্রোফাইল প্রস্তুত। বিনামূল্যে দাবি করুন + ফ্রি প্রেসক্রিপশন প্যাড পান: https://daktar.link/claim। বন্ধ করতে STOP লিখে রিপ্লাই করুন।",
     personalized: false,
     language: "bn",
   },
@@ -54,7 +54,7 @@ export const OUTBOUND_TEMPLATES: Record<string, OutboundTemplate> = {
     id: "en-claim-rx-pad-personal",
     description:
       "English personalized — uses {{firstName}}; 1-per-call, higher engagement.",
-    body: "doctor.id.bd: Hi Dr. {{firstName}}, your profile is ready. Claim it free: https://doctor.id.bd/{{slug}}. Reply STOP to opt out.",
+    body: "Daktar.Link: Hi Dr. {{firstName}}, your profile is ready. Claim it free: https://daktar.link/{{slug}}. Reply STOP to opt out.",
     personalized: true,
     language: "en",
   },

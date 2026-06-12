@@ -7,7 +7,7 @@ let buildShareTextForDoctor: typeof import("@/lib/share/text").buildShareTextFor
 let buildWhatsappShareUrl: typeof import("@/lib/share/text").buildWhatsappShareUrl;
 
 beforeAll(async () => {
-    process.env.NEXT_PUBLIC_APP_URL = "https://doctor.id.bd";
+    process.env.NEXT_PUBLIC_APP_URL = "https://daktar.link";
     const mod = await import("@/lib/share/text");
     buildShareText = mod.buildShareText;
     buildShareTextForDoctor = mod.buildShareTextForDoctor;
@@ -56,7 +56,7 @@ describe("buildShareText", () => {
         expect(t.split("\n")).toEqual([
             "Dr. Karim Rahman",
             "Cardiology · Dhanmondi, Dhaka",
-            "https://doctor.id.bd/dr-karim-rahman-cardiologist",
+            "https://daktar.link/dr-karim-rahman-cardiologist",
         ]);
     });
 
@@ -64,7 +64,7 @@ describe("buildShareText", () => {
         const t = buildShareTextForDoctor(doc({specialties: [], chambers: []}));
         expect(t.split("\n")).toEqual([
             "Dr. Karim Rahman",
-            "https://doctor.id.bd/dr-karim-rahman-cardiologist",
+            "https://daktar.link/dr-karim-rahman-cardiologist",
         ]);
     });
 
@@ -78,13 +78,13 @@ describe("buildShareText", () => {
     });
 
     it("trims trailing slash on app URL", async () => {
-        process.env.NEXT_PUBLIC_APP_URL = "https://doctor.id.bd/";
+        process.env.NEXT_PUBLIC_APP_URL = "https://daktar.link/";
         // re-import to refresh the cached env
         const fresh = await import("@/lib/share/text");
         const t = fresh.buildShareText({displayName: "Dr. X", slug: "y"});
-        expect(t.endsWith("https://doctor.id.bd/y")).toBe(true);
+        expect(t.endsWith("https://daktar.link/y")).toBe(true);
         expect(t).not.toContain("//y");
-        process.env.NEXT_PUBLIC_APP_URL = "https://doctor.id.bd";
+        process.env.NEXT_PUBLIC_APP_URL = "https://daktar.link";
     });
 });
 

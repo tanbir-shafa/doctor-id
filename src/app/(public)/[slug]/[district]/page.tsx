@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const title = `${specialty.name} doctors in ${districtLabel}`;
   return {
     title,
-    description: `Verified ${specialty.name.toLowerCase()} doctors in ${districtLabel}. Chambers, schedules, contact details — all on doctor.id.bd.`,
+    description: `Verified ${specialty.name.toLowerCase()} doctors in ${districtLabel}. Chambers, schedules, contact details — all on Daktar.Link.`,
     alternates: { canonical: `${publicEnv.NEXT_PUBLIC_APP_URL}/${slug}/${district}` },
   };
 }

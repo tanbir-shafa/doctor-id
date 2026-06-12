@@ -1,8 +1,8 @@
 @AGENTS.md
 
-# doctor.id.bd — agent context
+# Daktar.Link — agent context
 
-**What this is**: Next.js + MongoDB application for `doctor.id.bd` — a public,
+**What this is**: Next.js + MongoDB application for `Daktar.Link` — a public,
 SEO-first professional profile directory for Bangladeshi doctors. The
 supply-side acquisition channel for Shafa Care Ltd's future EMR/HMS product.
 Every doctor profile is a public landing page; doctors share their
@@ -295,7 +295,7 @@ the top of the file (default is jsdom).
 [`src/lib/fhir/practitioner.ts`](src/lib/fhir/practitioner.ts) is the single
 seam between internal schema and FHIR R4 Practitioner. When the EMR
 integration starts (Phase 3), changes go here. BD-specific fields live on
-`Practitioner.extension` entries under `https://doctor.id.bd/fhir/`.
+`Practitioner.extension` entries under `https://daktar.link/fhir/`.
 
 ### 11. Mongo `$text` search ceiling
 `searchDoctors` in [`src/lib/db/queries/doctors.ts`](src/lib/db/queries/doctors.ts)
@@ -594,7 +594,7 @@ multi-MB phone photo typically drops 80–90%. Rules that will bite if forgotten
 | `npm run format` | Prettier (writes) |
 
 ### Default seed credentials
-- Admin: `admin@doctor.id.bd` / `ChangeMe!2026` (or the first email in `ADMIN_EMAILS`). Login at `/auth/email/login`. Upserted with `approved: true` so the new-doctor approval gate doesn't trap them.
+- Admin: `admin@daktar.link` / `ChangeMe!2026` (or the first email in `ADMIN_EMAILS`). Login at `/auth/email/login`. Upserted with `approved: true` so the new-doctor approval gate doesn't trap them.
 - 36 specialties (Cardiology, Gynecology, …, Nutrition & Dietetics) upserted by slug. Re-running never flips a manually-deactivated specialty back to active.
 - **No fake doctor profiles.** The default seed is purely a bootstrap. To populate doctors, run `npm run seed -- --source=popular-diagnostic` — that ingests the ~3,237 real BD doctors in `data/popular-diagnostic/` (claim flow binds via seeded phone, not BMDC#).
 

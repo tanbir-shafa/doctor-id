@@ -1,10 +1,10 @@
-# doctor.id.bd
+# Daktar.Link
 
 Bangladesh's verified doctor directory. A Next.js + MongoDB application — the
 supply-side acquisition channel for **Shafa Care Ltd**'s EMR/HMS product.
 
 Every doctor profile is a public SEO landing page; doctors share their
-`doctor.id.bd/[slug]` URL on WhatsApp bios, prescription pads, and business
+`daktar.link/[slug]` URL on WhatsApp bios, prescription pads, and business
 cards. The data model is FHIR-Practitioner-aligned so it can feed the future
 EMR without a schema rewrite.
 
@@ -58,7 +58,7 @@ The seed script creates an admin user:
 
 | Email | Password |
 |---|---|
-| `admin@doctor.id.bd` (or the first entry in `ADMIN_EMAILS`) | `ChangeMe!2026` |
+| `admin@daktar.link` (or the first entry in `ADMIN_EMAILS`) | `ChangeMe!2026` |
 
 **Rotate this password before exposing the staging environment.** The
 `MONGO_URI` shipped in `.env.local` is a dev Atlas cluster; rotate it before
@@ -75,7 +75,7 @@ sharing the repo with collaborators.
 | `MONGO_URI` | yes | boot fails at first DB call |
 | `AUTH_SECRET` | yes | boot fails (NextAuth refuses to issue tokens) |
 | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | for prod | S3 uploads return a friendly error; SES sends become `console.log` |
-| `SES_FROM_EMAIL` | for prod | falls back to `no-reply@doctor.id.bd` |
+| `SES_FROM_EMAIL` | for prod | falls back to `no-reply@daktar.link` |
 | `SSL_SMS_API_TOKEN` + `SSL_SMS_SID` (`SMS_PROVIDER=ssl`) | for prod SMS | OTP + campaign SMS print to the dev console (no-op) instead of dispatching. **The request IP must be whitelisted** in the SSL portal for live sends. |
 | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | for prod | rate limiters allow every request (dev-friendly, prod-unsafe) |
 | `AUTH_GOOGLE_ID` + `AUTH_GOOGLE_SECRET` | optional | Google sign-in button is hidden; credentials sign-in still works |
@@ -151,7 +151,7 @@ tests/               # Vitest
 and FHIR R4 Practitioner. Anything that exports to an EMR — `/api/v1` consumers
 today, Shafa's HMS later — goes through this mapper. BD-specific fields
 (WhatsApp, verification level (BMDC + identity), isClaimed) live on
-`Practitioner.extension` entries under `https://doctor.id.bd/fhir/`. Specialty
+`Practitioner.extension` entries under `https://daktar.link/fhir/`. Specialty
 codes are SNOMED CT where one exists.
 
 ### Multi-tenant readiness
@@ -230,7 +230,7 @@ This section assumes you have:
   role is assumed with no static keys (see `AWS_ASSUME_ROLE_ARN`, CLAUDE.md #17)
 - two S3 buckets (public + private), a MongoDB Atlas URI, an Upstash Redis
   **REST** URL + token, and a verified SES sender (or a pending sandbox request)
-- DNS for `doctor.id.bd` pointed at the Elastic IP
+- DNS for `Daktar.Link` pointed at the Elastic IP
 
 ### 1. Install the runtime
 
@@ -279,8 +279,8 @@ Full config + rationale in [`doc/getting-started.md`](doc/getting-started.md)
 ```nginx
 server {
   listen 443 ssl;
-  server_name doctor.id.bd;
-  # ssl_certificate / ssl_certificate_key — issue with: sudo certbot --nginx -d doctor.id.bd
+  server_name Daktar.Link;
+  # ssl_certificate / ssl_certificate_key — issue with: sudo certbot --nginx -d Daktar.Link
 
   client_max_body_size 12m;       # match next.config serverActions.bodySizeLimit (photo uploads)
 

@@ -33,7 +33,7 @@ export async function GET(
     return new ImageResponse(
       (
         <div style={{ ...fallbackStyle, display: "flex" }}>
-          <div style={{ fontSize: 48, fontWeight: 700, display: "flex" }}>doctor.id.bd</div>
+          <div style={{ fontSize: 48, fontWeight: 700, display: "flex" }}>Daktar.Link</div>
           <div style={{ fontSize: 24, color: "#64748b", display: "flex" }}>Profile not found</div>
         </div>
       ),
@@ -51,7 +51,7 @@ export async function GET(
       ? "Fully verified"
       : doc.verificationLevel === "bmdc_verified"
         ? "BMDC verified"
-        : "Profile on doctor.id.bd";
+        : "Profile on Daktar.Link";
 
   return new ImageResponse(
     (
@@ -70,7 +70,7 @@ export async function GET(
         {/* Top bar */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 24, opacity: 0.85 }}>
           <div style={{ width: 14, height: 14, borderRadius: 999, background: "white", display: "flex" }} />
-          <div style={{ display: "flex" }}>doctor.id.bd</div>
+          <div style={{ display: "flex" }}>Daktar.Link</div>
         </div>
 
         {/* Main row */}
@@ -133,8 +133,8 @@ export async function GET(
 
         {/* Footer */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 22, opacity: 0.85 }}>
-          <div style={{ display: "flex" }}>{isVerified ? verifyLabel : "Profile on doctor.id.bd"}</div>
-          <div style={{ display: "flex" }}>doctor.id.bd / {doc.slug}</div>
+          <div style={{ display: "flex" }}>{isVerified ? verifyLabel : "Profile on Daktar.Link"}</div>
+          <div style={{ display: "flex" }}>daktar.link / {doc.slug}</div>
         </div>
       </div>
     ),

@@ -65,7 +65,7 @@ const VALID_DOCTOR_ID = new Types.ObjectId().toString();
 
 function asAdmin() {
   authMock.mockResolvedValueOnce({
-    user: { id: new Types.ObjectId().toString(), role: "admin", email: "ops@doctor.id.bd" },
+    user: { id: new Types.ObjectId().toString(), role: "admin", email: "ops@daktar.link" },
   });
 }
 function asDoctor() {
@@ -138,7 +138,7 @@ describe("admin-doctor actions — happy path writes audit log", () => {
     expect(entry.type).toBe("doctor.published");
     expect(entry.entityType).toBe("Doctor");
     expect(entry.actorRole).toBe("admin");
-    expect(entry.actorEmail).toBe("ops@doctor.id.bd");
+    expect(entry.actorEmail).toBe("ops@daktar.link");
   });
 
   it("adminUpdateProfileBasicAction writes audit on success", async () => {

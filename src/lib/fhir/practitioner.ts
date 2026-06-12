@@ -8,7 +8,7 @@
  *
  * Mapping notes (kept comment-heavy because the FHIR side is non-obvious):
  *   - BD-specific fields (whatsapp, BMDC verification level, isClaimed) go on
- *     Practitioner.extension entries under `https://doctor.id.bd/fhir/`.
+ *     Practitioner.extension entries under `https://daktar.link/fhir/`.
  *   - We emit PractitionerRole entries inline as `roles` since FHIR's normal
  *     pattern is a separate Bundle — for a single-resource REST endpoint, the
  *     embedded array is friendlier to consumers.
@@ -18,7 +18,7 @@
 
 import type { DoctorDocLike } from "@/types/doctor";
 
-const EXT_PREFIX = "https://doctor.id.bd/fhir";
+const EXT_PREFIX = "https://daktar.link/fhir";
 
 /**
  * FHIR extensions can nest. We model that explicitly so arrays of structured
@@ -88,7 +88,7 @@ export function toFhirPractitioner(doc: DoctorDocLike): FhirPractitionerEnvelope
     id: String(doc._id ?? doc.slug),
     active: doc.status === "published",
     identifier: [
-      { system: "https://doctor.id.bd", value: doc.slug, use: "official" },
+      { system: "https://daktar.link", value: doc.slug, use: "official" },
       ...(doc.bmdcNumber
         ? [{ system: "urn:bd:bmdc", value: doc.bmdcNumber, use: "official" }]
         : []),

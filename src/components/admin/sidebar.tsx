@@ -9,11 +9,12 @@ import {
   Users,
   Tag,
   Building2,
-  Stethoscope,
   ChevronRight,
   Sparkles,
   Send,
 } from "lucide-react";
+import { BrandWordmark } from "@/components/layout/brand-wordmark";
+import { BrandMark } from "@/components/layout/brand-mark";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,8 +45,8 @@ export function AdminSidebar({
         href="/admin"
         className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-800 px-4 font-semibold"
       >
-        <Stethoscope className="size-5 text-primary" aria-hidden="true" />
-        <span className="truncate">doctor.id.bd</span>
+        <BrandMark className="size-7 shrink-0" />
+        <BrandWordmark className="truncate" />
         <span className="ml-auto rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-rose-200">
           Admin
         </span>

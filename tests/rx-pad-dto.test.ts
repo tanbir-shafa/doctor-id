@@ -103,7 +103,7 @@ describe("formatSchedule", () => {
 
 describe("buildRxPadDto", () => {
   it("builds a complete DTO from a complete doctor", () => {
-    const r = buildRxPadDto(fixture(), "https://doctor.id.bd");
+    const r = buildRxPadDto(fixture(), "https://daktar.link");
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.displayName).toBe("Prof. Dr. Karim Rahman");
@@ -111,7 +111,7 @@ describe("buildRxPadDto", () => {
       expect(r.bmdcNumber).toBe("12345");
       expect(r.photoUrl).toBe("https://example.com/photo.jpg");
       expect(r.primarySpecialty).toBe("Cardiology");
-      expect(r.profileUrl).toBe("https://doctor.id.bd/dr-karim-rahman-cardiologist");
+      expect(r.profileUrl).toBe("https://daktar.link/dr-karim-rahman-cardiologist");
       expect(r.chambers).toHaveLength(1);
       expect(r.chambers[0]?.schedule).toBe("Sat–Wed 5:00 PM – 9:00 PM");
       expect(r.chambers[0]?.consultationFee).toBe("1500 BDT");
@@ -121,7 +121,7 @@ describe("buildRxPadDto", () => {
   it("flags required fields when missing (no BMDC + no chamber)", () => {
     const r = buildRxPadDto(
       fixture({ bmdcNumber: null as never, chambers: [] }),
-      "https://doctor.id.bd",
+      "https://daktar.link",
     );
     expect(r.ok).toBe(false);
     if (!r.ok) {
@@ -133,15 +133,15 @@ describe("buildRxPadDto", () => {
   it("succeeds when only recommended fields are missing (no photo)", () => {
     const r = buildRxPadDto(
       fixture({ photo: undefined as never }),
-      "https://doctor.id.bd",
+      "https://daktar.link",
     );
     expect(r.ok).toBe(true);
   });
 
   it("strips trailing slash from origin", () => {
-    const r = buildRxPadDto(fixture(), "https://doctor.id.bd/");
+    const r = buildRxPadDto(fixture(), "https://daktar.link/");
     if (r.ok) {
-      expect(r.profileUrl).toBe("https://doctor.id.bd/dr-karim-rahman-cardiologist");
+      expect(r.profileUrl).toBe("https://daktar.link/dr-karim-rahman-cardiologist");
     }
   });
 });

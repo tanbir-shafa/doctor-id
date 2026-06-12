@@ -96,7 +96,7 @@ export function IdentityReviewRow({ request, nowIso }: Props) {
 
   const sla = classifySla(request, new Date(nowIso));
   const requesterEmail = request.requestedBy?.email ?? "—";
-  const isSyntheticEmail = requesterEmail.endsWith("@phone.doctor.id.bd");
+  const isSyntheticEmail = requesterEmail.endsWith("@phone.daktar.link");
   const requesterPhone = request.requestedBy?.phone ?? "—";
 
   const legalFull = `${request.legalName.first} ${request.legalName.last}`.trim();

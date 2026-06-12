@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { Stethoscope, LogOut, LayoutDashboard } from "lucide-react";
+import { LogOut, LayoutDashboard } from "lucide-react";
 import { auth } from "@/lib/auth/config";
 import { logoutAction } from "@/server/actions/auth";
 import { MobileMenu } from "./mobile-menu";
+import { BrandWordmark } from "@/components/layout/brand-wordmark";
+import { BrandMark } from "@/components/layout/brand-mark";
 
 /**
  * Top-of-page header for public routes.
@@ -26,8 +28,8 @@ export async function SiteHeader() {
     <header className="sticky top-0 z-50 border-b border-border bg-background">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Stethoscope className="size-5 text-primary" aria-hidden="true" />
-          <span>doctor.id.bd</span>
+          <BrandMark className="size-7" />
+          <BrandWordmark />
         </Link>
 
         {/* Desktop nav */}

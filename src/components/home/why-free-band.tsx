@@ -17,7 +17,7 @@ export function WhyFreeBand() {
         </span>
         <h2 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Why is this free?</h2>
         <p className="mt-3 text-muted-foreground">
-          doctor.id.bd is built by Shafa Care. The directory is our gift to the profession —
+          Daktar.Link is built by Shafa Care. The directory is our gift to the profession —
           we grow when Bangladesh&apos;s doctors do. Claim your profile free, and get 6 months
           of Shafa EMR free too. No card required.
         </p>

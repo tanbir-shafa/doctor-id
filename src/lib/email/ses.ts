@@ -9,7 +9,7 @@
  *   - a DynamoDB-backed app-level suppression list (`isSuppressed` /
  *     `SuppressedRecipientError`) checked before every send.
  *
- * Two doctor.id.bd-specific adaptations to keep the repo's conventions intact:
+ * Two Daktar.Link-specific adaptations to keep the repo's conventions intact:
  *   - Credentials resolve by `NODE_ENV`, exactly like `getS3()` (decision #17):
  *     production → cross-account STS role; any other env → static access keys.
  *   - When the active mode's credentials are absent the send is a dev no-op that
@@ -109,7 +109,7 @@ export async function sendEmail({ email, subject, body }: SendEmailInput): Promi
   }
 
   const { SES_FROM_ADDRESS, SES_FROM_NAME, SES_CONFIG_SET, SES_REPLY_TO } = env();
-  const fromAddress = SES_FROM_ADDRESS ?? "no-reply@doctor.id.bd";
+  const fromAddress = SES_FROM_ADDRESS ?? "no-reply@daktar.link";
   const from = SES_FROM_NAME ? `"${SES_FROM_NAME}" <${fromAddress}>` : fromAddress;
 
   const client = getSesClient();

@@ -36,7 +36,7 @@ const DETAILS_DIR = join(OUT_DIR, "details");
 const PHOTOS_DIR = join(OUT_DIR, "photos");
 
 const UA =
-  "Mozilla/5.0 (compatible; doctor.id.bd-snapshot/1.0; +https://doctor.id.bd)";
+  "Mozilla/5.0 (compatible; daktar.link-snapshot/1.0; +https://daktar.link)";
 
 // ---------- env ----------
 

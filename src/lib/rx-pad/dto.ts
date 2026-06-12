@@ -32,7 +32,7 @@ export interface RxPadDto {
   photoUrl: string | null;
   primarySpecialty: string | null;
   chambers: RxPadChamber[];
-  /** `https://doctor.id.bd/<slug>` — what the QR points to. */
+  /** `https://daktar.link/<slug>` — what the QR points to. */
   profileUrl: string;
 }
 

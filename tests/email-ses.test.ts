@@ -93,9 +93,9 @@ describe("sendEmail — SES v2 port", () => {
   it("sends via SES with a display-name From, config set, and reply-to, returning the MessageId", async () => {
     process.env.AWS_ACCESS_KEY_ID = "key";
     process.env.AWS_SECRET_ACCESS_KEY = "secret";
-    process.env.SES_FROM_ADDRESS = "sender@doctor.id.bd";
-    process.env.SES_FROM_NAME = "doctor.id.bd";
-    process.env.SES_REPLY_TO = "support@doctor.id.bd";
+    process.env.SES_FROM_ADDRESS = "sender@daktar.link";
+    process.env.SES_FROM_NAME = "Daktar.Link";
+    process.env.SES_REPLY_TO = "support@daktar.link";
     process.env.SES_CONFIG_SET = "primary-config-set";
     vi.resetModules();
     h.sesSend.mockResolvedValue({ MessageId: "MID-123" });
@@ -107,9 +107,9 @@ describe("sendEmail — SES v2 port", () => {
     expect(h.sesSend).toHaveBeenCalledTimes(1);
 
     const input = h.sendEmailInputs[0];
-    expect(input.FromEmailAddress).toBe('"doctor.id.bd" <sender@doctor.id.bd>');
+    expect(input.FromEmailAddress).toBe('"Daktar.Link" <sender@daktar.link>');
     expect(input.ConfigurationSetName).toBe("primary-config-set");
-    expect(input.ReplyToAddresses).toEqual(["support@doctor.id.bd"]);
+    expect(input.ReplyToAddresses).toEqual(["support@daktar.link"]);
     expect(input.Destination.ToAddresses).toEqual(["Recipient@Example.com"]);
     expect(input.Content.Simple.Subject.Data).toBe("Reset");
     expect(input.Content.Simple.Body.Html.Data).toBe("<p>x</p>");
@@ -118,7 +118,7 @@ describe("sendEmail — SES v2 port", () => {
   it("uses a bare From and omits reply-to/config set when those are unset", async () => {
     process.env.AWS_ACCESS_KEY_ID = "key";
     process.env.AWS_SECRET_ACCESS_KEY = "secret";
-    process.env.SES_FROM_ADDRESS = "sender@doctor.id.bd";
+    process.env.SES_FROM_ADDRESS = "sender@daktar.link";
     vi.resetModules();
     h.sesSend.mockResolvedValue({ MessageId: "MID" });
 
@@ -126,7 +126,7 @@ describe("sendEmail — SES v2 port", () => {
     await sendEmail({ email: "a@b.com", subject: "s", body: "b" });
 
     const input = h.sendEmailInputs[0];
-    expect(input.FromEmailAddress).toBe("sender@doctor.id.bd");
+    expect(input.FromEmailAddress).toBe("sender@daktar.link");
     expect(input.ReplyToAddresses).toBeUndefined();
     expect(input.ConfigurationSetName).toBeUndefined();
   });

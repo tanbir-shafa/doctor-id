@@ -39,15 +39,15 @@ describe("toFhirPractitioner — Loop A extensions", () => {
     );
 
     expect(fhir.extension).toContainEqual({
-      url: "https://doctor.id.bd/fhir/designation",
+      url: "https://daktar.link/fhir/designation",
       valueString: "Associate Professor of Cardiology",
     });
     expect(fhir.extension).toContainEqual({
-      url: "https://doctor.id.bd/fhir/institute",
+      url: "https://daktar.link/fhir/institute",
       valueString: "BSMMU",
     });
     expect(fhir.extension).toContainEqual({
-      url: "https://doctor.id.bd/fhir/yearsOfExperience",
+      url: "https://daktar.link/fhir/yearsOfExperience",
       valueInteger: 18,
     });
   });
@@ -55,9 +55,9 @@ describe("toFhirPractitioner — Loop A extensions", () => {
   it("omits Loop A extensions when fields are unset", () => {
     const fhir = toFhirPractitioner(makeDoc());
     const urls = fhir.extension.map((e) => e.url);
-    expect(urls).not.toContain("https://doctor.id.bd/fhir/designation");
-    expect(urls).not.toContain("https://doctor.id.bd/fhir/institute");
-    expect(urls).not.toContain("https://doctor.id.bd/fhir/yearsOfExperience");
+    expect(urls).not.toContain("https://daktar.link/fhir/designation");
+    expect(urls).not.toContain("https://daktar.link/fhir/institute");
+    expect(urls).not.toContain("https://daktar.link/fhir/yearsOfExperience");
   });
 
   it("emits one nested extension per award with title/issuer/year sub-fields", () => {
@@ -70,7 +70,7 @@ describe("toFhirPractitioner — Loop A extensions", () => {
       }),
     );
     const awards = fhir.extension.filter(
-      (e) => e.url === "https://doctor.id.bd/fhir/award",
+      (e) => e.url === "https://daktar.link/fhir/award",
     );
     expect(awards).toHaveLength(2);
     expect(awards[0]!.extension).toContainEqual({ url: "title", valueString: "Gold Medal" });
@@ -91,7 +91,7 @@ describe("toFhirPractitioner — Loop A extensions", () => {
       }),
     );
     const memberships = fhir.extension.filter(
-      (e) => e.url === "https://doctor.id.bd/fhir/membership",
+      (e) => e.url === "https://daktar.link/fhir/membership",
     );
     expect(memberships).toHaveLength(2);
     expect(memberships[0]!.extension).toContainEqual({ url: "body", valueString: "BMA" });
@@ -113,7 +113,7 @@ describe("toFhirPractitioner — Loop A extensions", () => {
       }),
     );
     const pubs = fhir.extension.filter(
-      (e) => e.url === "https://doctor.id.bd/fhir/publication",
+      (e) => e.url === "https://daktar.link/fhir/publication",
     );
     expect(pubs).toHaveLength(1);
     expect(pubs[0]!.extension).toContainEqual({
@@ -130,7 +130,7 @@ describe("toFhirPractitioner — Loop A extensions", () => {
       makeDoc({ concentrations: ["Interventional Cardiology", "Structural Heart Disease"] }),
     );
     const concentrations = fhir.extension.filter(
-      (e) => e.url === "https://doctor.id.bd/fhir/concentration",
+      (e) => e.url === "https://daktar.link/fhir/concentration",
     );
     expect(concentrations).toHaveLength(2);
     expect(concentrations.map((e) => e.valueString)).toEqual([

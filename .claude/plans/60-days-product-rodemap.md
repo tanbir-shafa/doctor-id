@@ -1,4 +1,4 @@
-# doctor.id.bd — 60-Day Doctor Acquisition Plan
+# Daktar.Link — 60-Day Doctor Acquisition Plan
 
 > **To:** CEO, Shafa Care Ltd
 > **From:** Head of Product
@@ -14,7 +14,7 @@ The MVP is shipped (public profile `/[slug]`, search, FHIR API, dashboard, admin
 
 The CEO has set a single, sharp goal: **5,000 claimed profiles in 60 days.** The Shafa EMR already exists and is shippable as a perk to acquire doctors — it is no longer a future product to bridge to. Everything in this plan answers ONE question: **what makes a busy BD doctor spend 60 seconds claiming their profile here, instead of ignoring the SMS like they ignore every other one?**
 
-Scope is doctor.id.bd only. We are intentionally NOT building patient flows, reviews, hyperlocal SEO, or anything that doesn't move the claim counter in the next 60 days.
+Scope is Daktar.Link only. We are intentionally NOT building patient flows, reviews, hyperlocal SEO, or anything that doesn't move the claim counter in the next 60 days.
 
 ---
 
@@ -27,7 +27,7 @@ In rough order of pull strength for a Bangladeshi MBBS doctor:
 3. **Free seat on the Shafa EMR (you already have it).** Bundle it. "Claim your profile, get free EMR for 6 months." Real working software, not a waitlist.
 4. **Verified blue badge** that they can show off. Status drives BD doctors more than money for the first claim.
 5. **Discoverability on Google in Bangla & English.** "ডাক্তার করিম রহমান" / "Dr. Karim Rahman cardiologist Dhaka" → their page #1.
-6. **Their senior / batch / college is on it.** Tribal pull. "23 doctors from DMC batch '12 are on doctor.id.bd."
+6. **Their senior / batch / college is on it.** Tribal pull. "23 doctors from DMC batch '12 are on Daktar.Link."
 7. **One-page digital business card with QR for WhatsApp bio.** Replaces their paper card.
 8. **CME tracker toward BMDC 5-year renewal.** Niche but very sticky for the doctors who care.
 
@@ -45,10 +45,10 @@ Goal: every claimed profile delivers ≥1 tangible win in week 1. Target: **1,50
 | A.2 | **Free Prescription Pad PDF generator** | One-tap "Download my Rx pad" in the dashboard. Generates A5 PDF: doctor name + degrees + BMDC# + chambers + photo + QR linking to profile. Uses existing `src/lib/fhir/practitioner.ts` data. | **The single highest-pull feature in the whole plan.** Saves the doctor ~BDT 1,500/month in printing. Their patients see our QR on every prescription. Viral by default. | M | Designer pass on layout. BMDC# must appear. No medical-content endorsements on the pad — just the doctor's identity. |
 | A.3 | **Appointment Request Inbox** | Public-profile "Request Appointment" button → name, phone, chamber, preferred slot, reason. Stored as `AppointmentRequest` doc; doctor sees it at `/dashboard/requests`; WhatsApp + SMS notify within 60 sec. | Delivers "free patient leads" — the #1 reason a doctor stays after claiming. Lead volume becomes our retention metric. | L | Needs SES prod access + SMS gateway. Block-1 dependency. |
 | A.4 | **SMS Magic-Link Claim** | On every unclaimed profile: "Is this you? Claim in 60 seconds." Doctor enters BMDC# + phone → tap-to-claim SMS link. No password until they want one. | Email + password is 3 steps too many for a BD doctor. SMS is the only channel they actually open. | M | SMS gateway (SSLWireless / BulkSMSBD). |
-| A.5 | **Free Shafa EMR seat bundled with claim** | On successful claim, doctor gets a banner: "Your free 6-month Shafa EMR seat is ready. Click to log in." Single-sign-on token to the existing EMR. | Existing asset, zero-marginal-cost incentive. Converts claim into product trial. The EMR also becomes our daily-active hook. | S (on doctor.id.bd side) | Coordination with EMR team for SSO + provisioning API. CEO confirms 6-month free tier is OK. |
+| A.5 | **Free Shafa EMR seat bundled with claim** | On successful claim, doctor gets a banner: "Your free 6-month Shafa EMR seat is ready. Click to log in." Single-sign-on token to the existing EMR. | Existing asset, zero-marginal-cost incentive. Converts claim into product trial. The EMR also becomes our daily-active hook. | S (on Daktar.Link side) | Coordination with EMR team for SSO + provisioning API. CEO confirms 6-month free tier is OK. |
 | A.6 | **Chambers Editor (full)** | Replace read-only stub at `/dashboard/chambers` with Leaflet picker + day/time schedule grid. `LeafletLazy` already wired. | Chambers + schedule are prerequisites for A.3 (appointment requests) to be meaningful. | M | Known MVP deferral. |
 | A.7 | **24-Hour Verified Badge SLA** | Admin verification queue commits to 24h turnaround. Existing badge made visible on cards, search, share artifacts, and on the Rx pad PDF. | The badge is the status payoff doctors brag about. Visible-everywhere placement is what makes the brag worth doing. | S | 0.5 FTE admin reviewer commitment. |
-| A.8 | **Bulk Outbound: SMS + WhatsApp to all seeded profiles** | Automated outbound: "Dr. {name}, your doctor.id.bd profile is ready. Claim free + get a free Rx pad PDF: {link}." SMS first, WhatsApp Business API behind it. | Cold start. Organic claim rate without push is <5%. This is the engine. | S (tooling) / M (content + send) | WhatsApp Business API approval (2–4 wk) — start Day 1. SES prod for backup email channel. |
+| A.8 | **Bulk Outbound: SMS + WhatsApp to all seeded profiles** | Automated outbound: "Dr. {name}, your Daktar.Link profile is ready. Claim free + get a free Rx pad PDF: {link}." SMS first, WhatsApp Business API behind it. | Cold start. Organic claim rate without push is <5%. This is the engine. | S (tooling) / M (content + send) | WhatsApp Business API approval (2–4 wk) — start Day 1. SES prod for backup email channel. |
 
 ---
 
@@ -58,7 +58,7 @@ Goal: turn the first 1,500 claims into the engine that delivers the next 3,500. 
 
 | # | Feature | What | Why now | Effort | Risk / Dep |
 |---|---|---|---|---|---|
-| B.1 | **Medical college & batch directories** | Auto-generate pages: `/college/dmc`, `/college/dmc/2012`, `/college/ssmc`, etc. Each shows claimed + unclaimed doctors from that college and batch. "23 of your batch are on doctor.id.bd." | Tribal pull is the single most underrated lever in BD doctor acquisition. Seeing classmates on the platform converts skeptics faster than any feature. | M | Need college + batch fields on the Doctor model (additive, no migration risk). Scraping batch data from alumni Facebook groups + medical college sites. |
+| B.1 | **Medical college & batch directories** | Auto-generate pages: `/college/dmc`, `/college/dmc/2012`, `/college/ssmc`, etc. Each shows claimed + unclaimed doctors from that college and batch. "23 of your batch are on Daktar.Link." | Tribal pull is the single most underrated lever in BD doctor acquisition. Seeing classmates on the platform converts skeptics faster than any feature. | M | Need college + batch fields on the Doctor model (additive, no migration risk). Scraping batch data from alumni Facebook groups + medical college sites. |
 | B.2 | **Doctor-refers-Doctor program** | "Invite a colleague" link in dashboard. Both inviter and invitee get an upgrade: an extra 6 months of free EMR + a "Founding Doctor" badge if claimed in the first 60 days. | Compounds the acquisition. Once a doctor sees value, the cheapest next-doctor channel is them. | S (UI) / M (logic) | Anti-spam + reward fraud check. Cap rewards per inviter. |
 | B.3 | **Digital Business Card / WhatsApp QR Kit** | Generate: (a) shareable WhatsApp text + deep link, (b) 1080×1080 social card, (c) printable A6 business card PDF, (d) profile-link QR for WhatsApp bio. All from the existing `next/og` + QR code stack. | After Rx pad, this is the #2 ambient-virality artifact. Every patient who sees a WhatsApp bio QR is an organic discovery. | S | None. |
 | B.4 | **Bangla locale for public pages only** | Bangla translations for `/[slug]`, `/search`, `/[specialty]`, `/[specialty]/[city]`. `next-intl` structure already in place. Dashboard stays English. | Doubles SEO surface in Google (Bangla and English indexed separately). Doctors share the Bangla link in WhatsApp groups; family-side patients click it. | M | Translator (~BDT 30k one-shot). Don't translate dashboard. |

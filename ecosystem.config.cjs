@@ -1,5 +1,5 @@
 /**
- * PM2 process definition for running doctor.id.bd on an EC2 instance behind nginx.
+ * PM2 process definition for running Daktar.Link on an EC2 instance behind nginx.
  *
  *   pm2 start ecosystem.config.cjs     # boot the app
  *   pm2 save                           # persist the process list (after `pm2 startup`)

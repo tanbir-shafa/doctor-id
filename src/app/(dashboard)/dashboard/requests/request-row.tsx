@@ -62,7 +62,7 @@ export function RequestRow({ request, doctorName }: Props) {
 
   const phoneNoPlus = request.patientPhone.replace(/^\+/, "");
   const waMessage = encodeURIComponent(
-    `Hello ${request.patientName.split(" ")[0] ?? ""}, this is ${doctorName} from doctor.id.bd. Following up on your appointment request for ${new Date(request.preferredDate).toLocaleDateString()} (${TIME_LABEL[request.preferredTimeWindow]}).`,
+    `Hello ${request.patientName.split(" ")[0] ?? ""}, this is ${doctorName} from Daktar.Link. Following up on your appointment request for ${new Date(request.preferredDate).toLocaleDateString()} (${TIME_LABEL[request.preferredTimeWindow]}).`,
   );
   const waHref = `https://wa.me/${phoneNoPlus}?text=${waMessage}`;
 

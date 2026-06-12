@@ -76,7 +76,7 @@ export default async function EmrQueuePage() {
               <tbody className="divide-y divide-slate-100">
                 {pending.map((u) => {
                   const d = doctorByOwner.get(String(u._id));
-                  const isSynthEmail = u.email.endsWith("@phone.doctor.id.bd");
+                  const isSynthEmail = u.email.endsWith("@phone.daktar.link");
                   const days = Math.max(
                     0,
                     // eslint-disable-next-line react-hooks/purity

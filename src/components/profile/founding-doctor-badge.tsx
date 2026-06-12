@@ -20,7 +20,7 @@ export function FoundingDoctorBadge({
   if (!isFounding) return null;
   return (
     <span
-      title="Founding Doctor — an early member who brought 5+ verified doctors to doctor.id.bd"
+      title="Founding Doctor — an early member who brought 5+ verified doctors to Daktar.Link"
       className={cn(
         "inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800",
         className,

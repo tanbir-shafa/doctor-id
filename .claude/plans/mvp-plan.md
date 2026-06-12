@@ -1,13 +1,13 @@
-# doctor.id.bd — MVP Build Plan
+# Daktar.Link — MVP Build Plan
 
 > **Progress tracker:** [../progress/mvp-progress.md](../progress/mvp-progress.md)
 > **Status:** approved 2026-05-28
 
 ## Context
 
-Greenfield Next.js application for **doctor.id.bd**, the supply-side acquisition channel for Shafa Care Ltd's EMR/HMS product. Public-facing professional profile platform for Bangladeshi doctors — LinkedIn-style but specialized for medical professionals, with FHIR-aligned data so it can feed the future EMR without a rewrite.
+Greenfield Next.js application for **Daktar.Link**, the supply-side acquisition channel for Shafa Care Ltd's EMR/HMS product. Public-facing professional profile platform for Bangladeshi doctors — LinkedIn-style but specialized for medical professionals, with FHIR-aligned data so it can feed the future EMR without a rewrite.
 
-The product's marketing channel **is** the profile page itself: doctors will paste their `doctor.id.bd/[slug]` URL into WhatsApp bios, prescription pads, and business cards. Every profile is therefore an SEO landing page. SSR correctness, schema.org tagging, and OG images matter more than dashboard polish.
+The product's marketing channel **is** the profile page itself: doctors will paste their `daktar.link/[slug]` URL into WhatsApp bios, prescription pads, and business cards. Every profile is therefore an SEO landing page. SSR correctness, schema.org tagging, and OG images matter more than dashboard polish.
 
 Working directory is empty — full scaffold from scratch.
 
@@ -23,7 +23,7 @@ Every subsequent commit that finishes a task updates `mvp-progress.md` in the sa
 `mvp-progress.md` skeleton:
 
 ```markdown
-# doctor.id.bd MVP — Progress
+# Daktar.Link MVP — Progress
 
 Plan: [./../plans/mvp-plan.md](../plans/mvp-plan.md)
 Last updated: <ISO date>
@@ -218,7 +218,7 @@ AWS_REGION=ap-south-1
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 S3_BUCKET=doctor-id-uploads
-SES_FROM_EMAIL=no-reply@doctor.id.bd
+SES_FROM_EMAIL=no-reply@daktar.link
 
 # Upstash
 UPSTASH_REDIS_REST_URL=

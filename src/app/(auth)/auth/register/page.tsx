@@ -9,7 +9,7 @@ import { resolveReferrer } from "@/lib/referral/service";
 export const metadata: Metadata = {
   title: "Create your account",
   description:
-    "Register on doctor.id.bd to publish your professional profile. Free for doctors. Phone + SMS OTP. No password.",
+    "Register on Daktar.Link to publish your professional profile. Free for doctors. Phone + SMS OTP. No password.",
 };
 
 export const dynamic = "force-dynamic";
@@ -61,8 +61,8 @@ export default async function RegisterPage({ searchParams }: PageProps) {
           <CardDescription>
             {claiming.displayName} has already been claimed. If this is yours, sign in instead — or
             contact{" "}
-            <a href="mailto:support@doctor.id.bd" className="underline">
-              support@doctor.id.bd
+            <a href="mailto:support@daktar.link" className="underline">
+              support@daktar.link
             </a>{" "}
             for help.
           </CardDescription>

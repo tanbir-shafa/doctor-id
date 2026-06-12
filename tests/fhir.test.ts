@@ -53,7 +53,7 @@ describe("toFhirPractitioner", () => {
       use: "official",
     });
     expect(fhir.identifier).toContainEqual({
-      system: "https://doctor.id.bd",
+      system: "https://daktar.link",
       value: "karim-rahman-cardiologist",
       use: "official",
     });
@@ -93,7 +93,7 @@ describe("toFhirPractitioner", () => {
   it("surfaces verification level on a custom extension", () => {
     const fhir = toFhirPractitioner(doctor);
     expect(fhir.extension).toContainEqual({
-      url: "https://doctor.id.bd/fhir/verificationLevel",
+      url: "https://daktar.link/fhir/verificationLevel",
       valueString: "bmdc_verified",
     });
   });

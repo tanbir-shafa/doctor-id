@@ -25,7 +25,7 @@ export interface ShareTextInput {
     specialty?: string;
     /** Where the doctor practices, formatted for human reading. Optional. */
     chamberSummary?: string;
-    /** URL slug under doctor.id.bd. Required — that's the whole point. */
+    /** URL slug under Daktar.Link. Required — that's the whole point. */
     slug: string;
 }
 

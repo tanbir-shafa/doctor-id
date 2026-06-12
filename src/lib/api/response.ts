@@ -80,7 +80,7 @@ export class ApiNotFoundError extends Error {
 /** 403 response for a non-first-party caller. */
 function forbiddenResponse(h: Headers): NextResponse {
   return new NextResponse(
-    JSON.stringify({ error: "forbidden", message: "This API is restricted to the doctor.id.bd application." }),
+    JSON.stringify({ error: "forbidden", message: "This API is restricted to the Daktar.Link application." }),
     { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders(h) } },
   );
 }

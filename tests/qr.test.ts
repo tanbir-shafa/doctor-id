@@ -4,7 +4,7 @@ import { renderQrPngDataUrl } from "@/lib/qr/server";
 
 describe("renderQrPngDataUrl", () => {
   it("returns a PNG data URL", async () => {
-    const url = await renderQrPngDataUrl("https://doctor.id.bd/dr-karim-rahman-cardiologist");
+    const url = await renderQrPngDataUrl("https://daktar.link/dr-karim-rahman-cardiologist");
     expect(url.startsWith("data:image/png;base64,")).toBe(true);
   });
 

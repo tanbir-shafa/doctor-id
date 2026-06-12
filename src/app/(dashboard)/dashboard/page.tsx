@@ -89,7 +89,7 @@ export default async function DashboardOverview({ searchParams }: PageProps) {
         </aside>
       ) : isWelcome ? (
         <aside className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 sm:px-6">
-          <p className="font-semibold">Welcome to doctor.id.bd, {doctor.name.first}!</p>
+          <p className="font-semibold">Welcome to Daktar.Link, {doctor.name.first}!</p>
           <p className="mt-1">
             Your profile is live-ready.{" "}
             <Link href="/dashboard/profile" className="font-medium underline">
