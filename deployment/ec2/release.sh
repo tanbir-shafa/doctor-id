@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# release.sh — atomic, zero-(near-zero-)downtime release on the box.
+# release.sh — atomic release on the box (brief restart blip on each deploy).
 # Installed at /srv/doctor-id/bin/release.sh by bootstrap.sh. Runs as the
 # unprivileged app user (it drives that user's PM2 daemon) — CI invokes it over
 # SSH: `ssh appuser@host '/srv/doctor-id/bin/release.sh <tag> <tarball>'`.
@@ -37,11 +37,17 @@ die() { echo "[release][ERROR] $*" >&2; exit 1; }
 reload_and_verify() {
   local rollback_target="${1:-}"
 
-  log "Reloading PM2 (${APP_NAME})..."
+  log "Restarting PM2 (${APP_NAME})..."
   cd "${CURRENT_LINK}"
-  # startOrReload re-reads the ecosystem file each time, so it picks up the new
-  # symlink target. Graceful reload when the app is already running.
-  pm2 startOrReload ecosystem.config.cjs --update-env
+  # Delete + start (NOT reload/startOrReload). `pm2 reload` reuses the process's
+  # STORED cwd + script path, so it would keep running the first release this
+  # daemon ever started: the ecosystem's `cwd: __dirname` resolves THROUGH the
+  # symlink to a per-release real path, which PM2 then pins forever. --update-env
+  # only refreshes env vars, never cwd/script. Deleting clears that pinned env;
+  # `start` re-reads the ecosystem and picks up the freshly-flipped symlink.
+  # Trade-off: a brief restart blip instead of a graceful reload.
+  pm2 delete "${APP_NAME}" 2>/dev/null || true
+  pm2 start ecosystem.config.cjs --update-env
 
   log "Health-checking ${HEALTH_URL} ..."
   local i
@@ -59,7 +65,8 @@ reload_and_verify() {
     log "Health check FAILED — rolling back to ${rollback_target}."
     ln -sfn "${rollback_target}" "${CURRENT_LINK}"
     cd "${CURRENT_LINK}"
-    pm2 startOrReload ecosystem.config.cjs --update-env
+    pm2 delete "${APP_NAME}" 2>/dev/null || true
+    pm2 start ecosystem.config.cjs --update-env
     pm2 save --force >/dev/null
   fi
   die "Deploy failed health check at ${HEALTH_URL}."
