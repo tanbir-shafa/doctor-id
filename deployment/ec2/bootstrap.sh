@@ -19,7 +19,8 @@
 
 set -euo pipefail
 
-DOMAIN="doctor.shafa.care"
+DOMAIN="daktar.link"
+DOMAIN_WWW="www.daktar.link"
 APP_USER="appuser"
 APP_BASE="/srv/doctor-id"
 NODE_MAJOR="22"
@@ -167,8 +168,8 @@ fi
 # --deploy-hook reloads nginx after every future auto-renewal so the new cert is
 # actually served (certbot's snap installs the renewal timer automatically).
 if [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
-  log "Requesting Let's Encrypt cert for ${DOMAIN} (DNS must already point here)..."
-  certbot certonly --nginx -d "${DOMAIN}" \
+  log "Requesting Let's Encrypt cert for ${DOMAIN} and ${DOMAIN_WWW} (DNS must already point here)..."
+  certbot certonly --nginx -d "${DOMAIN}" -d "${DOMAIN_WWW}"\
     --email "${LETSENCRYPT_EMAIL}" --agree-tos --non-interactive \
     --deploy-hook "systemctl reload nginx"
 else

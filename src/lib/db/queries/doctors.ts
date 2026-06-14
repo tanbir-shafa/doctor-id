@@ -113,9 +113,17 @@ export async function searchDoctors(params: DoctorSearchParams): Promise<DoctorS
   // the default ordering ~most users see (and every /[specialty] listing, which
   // routes through here). The explicit "name"/"experience" sorts are left as the
   // user's deliberate choice.
+  //
+  // Verification rank is sorted on the underlying `bmdcVerified`/`nidVerified`
+  // booleans (-1 = true-first), NOT the `verificationLevel` string: the enum's
+  // alphabetical order ("unverified" sorts ahead of "fully_verified") does not
+  // match its semantic rank, so a string sort would float unverified to the top.
+  // Two booleans give the intended ladder: fully(T,T) > bmdc(T,F) >
+  // identity(F,T) > unverified(F,F).
   let sort: Record<string, 1 | -1> = {
     "foundingDoctor.isFounding": -1,
-    verificationLevel: -1,
+    bmdcVerified: -1,
+    nidVerified: -1,
     profileCompletenessScore: -1,
     updatedAt: -1,
   };
@@ -124,10 +132,10 @@ export async function searchDoctors(params: DoctorSearchParams): Promise<DoctorS
       sort = { "name.displayName": 1 };
       break;
     case "completeness":
-      sort = { profileCompletenessScore: -1, verificationLevel: -1 };
+      sort = { profileCompletenessScore: -1, bmdcVerified: -1, nidVerified: -1 };
       break;
     case "verified":
-      sort = { "foundingDoctor.isFounding": -1, verificationLevel: -1, updatedAt: -1 };
+      sort = { "foundingDoctor.isFounding": -1, bmdcVerified: -1, nidVerified: -1, updatedAt: -1 };
       break;
     case "experience":
       // Approximate: rely on count of experience entries until we add a derived field.
@@ -257,7 +265,7 @@ export async function listFeaturedVerifiedDoctors(limit = 6): Promise<FeaturedDo
       "photo.url": { $exists: true, $ne: null },
     })
     .select("slug name specialties chambers photo verificationLevel")
-    .sort({ "foundingDoctor.isFounding": -1, verificationLevel: -1, updatedAt: -1 })
+    .sort({ "foundingDoctor.isFounding": -1, bmdcVerified: -1, nidVerified: -1, updatedAt: -1 })
     .limit(limit)
     .lean();
   return (rows as unknown[]).map((raw) => {

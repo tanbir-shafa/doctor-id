@@ -384,8 +384,11 @@ DoctorSchema.index({dupReviewGroup: 1}, {sparse: true});
 // Public listing query (only published, sorted by verification then recency)
 DoctorSchema.index({status: 1, verificationLevel: 1, updatedAt: -1});
 // Founding Doctors rank first in the default search ordering (see searchDoctors).
-// Boolean -1 puts `true` ahead of `false`/absent.
-DoctorSchema.index({status: 1, "foundingDoctor.isFounding": -1, verificationLevel: -1, updatedAt: -1});
+// Boolean -1 puts `true` ahead of `false`/absent. Verification rank is keyed on
+// the `bmdcVerified`/`nidVerified` booleans (true-first), NOT the
+// `verificationLevel` string — its alphabetical order doesn't match its semantic
+// rank, so a string sort floats "unverified" to the top. Keys mirror the sort.
+DoctorSchema.index({status: 1, "foundingDoctor.isFounding": -1, bmdcVerified: -1, nidVerified: -1, updatedAt: -1});
 // Free-text search across name, bio, and specialty names.
 //
 // NOTE: this $text index is currently *dormant*. searchDoctors() uses a
