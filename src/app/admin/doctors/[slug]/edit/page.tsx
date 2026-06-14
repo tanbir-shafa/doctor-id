@@ -7,12 +7,14 @@ import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor, Specialty, File } from "@/lib/db/models";
 import { getPresignedUrl } from "@/lib/s3/s3-service";
 import { missingPublishRequirements } from "@/lib/utils/completeness";
+import { FOUNDING_DOCTOR_THRESHOLD } from "@/lib/utils/referral";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PageHeader } from "@/components/admin/page-header";
 import { listAuditLogForEntity } from "@/lib/audit/log";
 import type { DoctorDocLike } from "@/types/doctor";
 import { AdminBasicSection } from "./sections/basic-section";
 import { AdminVerificationSection } from "./sections/verification-section";
+import { AdminFoundingDoctorSection } from "./sections/founding-doctor-section";
 import { AdminContactSection } from "./sections/contact-section";
 import { AdminSpecialtiesSection } from "./sections/specialties-section";
 import { AdminConcentrationsSection } from "./sections/concentrations-section";
@@ -150,6 +152,27 @@ export default async function AdminDoctorEditPage({
               last: doctor.name.last,
               idDocumentType: doctor.idDocumentType ?? null,
               identityDocumentUrl,
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Founding Doctor</CardTitle>
+          <CardDescription>
+            Manually grant or revoke the gold Founding Doctor badge — normally
+            earned by referring {FOUNDING_DOCTOR_THRESHOLD} verified doctors.
+            Founders rank first in search.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AdminFoundingDoctorSection
+            doctorId={doctorId}
+            initial={{
+              isFounding: doctor.foundingDoctor?.isFounding ?? false,
+              qualifiedReferrals: doctor.foundingDoctor?.qualifiedReferrals ?? 0,
+              awardedAt: doctor.foundingDoctor?.awardedAt ?? null,
             }}
           />
         </CardContent>

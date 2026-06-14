@@ -252,3 +252,13 @@ export const CreateDoctorSchema = z.object({
   bmdcNumber: z.string().trim().max(20).optional().or(z.literal("")),
 });
 export type CreateDoctorInput = z.infer<typeof CreateDoctorSchema>;
+
+/**
+ * Admin-only manual override of the Founding Doctor badge (normally earned via
+ * referrals). `reason` is optional context recorded in the audit log.
+ */
+export const AdminFoundingDoctorSchema = z.object({
+  isFounding: z.boolean(),
+  reason: z.string().trim().max(500).optional(),
+});
+export type AdminFoundingDoctorInput = z.infer<typeof AdminFoundingDoctorSchema>;

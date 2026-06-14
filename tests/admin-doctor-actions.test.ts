@@ -169,3 +169,65 @@ describe("admin-doctor actions — happy path writes audit log", () => {
     expect(auditCreateMock).not.toHaveBeenCalled();
   });
 });
+
+describe("admin-doctor actions — founding doctor override", () => {
+  beforeEach(() => {
+    authMock.mockReset();
+    fakeDoctor.save.mockClear();
+    doctorModel.findById.mockClear();
+    auditCreateMock.mockClear();
+    // The fake stores nested set("a.b", v) as a flat dotted key — clear them.
+    delete fakeDoctor["foundingDoctor.isFounding"];
+    delete fakeDoctor["foundingDoctor.awardedAt"];
+  });
+
+  it("grants the badge: sets isFounding, stamps awardedAt, audits", async () => {
+    asAdmin();
+    fakeDoctor.foundingDoctor = { isFounding: false, qualifiedReferrals: 0, awardedAt: null };
+    const form = new FormData();
+    form.set("isFounding", "on");
+    form.set("reason", "high-value onboarding");
+
+    const r = await actions.adminUpdateFoundingDoctorAction(VALID_DOCTOR_ID, form);
+
+    expect(r.ok).toBe(true);
+    expect(fakeDoctor.save).toHaveBeenCalledTimes(1);
+    expect(fakeDoctor["foundingDoctor.isFounding"]).toBe(true);
+    expect(fakeDoctor["foundingDoctor.awardedAt"]).toBeInstanceOf(Date);
+    expect(auditCreateMock).toHaveBeenCalledTimes(1);
+    const entry = auditCreateMock.mock.calls[0]![0] as Record<string, unknown>;
+    expect(entry.type).toBe("doctor.founding.updated");
+    const md = entry.metadata as Record<string, unknown>;
+    expect(md.isFounding).toBe(true);
+    expect(md.wasFounding).toBe(false);
+    expect(md.reason).toBe("high-value onboarding");
+  });
+
+  it("revokes the badge: clears isFounding and awardedAt", async () => {
+    asAdmin();
+    fakeDoctor.foundingDoctor = { isFounding: true, qualifiedReferrals: 7, awardedAt: new Date() };
+    const form = new FormData(); // no isFounding flag → revoke
+
+    const r = await actions.adminUpdateFoundingDoctorAction(VALID_DOCTOR_ID, form);
+
+    expect(r.ok).toBe(true);
+    expect(fakeDoctor["foundingDoctor.isFounding"]).toBe(false);
+    expect(fakeDoctor["foundingDoctor.awardedAt"]).toBeNull();
+    expect(auditCreateMock).toHaveBeenCalledTimes(1);
+    const entry = auditCreateMock.mock.calls[0]![0] as Record<string, unknown>;
+    const md = entry.metadata as Record<string, unknown>;
+    expect(md.isFounding).toBe(false);
+    expect(md.wasFounding).toBe(true);
+    expect(md.qualifiedReferrals).toBe(7);
+  });
+
+  it("rejects a non-admin without hitting the DB", async () => {
+    asDoctor();
+    const form = new FormData();
+    form.set("isFounding", "on");
+    const r = await actions.adminUpdateFoundingDoctorAction(VALID_DOCTOR_ID, form);
+    expect(r.ok).toBe(false);
+    expect(doctorModel.findById).not.toHaveBeenCalled();
+    expect(fakeDoctor.save).not.toHaveBeenCalled();
+  });
+});

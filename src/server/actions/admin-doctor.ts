@@ -24,6 +24,7 @@ import {
   ProfileConcentrationsSchema,
   ChambersUpdateSchema,
   CreateDoctorSchema,
+  AdminFoundingDoctorSchema,
 } from "@/lib/validators/doctor";
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
@@ -819,6 +820,69 @@ export async function adminUpdateVerificationAction(
       nidVerified,
       idDocumentType: nidVerified ? idDocumentType : null,
       verificationLevel: doctor.get("verificationLevel"),
+    },
+  });
+
+  revalidateAdminDoctorPaths(doctor.get("slug"));
+  return { ok: true };
+}
+
+/**
+ * Admin-only Founding Doctor override (no referral required). Flips the
+ * denormalized `foundingDoctor.isFounding` cache that the gold badge + the
+ * founding-first search ranking read from, mirroring the field handling in
+ * `qualifyReferralAndRecompute` (lib/referral/service.ts): stamps `awardedAt`
+ * on first grant (preserving a real earlier award), clears it on revoke, and
+ * leaves `qualifiedReferrals` (the true referral count) untouched.
+ *
+ * The badge is purely cosmetic + a ranking perk, so this deliberately does NOT
+ * touch `User.approved`, publishing, verification, or the Referral records. A
+ * manual revoke overrides the "permanent once awarded" rule (logged); a later
+ * qualifying referral can still re-award normally.
+ */
+export async function adminUpdateFoundingDoctorAction(
+  doctorId: string,
+  form: FormData,
+): Promise<ActionResult> {
+  const ctx = await loadDoctorAsAdmin(doctorId);
+  if (!ctx.ok) return ctx;
+  const { doctor } = ctx;
+
+  const parsed = AdminFoundingDoctorSchema.safeParse({
+    isFounding: form.get("isFounding") === "on",
+    reason: String(form.get("reason") ?? "").trim() || undefined,
+  });
+  if (!parsed.success) return { ok: false, error: "Invalid input." };
+  const { isFounding, reason } = parsed.data;
+
+  const founding = (doctor.get("foundingDoctor") ?? {}) as {
+    isFounding?: boolean;
+    awardedAt?: Date | null;
+    qualifiedReferrals?: number;
+  };
+  const wasFounding = Boolean(founding.isFounding);
+
+  doctor.set("foundingDoctor.isFounding", isFounding);
+  if (isFounding) {
+    // Stamp the award date on first grant; preserve a real earlier one.
+    if (!founding.awardedAt) doctor.set("foundingDoctor.awardedAt", new Date());
+  } else {
+    doctor.set("foundingDoctor.awardedAt", null);
+  }
+  // `qualifiedReferrals` is the true referral-count cache — left untouched.
+
+  await doctor.save();
+
+  await logAdminEdit({
+    type: "doctor.founding.updated",
+    doctorId: doctor._id,
+    adminId: ctx.adminId,
+    adminEmail: ctx.adminEmail,
+    metadata: {
+      isFounding,
+      wasFounding,
+      reason: reason ?? null,
+      qualifiedReferrals: founding.qualifiedReferrals ?? 0,
     },
   });
 
