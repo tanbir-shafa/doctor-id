@@ -56,7 +56,7 @@ export function EmrRewardBand() {
                 href="/auth/register"
                 className="inline-flex items-center gap-1 rounded-md bg-white px-5 py-2.5 text-sm font-medium text-primary hover:opacity-90"
               >
-                Claim your profile <ArrowRight className="size-4" aria-hidden="true" />
+                Create your profile <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
             </div>
           </div>

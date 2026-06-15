@@ -66,7 +66,7 @@ export async function SiteHeader() {
                 Create profile
               </Link>
               <Link
-                href="/#claim"
+                href="/search"
                 className="rounded-md bg-primary px-3 py-1.5 text-primary-foreground hover:opacity-90"
               >
                 Claim your profile

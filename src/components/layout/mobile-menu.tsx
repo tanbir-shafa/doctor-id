@@ -111,7 +111,7 @@ export function MobileMenu({
                     Create profile
                   </DrawerLink>
                   <Link
-                    href="/#claim"
+                    href="/search"
                     className="mt-2 block rounded-md bg-primary px-3 py-2 text-center font-medium text-primary-foreground hover:opacity-90"
                   >
                     Claim your profile
