@@ -1,10 +1,10 @@
 /**
  * Home page — "two faces, one URL".
  *
- * Logged-out: a claim-and-trust acquisition funnel (claim-mirror hero → BMDC
- * trust → social proof → "your prescription is your billboard" → specialty grid
- * → why-free/EMR band). Logged-in doctor: a weekly scoreboard, swapped in
- * client-side by <HomeTop>.
+ * Logged-out: a claim-and-trust acquisition funnel (claim-mirror hero → EMR
+ * reward band → BMDC trust → social proof → "your prescription is your
+ * billboard" → specialty grid → why-free/EMR band). Logged-in doctor: a weekly
+ * scoreboard, swapped in client-side by <HomeTop>.
  *
  * This file is the SEO surface, so it stays ISR-cacheable and never calls
  * auth() — the per-visitor branch lives in <HomeTop> (a client overlay calling
@@ -20,6 +20,7 @@ import {
   getProfileViewsLast30Days,
 } from "@/lib/db/queries/doctors";
 import { HomeTop } from "@/components/home/home-top";
+import { EmrRewardBand } from "@/components/home/emr-reward-band";
 import { TrustBand } from "@/components/home/trust-band";
 import { ProofStrip } from "@/components/home/proof-strip";
 import { FoundingDoctorBand } from "@/components/home/founding-doctor-band";
@@ -67,6 +68,7 @@ export default async function HomePage() {
   return (
     <>
       <HomeTop totalDoctors={stats.totalDoctors} />
+      <EmrRewardBand />
       <TrustBand />
       <ProofStrip stats={stats} views30d={views30d} featured={featured} />
       <FoundingDoctorBand foundingCount={stats.foundingDoctors} />

@@ -5,7 +5,7 @@ import { HeartHandshake, Check } from "lucide-react";
 /**
  * Closing objection-handler. BD doctors are rightly wary of "free" platforms
  * that monetize them later — so we name the business model plainly, and add the
- * free 6-month Shafa EMR seat as the bridge to Shafa Care's actual product
+ * free 3-month Shafa EMR seat as the bridge to Shafa Care's actual product
  * (the reason this directory exists).
  */
 export function WhyFreeBand() {
@@ -18,7 +18,7 @@ export function WhyFreeBand() {
         <h2 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Why is this free?</h2>
         <p className="mt-3 text-muted-foreground">
           Daktar.Link is built by Shafa Care. The directory is our gift to the profession —
-          we grow when Bangladesh&apos;s doctors do. Claim your profile free, and get 6 months
+          we grow when Bangladesh&apos;s doctors do. Claim your profile free, and get 3 months
           of Shafa EMR free too. No card required.
         </p>
         <ul className="mx-auto mt-6 flex max-w-md flex-col gap-2 text-left text-sm">
