@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Calendar, GraduationCap, Briefcase, Languages, Phone, Mail, MessageCircle, Users, ArrowRight } from "lucide-react";
+import { Calendar, GraduationCap, Briefcase, Languages, Phone, Mail, MessageCircle, Users, ArrowRight, HelpCircle } from "lucide-react";
 import { renderBioMarkdown } from "@/lib/utils/sanitize";
 import { profileUrl } from "@/lib/seo/jsonld";
-import { buildAutoProfileSummary } from "@/lib/seo/profile-text";
+import { buildAutoProfileSummary, buildProfileFaq } from "@/lib/seo/profile-text";
 import { DoctorCard } from "@/components/search/doctor-card";
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { ProfileCredentials } from "@/components/profile/profile-credentials";
@@ -39,6 +39,7 @@ export function DoctorProfileView({
   const primaryChamber = doctor.chambers.find((c) => c.isPrimary) ?? doctor.chambers[0];
   const primarySpecialtyName =
     (doctor.specialties.find((s) => s.isPrimary) ?? doctor.specialties[0])?.name ?? null;
+  const faq = buildProfileFaq(doctor);
   const url = profileUrl(doctor.slug);
 
   return (
@@ -150,6 +151,27 @@ export function DoctorProfileView({
                 {doctor.chambers.map((c, i) => (
                   <ChamberCard key={i} chamber={c} />
                 ))}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {faq.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <HelpCircle className="size-5 text-primary" aria-hidden="true" />
+                  Frequently asked
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="space-y-4">
+                  {faq.map((item, i) => (
+                    <div key={i}>
+                      <dt className="font-medium text-foreground">{item.question}</dt>
+                      <dd className="mt-1 text-sm text-muted-foreground">{item.answer}</dd>
+                    </div>
+                  ))}
+                </dl>
               </CardContent>
             </Card>
           ) : null}

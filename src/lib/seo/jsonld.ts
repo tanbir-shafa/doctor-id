@@ -178,6 +178,27 @@ export function buildBreadcrumbJsonLd(items: BreadcrumbItem[]): Record<string, u
   };
 }
 
+export interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+/**
+ * FAQPage schema. The Q&A must also be visible on the page (the profile renders
+ * the same items), per Google's structured-data policy.
+ */
+export function buildFaqJsonLd(items: FaqItem[]): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((it) => ({
+      "@type": "Question",
+      name: it.question,
+      acceptedAnswer: { "@type": "Answer", text: it.answer },
+    })),
+  };
+}
+
 /** Strip `undefined` keys so the rendered JSON is clean for crawlers. */
 export function pruneJsonLd<T>(obj: T): T {
   if (Array.isArray(obj)) return obj.map(pruneJsonLd) as unknown as T;

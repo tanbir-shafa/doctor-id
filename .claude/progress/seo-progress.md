@@ -13,11 +13,11 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 ## Summary
 
-**7 / 55 done** · 0 in-progress · 48 not-started
+**8 / 55 done** · 0 in-progress · 47 not-started
 
 | Dept | Total | Done |
 |---|---|---|
-| ENG (engineering) | 20 | 7 |
+| ENG (engineering) | 20 | 8 |
 | PRD (product/design) | 6 | 0 |
 | CON (content/editorial) | 9 | 0 |
 | MKT (marketing/growth) | 8 | 0 |
@@ -67,7 +67,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 | # | Task | Dept | Depends on | Status | Notes |
 |---|---|---|---|---|---|
 | 27 | Define KPIs + reporting cadence | MKT | 1, 3, 4 | not-started | |
-| 28 | `FAQPage` schema (profiles + hubs) | ENG | 17 | not-started | |
+| 28 | `FAQPage` schema + visible FAQ (profiles) | ENG | (17) | done | Data-driven [buildProfileFaq](../../src/lib/seo/profile-text.ts) → visible "Frequently asked" card + FAQPage JSON-LD. Brought forward w/o Content; task 17 can refine copy. **Hub FAQ (specialty/district) still pending.** |
 | 29 | Bangla `alternateName` + `sameAs`/`alumniOf`/`dateModified` | ENG | 5 | not-started | Unlocks Bangla name queries |
 | 30 | `/about` + `/how-verification-works` copy | CON | 9 | not-started | |
 | 31 | Hub unique-intro copy templates | CON | 12 | not-started | |
@@ -128,6 +128,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 ## Changelog
 
 - **2026-06-17** — Progress board created from [seo-growth-plan.md](../plans/seo-growth-plan.md); 54 tasks across 6 dependency-ordered stages, all `not-started`.
+- **2026-06-17** — **Task 28 — data-driven FAQ (profiles) ✅** — [buildProfileFaq](../../src/lib/seo/profile-text.ts) generates per-doctor Q&A from real fields (specialty, chambers, fees, verification, appointment, languages); rendered as a visible "Frequently asked" card **and** as `FAQPage` JSON-LD ([buildFaqJsonLd](../../src/lib/seo/jsonld.ts)) — schema matches on-page content. Brought forward without Content's hand-written templates (task 17 can refine wording later). Gate green: typecheck + 574 tests + lint 0/0 + build; live-verified (FAQPage + 4 Question nodes + visible section on a profile). **Caveat:** Google restricts FAQ *rich results* to authoritative gov/health sites, so the near-term value is on-page unique content + question-query targeting, not guaranteed SERP rich snippets. **Hub-level FAQ deferred.**
 - **2026-06-17** — Added **task 55** (cookie-consent banner + GA Consent Mode v2) to Stage 2; it gates turning GA on in production (surfaced by task 2).
 - **2026-06-17** — **Task 2 — GA4 + conversion instrumentation ✅** — `<GoogleAnalytics/>` ([component](../../src/components/analytics/google-analytics.tsx)) loads gtag.js via `next/script` + tracks SPA page_views, **only** when `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set (clean no-op otherwise — same pattern as SES/SMS/Turnstile). SSR-safe `trackEvent`/`pageview` helpers ([gtag.ts](../../src/lib/analytics/gtag.ts)); conversion events wired into the funnels — `otp_requested` + `sign_up` (register/claim), `otp_requested` + `login` (sign-in). New env `NEXT_PUBLIC_GA_MEASUREMENT_ID`. Gate green: typecheck + 570 tests + lint 0/0 + build; live-verified the no-op (0 gtag tags when unset). **Remaining for activation:** Analytics provides the GA4 property + measurement ID, then marks the events as conversions (task 3).
 - **2026-06-17** — **Stage 1 engineering (tasks 19–24) ✅** — site-wide `Organization` + `WebSite` (SearchAction) schema; `BreadcrumbList` on profile / specialty / specialty×district; unique auto-generated profile copy ([profile-text.ts](../../src/lib/seo/profile-text.ts)) feeding the meta description, `Physician.description`, and an on-page "About" card so no profile is thin content; sitemap pruned to specialty×district combos with real supply + `robots:noindex` on empty combos; related-doctor block + "all [specialty]" cross-links (also fixed the latent `name.toLowerCase()` district-pivot bug); self-referencing page-aware canonicals on paginated search / specialty / district pages. New files: `profile-text.ts` + `tests/profile-text.test.ts`; 3 new jsonld builders + 4 new query helpers. Gate green: typecheck + 568 tests + lint 0/0 + build. **Deferred:** `rel=next/prev` (Google-deprecated and no first-class Next metadata support — self-canonical covers the consolidation need).

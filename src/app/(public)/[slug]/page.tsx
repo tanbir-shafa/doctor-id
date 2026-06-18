@@ -8,8 +8,10 @@ import {
   buildPhysicianJsonLd,
   buildChamberJsonLd,
   buildBreadcrumbJsonLd,
+  buildFaqJsonLd,
   pruneJsonLd,
 } from "@/lib/seo/jsonld";
+import { buildProfileFaq } from "@/lib/seo/profile-text";
 import { recordProfileViewAction } from "@/server/actions/doctor";
 import { DoctorProfileView } from "@/components/profile/doctor-profile-view";
 import { SpecialtyListing } from "@/components/search/specialty-listing";
@@ -144,6 +146,7 @@ export default async function SlugPage({
   const physicianLd = pruneJsonLd(buildPhysicianJsonLd(doctor));
   const chamberLds = buildChamberJsonLd(doctor).map(pruneJsonLd);
   const breadcrumbLd = pruneJsonLd(buildBreadcrumbJsonLd(crumbs));
+  const faqLd = pruneJsonLd(buildFaqJsonLd(buildProfileFaq(doctor)));
 
   return (
     <>
@@ -154,6 +157,10 @@ export default async function SlugPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
       />
       {chamberLds.map((ld, i) => (
         <script

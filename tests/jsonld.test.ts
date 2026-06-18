@@ -5,6 +5,7 @@ import {
   buildOrganizationJsonLd,
   buildWebSiteJsonLd,
   buildBreadcrumbJsonLd,
+  buildFaqJsonLd,
   pruneJsonLd,
 } from "@/lib/seo/jsonld";
 import type { DoctorDocLike } from "@/types/doctor";
@@ -88,6 +89,18 @@ describe("Schema.org JSON-LD builders", () => {
     expect(items).toHaveLength(3);
     expect(items[0]).toMatchObject({ position: 1, name: "Home" });
     expect(items[2]).toMatchObject({ position: 3, item: "https://x/karim-rahman-cardiologist" });
+  });
+
+  it("FAQPage wraps each question with an acceptedAnswer", () => {
+    const ld = buildFaqJsonLd([
+      { question: "Where does Dr. X practise?", answer: "Dhaka." },
+      { question: "Is Dr. X verified?", answer: "Yes." },
+    ]);
+    expect(ld["@type"]).toBe("FAQPage");
+    const main = ld.mainEntity as Record<string, unknown>[];
+    expect(main).toHaveLength(2);
+    expect(main[0]).toMatchObject({ "@type": "Question", name: "Where does Dr. X practise?" });
+    expect((main[0]!.acceptedAnswer as Record<string, unknown>).text).toBe("Dhaka.");
   });
 
   it("pruneJsonLd strips undefined and empty arrays without mangling valid values", () => {

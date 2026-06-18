@@ -120,3 +120,94 @@ export function buildAutoProfileSummary(doc: DoctorDocLike): string {
 
   return collapseWhitespace(sentences.join(" "));
 }
+
+export interface ProfileFaqItem {
+  question: string;
+  answer: string;
+}
+
+function verificationAnswer(doc: DoctorDocLike, name: string): string {
+  switch (doc.verificationLevel) {
+    case "fully_verified":
+      return `Yes — ${name} carries the blue Verified tick: both BMDC professional registration and identity have been confirmed by Daktar.Link.`;
+    case "bmdc_verified":
+      return `${name}'s BMDC professional registration has been verified by Daktar.Link.`;
+    case "identity_verified":
+      return `${name}'s identity has been verified by Daktar.Link.`;
+    default:
+      return `${name} is listed on Daktar.Link but has not completed verification yet.`;
+  }
+}
+
+/**
+ * Data-driven FAQ for a profile — each answer is built from the doctor's real
+ * fields, so it's unique per doctor and matches what's rendered on the page (a
+ * requirement for the FAQPage structured data). Only questions with backing
+ * data are included; specialty + verification are always answerable.
+ */
+export function buildProfileFaq(doc: DoctorDocLike): ProfileFaqItem[] {
+  const name = doc.name.displayName;
+  const specialty = primarySpecialtyName(doc);
+  const items: ProfileFaqItem[] = [];
+
+  // 1 — specialty (always)
+  const focus = (doc.subSpecialties?.length ? doc.subSpecialties : doc.concentrations) ?? [];
+  items.push({
+    question: `What does ${name} specialise in?`,
+    answer: `${name} is a ${specialty} specialist${
+      focus.length ? `, with a focus on ${formatList(focus.slice(0, 4))}` : ""
+    }.`,
+  });
+
+  // 2 — where (if chambers)
+  if (doc.chambers.length) {
+    const chamberNames = formatList([...new Set(doc.chambers.map((c) => c.name).filter(Boolean))].slice(0, 3));
+    const districts = [...new Set(doc.chambers.map((c) => c.district).filter(Boolean))];
+    const where = districts.length ? ` in ${formatList(districts.slice(0, 3))}` : "";
+    items.push({
+      question: `Where does ${name} see patients?`,
+      answer: `${name} consults at ${chamberNames || `${doc.chambers.length} chamber(s)`}${where}. Full chamber addresses and weekly schedules are listed on this page.`,
+    });
+  }
+
+  // 3 — fees (if any chamber has a positive fee)
+  const fees = doc.chambers
+    .map((c) => c.consultationFee)
+    .filter((f): f is NonNullable<typeof f> => Boolean(f && f.amount > 0));
+  if (fees.length) {
+    const amounts = fees.map((f) => f.amount);
+    const min = Math.min(...amounts);
+    const max = Math.max(...amounts);
+    const currency = fees[0]!.currency;
+    const fee = min === max ? `${currency} ${min}` : `${currency} ${min}–${max}`;
+    items.push({
+      question: `What is ${name}'s consultation fee?`,
+      answer: `${name}'s consultation fee is ${fee}. Fees can vary by chamber — see each chamber's details on this page.`,
+    });
+  }
+
+  // 4 — verification (always)
+  items.push({
+    question: `Is ${name} verified on Daktar.Link?`,
+    answer: verificationAnswer(doc, name),
+  });
+
+  // 5 — appointment (always)
+  items.push({
+    question: `How can I book an appointment with ${name}?`,
+    answer:
+      doc.isClaimed && doc.chambers.length
+        ? `You can request an appointment directly from ${name}'s profile on Daktar.Link, or visit a listed chamber during its scheduled hours.`
+        : `Chamber locations and schedules are listed on this profile. ${name} can claim this profile on Daktar.Link to enable online appointment requests.`,
+  });
+
+  // 6 — languages (if any)
+  if (doc.languages.length) {
+    items.push({
+      question: `What languages does ${name} speak?`,
+      answer: `${name} consults in ${formatList(doc.languages.slice(0, 5))}.`,
+    });
+  }
+
+  return items;
+}

@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildAutoMetaDescription, buildAutoProfileSummary } from "@/lib/seo/profile-text";
+import {
+  buildAutoMetaDescription,
+  buildAutoProfileSummary,
+  buildProfileFaq,
+} from "@/lib/seo/profile-text";
 import type { DoctorDocLike } from "@/types/doctor";
 
 const baseDoc: DoctorDocLike = {
@@ -74,5 +78,40 @@ describe("auto-generated profile copy", () => {
     const meta = buildAutoMetaDescription(sparse);
     expect(meta).toContain("Daktar.Link");
     expect(meta.length).toBeLessThanOrEqual(160);
+  });
+});
+
+describe("data-driven profile FAQ", () => {
+  it("always answers specialty + verification, and weaves in real data", () => {
+    const faq = buildProfileFaq(baseDoc);
+    const questions = faq.map((f) => f.question);
+    expect(questions.some((q) => /specialise/i.test(q))).toBe(true);
+    expect(questions.some((q) => /verified/i.test(q))).toBe(true);
+
+    const verification = faq.find((f) => /verified/i.test(f.question));
+    expect(verification?.answer).toContain("BMDC");
+    const location = faq.find((f) => /see patients/i.test(f.question));
+    expect(location?.answer).toContain("Dhaka");
+  });
+
+  it("includes a fee question when a chamber has a consultation fee", () => {
+    const withFee: DoctorDocLike = {
+      ...baseDoc,
+      chambers: [{ ...baseDoc.chambers[0]!, consultationFee: { amount: 800, currency: "BDT" } }],
+    };
+    const fee = buildProfileFaq(withFee).find((f) => /consultation fee/i.test(f.question));
+    expect(fee?.answer).toContain("BDT 800");
+  });
+
+  it("sparse profile still yields specialty + verification + appointment", () => {
+    const sparse: DoctorDocLike = {
+      ...baseDoc,
+      chambers: [],
+      languages: [],
+      qualifications: [],
+      subSpecialties: [],
+      concentrations: [],
+    };
+    expect(buildProfileFaq(sparse).length).toBeGreaterThanOrEqual(3);
   });
 });
