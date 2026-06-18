@@ -129,15 +129,25 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
 
   await dbConnect();
 
-  // Phone uniqueness — block if another verified user already owns it.
-  const phoneClash = await User.findOne({ phone: normalizedPhone, phoneVerified: true })
+  // Phone uniqueness — block only if a verified phone already has a PROVISIONED
+  // profile. A verified-but-profileless User (a prior registration whose
+  // Doctor.create failed — e.g. a BMDC collision) must be allowed to re-register
+  // so it can recover; the regDraft upsert below just overwrites the stale draft.
+  const verifiedUser = await User.findOne({ phone: normalizedPhone, phoneVerified: true })
     .select("_id")
-    .lean();
-  if (phoneClash) {
-    return {
-      ok: false,
-      error: "This phone number is already in use. Sign in instead, or contact support.",
-    };
+    .lean<{ _id: unknown } | null>();
+  if (verifiedUser) {
+    const hasProfile = await Doctor.findOne({
+      $or: [{ ownerId: verifiedUser._id }, { userId: verifiedUser._id }],
+    })
+      .select("_id")
+      .lean();
+    if (hasProfile) {
+      return {
+        ok: false,
+        error: "This phone number is already in use. Sign in instead, or contact support.",
+      };
+    }
   }
 
   // BMDC uniqueness — block if another claimed doctor already owns it.
@@ -539,11 +549,12 @@ async function materializeRegistration(args: {
   const displayName = `Dr. ${firstName} ${lastName}`.replace(/\s+/g, " ").trim();
   const bmdc = draft.bmdcNumber ?? null;
   const claimSlug = draft.claimSlug ?? null;
-  let referredDoctorId = "";
-
-  if (claimSlug) {
-    const claimed = await Doctor.findOneAndUpdate(
-      { slug: claimSlug, isClaimed: false },
+  // Atomically claim an *unclaimed* Doctor matching `filter`, binding it to this
+  // user. Returns the updated doc, or null if nothing matched (already claimed /
+  // not found) — race-safe via the `isClaimed:false` guard.
+  const claimUnclaimed = (filter: Record<string, unknown>) =>
+    Doctor.findOneAndUpdate(
+      { ...filter, isClaimed: false },
       {
         $set: {
           userId,
@@ -556,30 +567,15 @@ async function materializeRegistration(args: {
       },
       { returnDocument: "after" },
     );
-    if (!claimed) {
-      throw new Error("This profile has just been claimed by someone else.");
-    }
-    referredDoctorId = String(claimed._id);
-    const selfie = await buildSelfieClaimFields(String(claimed._id), userId, draft);
-    await (ClaimRequest as unknown as Loose).create({
-      doctorId: claimed._id,
-      requestedBy: userId,
-      bmdcNumberProvided: bmdc,
-      ...selfie,
-      notesFromDoctor: "Claimed via public profile link. Live selfie attached for verification.",
-      status: "pending",
-    });
-  } else {
+
+  const createFreshDoctor = async () => {
     let slug = generateSlug({ displayName });
     for (let i = 0; i < 5; i++) {
       const clash = await Doctor.findOne({ slug }).select("_id").lean();
       if (!clash) break;
-      slug = generateSlug({
-        displayName,
-        disambiguator: (bmdc ?? "").slice(-4) + (i || ""),
-      });
+      slug = generateSlug({ displayName, disambiguator: (bmdc ?? "").slice(-4) + (i || "") });
     }
-    const doctor = await Doctor.create({
+    return Doctor.create({
       ownerType: "doctor",
       ownerId: userId,
       userId,
@@ -592,17 +588,66 @@ async function materializeRegistration(args: {
       claimRequestedBy: userId,
       status: "draft",
     });
-    referredDoctorId = String(doctor._id);
-    const selfie = await buildSelfieClaimFields(String(doctor._id), userId, draft);
-    await (ClaimRequest as unknown as Loose).create({
-      doctorId: doctor._id,
-      requestedBy: userId,
-      bmdcNumberProvided: bmdc,
-      ...selfie,
-      notesFromDoctor: "Live selfie attached at registration.",
-      status: "pending",
-    });
+  };
+
+  const isDupKey = (err: unknown) =>
+    !!err && typeof err === "object" && (err as { code?: number }).code === 11000;
+  const ATTACH_NOTE =
+    "Auto-attached to an existing directory profile by BMDC match. Live selfie attached for verification.";
+
+  // Resolve the Doctor this registration binds to, in priority order:
+  //   1. explicit claim-by-slug (public profile link),
+  //   2. auto-attach by BMDC to an existing UNCLAIMED directory profile (e.g. a
+  //      scraped DocTime/Popular/Ibn-Sina row) — avoids a duplicate AND the
+  //      bmdcNumber unique-index E11000 that used to wedge the account,
+  //   3. otherwise a fresh draft profile.
+  let doctorId: string;
+  let note: string;
+
+  if (claimSlug) {
+    const claimed = await claimUnclaimed({ slug: claimSlug });
+    if (!claimed) throw new Error("This profile has just been claimed by someone else.");
+    doctorId = String(claimed._id);
+    note = "Claimed via public profile link. Live selfie attached for verification.";
+  } else {
+    const byBmdc = bmdc ? await claimUnclaimed({ bmdcNumber: bmdc }) : null;
+    if (byBmdc) {
+      doctorId = String(byBmdc._id);
+      note = ATTACH_NOTE;
+    } else {
+      try {
+        const created = await createFreshDoctor();
+        doctorId = String(created._id);
+        note = "Live selfie attached at registration.";
+      } catch (err) {
+        // E11000 backstop: a doc with this BMDC raced in between our check and
+        // the insert. Claim it instead; if it's already claimed, surface a
+        // friendly, recoverable error (never a raw 500 that wedges the account).
+        const raced = isDupKey(err) && bmdc ? await claimUnclaimed({ bmdcNumber: bmdc }) : null;
+        if (!raced) {
+          if (isDupKey(err)) {
+            throw new Error(
+              "This BMDC number is already registered to another profile. If it's yours, contact support.",
+            );
+          }
+          throw err;
+        }
+        doctorId = String(raced._id);
+        note = ATTACH_NOTE;
+      }
+    }
   }
+
+  const referredDoctorId = doctorId;
+  const selfie = await buildSelfieClaimFields(doctorId, userId, draft);
+  await (ClaimRequest as unknown as Loose).create({
+    doctorId,
+    requestedBy: userId,
+    bmdcNumberProvided: bmdc,
+    ...selfie,
+    notesFromDoctor: note,
+    status: "pending",
+  });
 
   // Founding Doctor referral: if this sign-up came through a referral link/code,
   // mint a pending Referral (qualifies when an admin approves this doctor). The

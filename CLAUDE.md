@@ -645,6 +645,7 @@ finished yet, but the integration seam exists:
 ## Quick references
 
 - **Getting started**: [`doc/getting-started.md`](./doc/getting-started.md) ← new devs start here
+- **Registration flow**: [`doc/registration-flow.md`](./doc/registration-flow.md) — phone-OTP signup, claim-or-create, approval gate
 - Roadmap: [`.claude/plans/60-days-product-rodemap.md`](./.claude/plans/60-days-product-rodemap.md)
 - Sprint A engineering plan: [`.claude/progress/60-days-sprint-a-tasks.md`](./.claude/progress/60-days-sprint-a-tasks.md)
 - MVP architectural plan: [`.claude/plans/mvp-plan.md`](./.claude/plans/mvp-plan.md)

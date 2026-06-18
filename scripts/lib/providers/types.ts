@@ -26,7 +26,7 @@ import type {
 
 /** Where a candidate came from. Surfaces in the audit log but not on the DB. */
 export interface SourceMeta {
-    source: "popular-diagnostic" | "ibn-sina" | "sasthyaseba" | "doctor-bangladesh";
+    source: "popular-diagnostic" | "ibn-sina" | "sasthyaseba" | "doctor-bangladesh" | "doctime";
     /** The id used inside that source (matches the on-disk fixture filename). */
     sourceId: string;
     /** Canonical URL on the source's own site. */

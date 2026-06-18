@@ -263,6 +263,7 @@ const ALIASES: Record<string, string> = {
     // Dental
     "dentist": "Dental Surgery",
     "dental": "Dental Surgery",
+    "dentistry": "Dental Surgery",
 
     // Radiology / imaging
     "sonologist": "Radiology",
@@ -624,9 +625,12 @@ export function resolveSpecialty(
 
     // 6. Substring scan against canonical names — medium confidence.
     for (const [canonicalKey, entry] of lookup.byNameLower) {
-        if (key.includes(canonicalKey)) {
-            return {name: entry.name, fhirCode: entry.fhirCode ?? null, confidence: "medium"};
-        }
+        if (!key.includes(canonicalKey)) continue;
+        // Very short canonical names (e.g. "ent", 3 chars) over-match inside
+        // longer words ("ENT" inside "d-ent-istry" / "complem-ent-ary"), so
+        // require a word-boundary hit for them. "Pediatric ENT" still resolves.
+        if (canonicalKey.length < 4 && !new RegExp(`\\b${canonicalKey}\\b`).test(key)) continue;
+        return {name: entry.name, fhirCode: entry.fhirCode ?? null, confidence: "medium"};
     }
 
     // 7. Keyword → canonical for descriptive / off-catalog strings

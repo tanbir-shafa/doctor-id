@@ -30,7 +30,6 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const PROVIDER = "unified";
-const UNIFIED_FILE = join(process.cwd(), "data/unified/doctors.json");
 
 interface UnifiedDoctor {
   unifiedId: string;
@@ -38,6 +37,7 @@ interface UnifiedDoctor {
   canonical: {
     name: { prefix: string; first: string; last: string; displayName: string };
     gender?: string;
+    bmdcNumber?: string;
     bio?: string;
     contact?: { publicPhone?: string; publicEmail?: string };
     languages?: string[];
@@ -64,9 +64,13 @@ interface UnifiedDoctor {
 function parseArgs() {
   const argv = process.argv.slice(2);
   const limitArg = argv.find((a) => a.startsWith("--limit="));
+  const fileArg = argv.find((a) => a.startsWith("--file="));
   return {
     dryRun: argv.includes("--dry-run"),
     limit: limitArg ? Number(limitArg.slice("--limit=".length)) : null,
+    // Which unified file to seed. Defaults to the full corpus; pass
+    // `--file=data/unified/doctime-new.json` to insert only the new DocTime docs.
+    file: join(process.cwd(), fileArg ? fileArg.slice("--file=".length) : "data/unified/doctors.json"),
   };
 }
 
@@ -109,8 +113,8 @@ function chamberSubdocs(
 }
 
 async function main() {
-  const { dryRun, limit } = parseArgs();
-  console.log(`→ Seeding unified doctors${dryRun ? " (dry-run)" : ""}`);
+  const { dryRun, limit, file } = parseArgs();
+  console.log(`→ Seeding from ${file}${dryRun ? " (dry-run)" : ""}`);
   await dbConnect();
 
   const chambers = await Chamber.find({}).lean();
@@ -122,7 +126,7 @@ async function main() {
     process.exit(1);
   }
 
-  const all = JSON.parse(readFileSync(UNIFIED_FILE, "utf8")) as UnifiedDoctor[];
+  const all = JSON.parse(readFileSync(file, "utf8")) as UnifiedDoctor[];
   const take = limit ? all.slice(0, limit) : all;
 
   // Slug de-dup (also covers re-runs against existing rows).
@@ -132,9 +136,23 @@ async function main() {
   let ops: any[] = [];
   let withChamber = 0;
   let missingChamber = 0;
+  let dupSkipped = 0;
   const BATCH = 1000;
   const flush = async () => {
-    if (ops.length && !dryRun) await Doctor.bulkWrite(ops, { ordered: false });
+    if (ops.length && !dryRun) {
+      try {
+        await Doctor.bulkWrite(ops, { ordered: false });
+      } catch (e: any) {
+        // Tolerate duplicate-key collisions (e.g. a scraped BMDC matching an
+        // already-registered doctor): skip those rows, keep inserting the rest.
+        const writeErrors = e?.writeErrors ?? e?.result?.writeErrors;
+        if (e?.code === 11000 || (Array.isArray(writeErrors) && writeErrors.length)) {
+          dupSkipped += Array.isArray(writeErrors) ? writeErrors.length : 1;
+        } else {
+          throw e;
+        }
+      }
+    }
     ops = [];
   };
 
@@ -168,6 +186,13 @@ async function main() {
       sourceUrl: u.sources[0]?.sourceUrl ?? null,
     };
     if (u.canonical.languages?.length) set.languages = u.canonical.languages;
+    // Scraped BMDC (DocTime supplies reg_no). Set the indexed bmdcNumber plus a
+    // FHIR-aligned registrations entry — only when present, so a reseed of the
+    // main corpus never clobbers an existing doctor's registrations.
+    if (u.canonical.bmdcNumber) {
+      set.bmdcNumber = u.canonical.bmdcNumber;
+      set.registrations = [{ council: "BMDC", number: u.canonical.bmdcNumber }];
+    }
 
     ops.push({
       updateOne: {
@@ -195,6 +220,7 @@ async function main() {
   if (!dryRun) await Doctor.syncIndexes();
   const total = dryRun ? 0 : await Doctor.countDocuments();
   console.log(`\n✓ processed ${take.length} unified docs — ${withChamber} with chamber, ${missingChamber} missing`);
+  if (dupSkipped) console.log(`  ⚠ ${dupSkipped} doc(s) skipped on duplicate key (e.g. BMDC already registered)`);
   console.log(`  Doctor collection now: ${total}`);
   await dbDisconnect();
 }

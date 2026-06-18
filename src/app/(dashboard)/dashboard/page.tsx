@@ -30,7 +30,17 @@ export default async function DashboardOverview({ searchParams }: PageProps) {
     return (
       <div className="rounded-lg border border-dashed border-border p-8 text-center">
         <h2 className="text-lg font-semibold">No profile yet</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Sign out and register again to provision your profile.</p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+          Your account is set up, but the doctor profile wasn&apos;t created. Finish registration
+          with this same phone number to provision it — if your BMDC number is already in our
+          directory, you&apos;ll be attached to that existing profile.
+        </p>
+        <Link
+          href="/auth/register"
+          className="mt-4 inline-flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Finish registration <ArrowRight className="h-4 w-4" />
+        </Link>
       </div>
     );
   }

@@ -30,6 +30,7 @@ import { buildSpecialtyLookup, resolveSpecialty, type SpecialtyLookup } from "./
 import { SPECIALTY_CATALOG } from "./lib/specialty-catalog";
 import { normalizePopularDoctor, toCanonicalCandidate } from "./lib/providers/popular";
 import { normalizeIbnSinaDoctor } from "./lib/providers/ibn-sina";
+import { normalizeDoctimeDoctor, type DoctimeEntry } from "./lib/providers/doctime";
 import type { CanonicalCandidate } from "./lib/providers/types";
 import type { ChamberLocation } from "./build-chamber-catalog";
 
@@ -39,6 +40,7 @@ const OUT_DIR = join(ROOT, "data/normalized");
 const SOURCE_FILES = {
   "popular-diagnostic": join(ROOT, "data/popular-diagnostic/doctors.json"),
   "ibn-sina": join(ROOT, "data/ibn-sina/doctors.json"),
+  doctime: join(ROOT, "data/doctime/doctors.json"),
 } as const;
 type SourceName = keyof typeof SOURCE_FILES;
 
@@ -302,6 +304,39 @@ function processIbnSina(records: any[], catalog: CatalogIndex, limit: number | n
   return { out, missing, skipped };
 }
 
+function processDoctime(records: any[], catalog: CatalogIndex, limit: number | null) {
+  const scrapedAt = metaScrapedAt("doctime");
+  const out: NormalizedRecord[] = [];
+  const missing: string[] = [];
+  let skipped = 0;
+  for (const entry of records as DoctimeEntry[]) {
+    if (limit != null && out.length >= limit) break;
+    const candidate = normalizeDoctimeDoctor(entry, lookup, scrapedAt);
+    if (!candidate) {
+      skipped++;
+      continue;
+    }
+    const specialtyStrings = (entry.data?.specialities ?? [])
+      .map((s) => s?.name)
+      .filter((s): s is string => !!s);
+    // DocTime is telemedicine-only → no branch/chamber (branchId: null).
+    const { record, missingChamber } = toNormalizedRecord(
+      candidate,
+      entry,
+      {
+        provider: "doctime",
+        branchId: null,
+        specialtyStrings,
+        localPhotoPath: entry.localPhotoPath,
+      },
+      catalog,
+    );
+    if (missingChamber) missing.push(`${candidate.sourceMeta.sourceId} → ${missingChamber}`);
+    out.push(record);
+  }
+  return { out, missing, skipped };
+}
+
 function loadCatalog(): { index: CatalogIndex; count: number } {
   const rows = JSON.parse(readFileSync(CATALOG_FILE, "utf8")) as ChamberLocation[];
   return { index: new Map(rows.map((r) => [r.id, r])), count: rows.length };
@@ -328,7 +363,9 @@ function main() {
     const { out, missing, skipped } =
       source === "popular-diagnostic"
         ? processPopular(records, catalog, limit)
-        : processIbnSina(records, catalog, limit);
+        : source === "doctime"
+          ? processDoctime(records, catalog, limit)
+          : processIbnSina(records, catalog, limit);
     allMissing.push(...missing);
 
     const gateEligible = out.filter((r) =>

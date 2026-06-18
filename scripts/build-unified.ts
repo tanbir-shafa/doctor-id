@@ -35,6 +35,7 @@ interface UnifiedDoctor {
   canonical: {
     name: NormalizedRecord["doctor"]["name"];
     gender?: NormalizedRecord["doctor"]["gender"];
+    bmdcNumber?: string;
     bio?: string;
     contact: { publicPhone?: string; publicEmail?: string };
     languages: string[];
@@ -219,6 +220,9 @@ function foldCluster(cluster: NormalizedRecord[], tier: Tier, createdAt: string)
   const name = { ...nameRec.doctor.name, prefix: bestPrefix ?? nameRec.doctor.name.prefix };
 
   const gender = firstDefined(ordered.map((r) => r.doctor.gender));
+  // BMDC registration number — carried on dedupKeys (only DocTime supplies it
+  // today). First non-empty across the cluster.
+  const bmdcNumber = firstDefined(ordered.map((r) => r.dedupKeys?.bmdc));
   const bio = longest(ordered.map((r) => r.doctor.bio));
   const publicPhone = firstDefined(ordered.map((r) => r.doctor.contact?.publicPhone));
   const publicEmail = firstDefined(ordered.map((r) => r.doctor.contact?.publicEmail));
@@ -285,6 +289,7 @@ function foldCluster(cluster: NormalizedRecord[], tier: Tier, createdAt: string)
     canonical: {
       name,
       gender,
+      bmdcNumber,
       bio,
       contact: { publicPhone, publicEmail },
       languages: unionCaseInsensitive(ordered.flatMap((r) => r.doctor.languages ?? [])),
