@@ -12,6 +12,11 @@
 
 import type { DoctorDocLike } from "@/types/doctor";
 import { publicEnv } from "@/lib/env";
+import { buildAutoProfileSummary } from "@/lib/seo/profile-text";
+
+function siteBase(): string {
+  return publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+}
 
 const DAY_MAP: Record<string, string> = {
   sun: "https://schema.org/Sunday",
@@ -29,7 +34,6 @@ export function profileUrl(slug: string): string {
 
 export function buildPhysicianJsonLd(doc: DoctorDocLike): Record<string, unknown> {
   const url = profileUrl(doc.slug);
-  const primarySpecialty = doc.specialties.find((s) => s.isPrimary) ?? doc.specialties[0];
 
   const qualifications = doc.qualifications.map((q) => ({
     "@type": "EducationalOccupationalCredential",
@@ -47,7 +51,7 @@ export function buildPhysicianJsonLd(doc: DoctorDocLike): Record<string, unknown
     name: doc.name.displayName,
     url,
     image: doc.photo?.url,
-    description: doc.bio?.slice(0, 280) || `${doc.name.displayName}, ${primarySpecialty?.name ?? "Doctor"} in Bangladesh.`,
+    description: doc.bio?.slice(0, 280) || buildAutoProfileSummary(doc),
     medicalSpecialty: doc.specialties.map((s) => s.name),
     knowsLanguage: doc.languages,
     gender: doc.gender === "male" ? "Male" : doc.gender === "female" ? "Female" : undefined,
@@ -108,6 +112,70 @@ export function buildChamberJsonLd(doc: DoctorDocLike): Record<string, unknown>[
           : undefined,
     };
   });
+}
+
+/**
+ * The Daktar.Link brand entity. Emitted site-wide (from the root layout) so the
+ * directory itself is a recognised Organization — the basis for a brand
+ * Knowledge Panel and consistent brand SERPs.
+ */
+export function buildOrganizationJsonLd(): Record<string, unknown> {
+  const base = siteBase();
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": `${base}/#organization`,
+    name: "Daktar.Link",
+    url: `${base}/`,
+    logo: `${base}/logo.svg`,
+    description:
+      "Daktar.Link is Bangladesh's verified, BMDC-aligned public directory of doctors — every profile shows real chambers, schedules, qualifications and verification status.",
+    founder: { "@type": "Organization", name: "Shafa Care Ltd", url: "https://shafa.care" },
+    areaServed: { "@type": "Country", name: "Bangladesh" },
+  };
+}
+
+/**
+ * WebSite schema with a SearchAction — this is what makes a sitelinks search box
+ * eligible in Google for the brand query. Emitted site-wide (includes the
+ * homepage, where Google reads it).
+ */
+export function buildWebSiteJsonLd(): Record<string, unknown> {
+  const base = siteBase();
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${base}/#website`,
+    name: "Daktar.Link",
+    url: `${base}/`,
+    inLanguage: "en-BD",
+    publisher: { "@id": `${base}/#organization` },
+    potentialAction: {
+      "@type": "SearchAction",
+      target: { "@type": "EntryPoint", urlTemplate: `${base}/search?q={search_term_string}` },
+      "query-input": "required name=search_term_string",
+    },
+  };
+}
+
+export interface BreadcrumbItem {
+  name: string;
+  /** Absolute URL of the crumb's target. */
+  url: string;
+}
+
+/** A BreadcrumbList for the doctor / specialty / district page hierarchy. */
+export function buildBreadcrumbJsonLd(items: BreadcrumbItem[]): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((it, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: it.name,
+      item: it.url,
+    })),
+  };
 }
 
 /** Strip `undefined` keys so the rendered JSON is clean for crawlers. */

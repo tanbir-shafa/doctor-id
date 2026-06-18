@@ -3,8 +3,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Specialty } from "@/lib/db/models";
-import { searchDoctors, listDistricts } from "@/lib/db/queries/doctors";
+import {
+  searchDoctors,
+  listDistricts,
+  countDoctorsInCombo,
+  MIN_INDEXABLE_COMBO_DOCTORS,
+} from "@/lib/db/queries/doctors";
 import { SpecialtyListing } from "@/components/search/specialty-listing";
+import { buildBreadcrumbJsonLd, pruneJsonLd } from "@/lib/seo/jsonld";
 import { publicEnv } from "@/lib/env";
 
 export const revalidate = 60;
@@ -23,16 +29,34 @@ async function loadSpecialty(slug: string) {
   );
 }
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: SP;
+}): Promise<Metadata> {
   const { slug, district } = await params;
   const specialty = await loadSpecialty(slug);
   if (!specialty) return { title: "Not found" };
-  const districtLabel = decodeURIComponent(district).replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const decoded = decodeURIComponent(district);
+  const districtLabel = decoded.replace(/\b\w/g, (c) => c.toUpperCase());
   const title = `${specialty.name} doctors in ${districtLabel}`;
+
+  const sp = await searchParams;
+  const page = sp.page ? Number(sp.page) : 1;
+  const count = await countDoctorsInCombo(specialty.name, decoded);
+
+  // Self-referencing canonical that keeps the page param, so page 2+ don't
+  // collapse into page 1 (which would hide deep doctors). Empty combos are
+  // noindexed (still follow) so they never become soft-404s in the index.
+  const base = `${publicEnv.NEXT_PUBLIC_APP_URL}/${slug}/${district}`;
   return {
     title,
     description: `Verified ${specialty.name.toLowerCase()} doctors in ${districtLabel}. Chambers, schedules, contact details — all on Daktar.Link.`,
-    alternates: { canonical: `${publicEnv.NEXT_PUBLIC_APP_URL}/${slug}/${district}` },
+    alternates: { canonical: page > 1 ? `${base}?page=${page}` : base },
+    robots: { index: count >= MIN_INDEXABLE_COMBO_DOCTORS, follow: true },
   };
 }
 
@@ -50,22 +74,39 @@ export default async function SpecialtyDistrictPage({
   if (!specialty) notFound();
 
   const decodedDistrict = decodeURIComponent(district);
+  const districtLabel = decodedDistrict.replace(/\b\w/g, (c) => c.toUpperCase());
   const page = sp.page ? Number(sp.page) : 1;
   const [{ doctors, total, totalPages }, districts] = await Promise.all([
     searchDoctors({ specialty: specialty.name, district: decodedDistrict, page }),
     listDistricts(),
   ]);
 
+  const base = publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  const breadcrumbLd = pruneJsonLd(
+    buildBreadcrumbJsonLd([
+      { name: "Home", url: `${base}/` },
+      { name: `${specialty.name} doctors`, url: `${base}/${slug}` },
+      { name: districtLabel, url: `${base}/${slug}/${district}` },
+    ]),
+  );
+
   return (
-    <SpecialtyListing
-      specialtyName={specialty.name}
-      district={decodedDistrict.replace(/\b\w/g, (c) => c.toUpperCase())}
-      doctors={doctors}
-      total={total}
-      page={page}
-      totalPages={totalPages}
-      districts={districts}
-      searchParams={sp}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
+      <SpecialtyListing
+        specialtyName={specialty.name}
+        specialtySlug={slug}
+        district={districtLabel}
+        doctors={doctors}
+        total={total}
+        page={page}
+        totalPages={totalPages}
+        districts={districts}
+        searchParams={sp}
+      />
+    </>
   );
 }

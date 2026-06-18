@@ -10,15 +10,33 @@ import { SearchFilters } from "@/components/search/search-filters";
 import { ActiveFilters, countActiveFilters } from "@/components/search/active-filters";
 import { Pagination } from "@/components/search/pagination";
 import { cn } from "@/lib/utils";
-
-export const metadata: Metadata = {
-  title: "Find a doctor",
-  description:
-    "Search verified doctors in Bangladesh by specialty, district, language, and more. Updated daily.",
-};
+import { publicEnv } from "@/lib/env";
 
 // Plain server-rendered search; no client JS needed for results.
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParamsRaw>;
+}): Promise<Metadata> {
+  const sp = await searchParams;
+  const qs = new URLSearchParams();
+  for (const key of ["q", "specialty", "district", "verificationLevel", "language", "gender", "sort"] as const) {
+    const v = sp[key];
+    if (v) qs.set(key, v);
+  }
+  const page = sp.page ? Number(sp.page) : 1;
+  if (page > 1) qs.set("page", String(page));
+  const query = qs.toString();
+  const base = `${publicEnv.NEXT_PUBLIC_APP_URL}/search`;
+  return {
+    title: "Find a doctor",
+    description:
+      "Search verified doctors in Bangladesh by specialty, district, language, and more. Updated daily.",
+    alternates: { canonical: query ? `${base}?${query}` : base },
+  };
+}
 
 interface SearchParamsRaw {
   q?: string;

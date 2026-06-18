@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { buildPhysicianJsonLd, buildChamberJsonLd, pruneJsonLd } from "@/lib/seo/jsonld";
+import {
+  buildPhysicianJsonLd,
+  buildChamberJsonLd,
+  buildOrganizationJsonLd,
+  buildWebSiteJsonLd,
+  buildBreadcrumbJsonLd,
+  pruneJsonLd,
+} from "@/lib/seo/jsonld";
 import type { DoctorDocLike } from "@/types/doctor";
 
 const baseDoc: DoctorDocLike = {
@@ -53,6 +60,34 @@ describe("Schema.org JSON-LD builders", () => {
     expect(ld!["@type"]).toBe("MedicalBusiness");
     expect((ld!.address as Record<string, unknown>).addressLocality).toBe("Bashundhara");
     expect(Array.isArray(ld!.openingHoursSpecification)).toBe(true);
+  });
+
+  it("Organization + WebSite expose @id, SearchAction, and a publisher link", () => {
+    const org = buildOrganizationJsonLd();
+    expect(org["@type"]).toBe("Organization");
+    expect(String(org["@id"])).toContain("#organization");
+
+    const site = buildWebSiteJsonLd();
+    expect(site["@type"]).toBe("WebSite");
+    const action = site.potentialAction as Record<string, unknown>;
+    expect(action["@type"]).toBe("SearchAction");
+    expect(String((action.target as Record<string, unknown>).urlTemplate)).toContain(
+      "/search?q={search_term_string}",
+    );
+    expect((site.publisher as Record<string, unknown>)["@id"]).toBe(org["@id"]);
+  });
+
+  it("BreadcrumbList numbers ListItems from 1 in order", () => {
+    const bc = buildBreadcrumbJsonLd([
+      { name: "Home", url: "https://x/" },
+      { name: "Cardiology doctors", url: "https://x/cardiology" },
+      { name: "Dr. Karim Rahman", url: "https://x/karim-rahman-cardiologist" },
+    ]);
+    expect(bc["@type"]).toBe("BreadcrumbList");
+    const items = bc.itemListElement as Record<string, unknown>[];
+    expect(items).toHaveLength(3);
+    expect(items[0]).toMatchObject({ position: 1, name: "Home" });
+    expect(items[2]).toMatchObject({ position: 3, item: "https://x/karim-rahman-cardiologist" });
   });
 
   it("pruneJsonLd strips undefined and empty arrays without mangling valid values", () => {

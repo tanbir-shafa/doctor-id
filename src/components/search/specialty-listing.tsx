@@ -11,6 +11,7 @@ import type { DoctorDocLike } from "@/types/doctor";
  */
 export function SpecialtyListing({
   specialtyName,
+  specialtySlug,
   district,
   doctors,
   total,
@@ -20,6 +21,8 @@ export function SpecialtyListing({
   searchParams,
 }: {
   specialtyName: string;
+  /** Canonical catalog slug — drives the district pivot + "all" cross-links. */
+  specialtySlug: string;
   district?: string;
   doctors: DoctorDocLike[];
   total: number;
@@ -33,9 +36,16 @@ export function SpecialtyListing({
   return (
     <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <header className="mb-8">
-        <p className="text-sm font-medium uppercase tracking-wider text-primary">
-          {specialtyName}
-        </p>
+        {district ? (
+          <Link
+            href={`/${specialtySlug}`}
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+          >
+            ← All {specialtyName} doctors in Bangladesh
+          </Link>
+        ) : (
+          <p className="text-sm font-medium uppercase tracking-wider text-primary">{specialtyName}</p>
+        )}
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
           {specialtyName} doctors{districtLabel}
         </h1>
@@ -51,7 +61,7 @@ export function SpecialtyListing({
           {districts.map((d) => (
             <Link
               key={d}
-              href={`/${encodeURIComponent(specialtyName.toLowerCase())}/${encodeURIComponent(d.toLowerCase())}`}
+              href={`/${specialtySlug}/${encodeURIComponent(d.toLowerCase())}`}
               className="rounded-full border border-border bg-card px-3 py-1 text-sm text-foreground hover:border-primary/40 hover:bg-accent"
             >
               {d}

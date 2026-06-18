@@ -13,11 +13,11 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 ## Summary
 
-**0 / 54 done** · 0 in-progress · 54 not-started
+**6 / 54 done** · 0 in-progress · 48 not-started
 
 | Dept | Total | Done |
 |---|---|---|
-| ENG (engineering) | 19 | 0 |
+| ENG (engineering) | 19 | 6 |
 | PRD (product/design) | 6 | 0 |
 | CON (content/editorial) | 9 | 0 |
 | MKT (marketing/growth) | 8 | 0 |
@@ -53,12 +53,12 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 | # | Task | Dept | Depends on | Status | Notes |
 |---|---|---|---|---|---|
-| 19 | `Organization` + `WebSite` (+SearchAction) schema | ENG | — | not-started | [layout.tsx](../../src/app/layout.tsx) / [jsonld.ts](../../src/lib/seo/jsonld.ts) |
-| 20 | `BreadcrumbList` schema (profile/specialty/district) | ENG | — | not-started | |
-| 21 | Auto unique description for unclaimed profiles | ENG | — | not-started | Kills thin-content risk on names |
-| 22 | Sitemap prune empty/<3 combos + `noindex` thin | ENG | — | not-started | [sitemap.ts](../../src/app/sitemap.ts) — biggest programmatic risk fix |
-| 23 | Related-doctor + cross-links + back-to-specialty | ENG | — | not-started | |
-| 24 | Pagination canonical + `rel` | ENG | — | not-started | Lower priority |
+| 19 | `Organization` + `WebSite` (+SearchAction) schema | ENG | — | done | Site-wide in [layout.tsx](../../src/app/layout.tsx); builders in [jsonld.ts](../../src/lib/seo/jsonld.ts) |
+| 20 | `BreadcrumbList` schema (profile/specialty/district) | ENG | — | done | Doctor crumb resolves specialty slug via `findSpecialtySlugByName` |
+| 21 | Auto unique description for unclaimed profiles | ENG | — | done | [profile-text.ts](../../src/lib/seo/profile-text.ts) → meta desc + Physician LD + "About" card |
+| 22 | Sitemap prune empty combos + `noindex` thin | ENG | — | done | `MIN_INDEXABLE_COMBO_DOCTORS=1` (kills empties; raise to 3 once GSC confirms) |
+| 23 | Related-doctor + cross-links + back-to-specialty | ENG | — | done | `listRelatedDoctors` + profile block; fixed latent `name.toLowerCase()` pivot bug |
+| 24 | Pagination canonical (+ rel) | ENG | — | done | Self-ref page-aware canonical on search/specialty/district; rel=next/prev deferred (see note) |
 | 25 | Optimize claim + share flow (Rx-pad QR, toolkit) | PRD | — | not-started | Ongoing — the SEO flywheel |
 | 26 | Position "verified/authentic" brand | MKT | — | not-started | Ongoing |
 
@@ -127,3 +127,4 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 ## Changelog
 
 - **2026-06-17** — Progress board created from [seo-growth-plan.md](../plans/seo-growth-plan.md); 54 tasks across 6 dependency-ordered stages, all `not-started`.
+- **2026-06-17** — **Stage 1 engineering (tasks 19–24) ✅** — site-wide `Organization` + `WebSite` (SearchAction) schema; `BreadcrumbList` on profile / specialty / specialty×district; unique auto-generated profile copy ([profile-text.ts](../../src/lib/seo/profile-text.ts)) feeding the meta description, `Physician.description`, and an on-page "About" card so no profile is thin content; sitemap pruned to specialty×district combos with real supply + `robots:noindex` on empty combos; related-doctor block + "all [specialty]" cross-links (also fixed the latent `name.toLowerCase()` district-pivot bug); self-referencing page-aware canonicals on paginated search / specialty / district pages. New files: `profile-text.ts` + `tests/profile-text.test.ts`; 3 new jsonld builders + 4 new query helpers. Gate green: typecheck + 568 tests + lint 0/0 + build. **Deferred:** `rel=next/prev` (Google-deprecated and no first-class Next metadata support — self-canonical covers the consolidation need).

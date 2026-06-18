@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { DoctorDocLike } from "@/types/doctor";
 import { publicEnv } from "@/lib/env";
+import { buildAutoMetaDescription } from "@/lib/seo/profile-text";
 
 /**
  * Generates Next Metadata for a doctor profile page.
@@ -18,9 +19,7 @@ export function buildProfileMetadata(doc: DoctorDocLike): Metadata {
 
   const title = doc.seoTitle || `${fullName} — ${specialtyLabel}${cityLabel}`;
   const description =
-    doc.seoDescription ||
-    (doc.bio?.slice(0, 160) ??
-      `${fullName} is a ${specialtyLabel}${cityLabel}. View chambers, schedule, qualifications, and contact details on Daktar.Link.`);
+    doc.seoDescription || (doc.bio ? doc.bio.slice(0, 160) : buildAutoMetaDescription(doc));
 
   const url = `${publicEnv.NEXT_PUBLIC_APP_URL}/${doc.slug}`;
   const ogImageUrl = `${publicEnv.NEXT_PUBLIC_APP_URL}/api/og/${doc.slug}`;

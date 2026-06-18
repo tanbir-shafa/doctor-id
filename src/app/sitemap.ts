@@ -2,7 +2,7 @@ import type { Loose } from "@/lib/db/models/loose";
 import type { MetadataRoute } from "next";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor, Specialty } from "@/lib/db/models";
-import { listDistricts } from "@/lib/db/queries/doctors";
+import { listSpecialtyDistrictCombos } from "@/lib/db/queries/doctors";
 import { publicEnv } from "@/lib/env";
 
 /**
@@ -27,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   await dbConnect();
 
-  const [doctors, specialties, districts] = await Promise.all([
+  const [doctors, specialties, combos] = await Promise.all([
     (Doctor as unknown as Loose)
       .find({ status: "published" })
       .select("slug updatedAt")
@@ -35,7 +35,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .limit(40_000)
       .lean(),
     (Specialty as unknown as Loose).find({ active: true }).select("slug name").lean(),
-    listDistricts(),
+    // Only combos with real doctor supply — empty cartesian pages are excluded
+    // (they'd be soft-404s and waste crawl budget). See queries/doctors.ts.
+    listSpecialtyDistrictCombos(),
   ]);
 
   const now = new Date();
@@ -62,18 +64,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  // Specialty × district combos — high-intent SEO landing pages.
-  const districtComboEntries: MetadataRoute.Sitemap = [];
-  for (const s of specialties as unknown as { slug: string }[]) {
-    for (const d of districts) {
-      districtComboEntries.push({
-        url: `${base}/${s.slug}/${encodeURIComponent(d.toLowerCase())}`,
-        lastModified: now,
-        changeFrequency: "weekly",
-        priority: 0.6,
-      });
-    }
-  }
+  // Specialty × district combos — high-intent SEO landing pages. Only combos
+  // that actually have doctors are listed (see listSpecialtyDistrictCombos).
+  const districtComboEntries: MetadataRoute.Sitemap = combos.map((c) => ({
+    url: `${base}/${c.specialtySlug}/${encodeURIComponent(c.district)}`,
+    lastModified: now,
+    changeFrequency: "weekly",
+    priority: 0.6,
+  }));
 
   return [...staticEntries, ...doctorEntries, ...specialtyEntries, ...districtComboEntries];
 }

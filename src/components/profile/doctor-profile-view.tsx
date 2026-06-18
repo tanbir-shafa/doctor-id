@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { Calendar, GraduationCap, Briefcase, Languages, Phone, Mail, MessageCircle } from "lucide-react";
+import { Calendar, GraduationCap, Briefcase, Languages, Phone, Mail, MessageCircle, Users, ArrowRight } from "lucide-react";
 import { renderBioMarkdown } from "@/lib/utils/sanitize";
 import { profileUrl } from "@/lib/seo/jsonld";
+import { buildAutoProfileSummary } from "@/lib/seo/profile-text";
+import { DoctorCard } from "@/components/search/doctor-card";
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { ProfileCredentials } from "@/components/profile/profile-credentials";
 import { ChamberCard } from "@/components/profile/chamber-card";
@@ -25,12 +27,18 @@ import type { DoctorDocLike } from "@/types/doctor";
 export function DoctorProfileView({
   doctor,
   preview = false,
+  relatedDoctors = [],
+  primarySpecialtySlug = null,
 }: {
   doctor: DoctorDocLike;
   preview?: boolean;
+  relatedDoctors?: DoctorDocLike[];
+  primarySpecialtySlug?: string | null;
 }) {
   const bioHtml = renderBioMarkdown(doctor.bio);
   const primaryChamber = doctor.chambers.find((c) => c.isPrimary) ?? doctor.chambers[0];
+  const primarySpecialtyName =
+    (doctor.specialties.find((s) => s.isPrimary) ?? doctor.specialties[0])?.name ?? null;
   const url = profileUrl(doctor.slug);
 
   return (
@@ -68,7 +76,20 @@ export function DoctorProfileView({
                 />
               </CardContent>
             </Card>
-          ) : null}
+          ) : (
+            // No hand-written bio: render a unique, structured-data-derived
+            // summary so the profile is never thin content (#21).
+            <Card>
+              <CardHeader>
+                <CardTitle>About</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {buildAutoProfileSummary(doctor)}
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {doctor.qualifications.length > 0 ? (
             <Card>
@@ -241,6 +262,32 @@ export function DoctorProfileView({
           {!preview ? <ReportButton slug={doctor.slug} /> : null}
         </aside>
       </div>
+
+      {!preview && relatedDoctors.length > 0 ? (
+        <section className="mx-auto mt-10 max-w-4xl px-4 sm:px-6" aria-label="Related doctors">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
+              <Users className="size-5 text-primary" aria-hidden="true" />
+              {primarySpecialtyName ? `More ${primarySpecialtyName} doctors` : "Related doctors"}
+            </h2>
+            {primarySpecialtySlug ? (
+              <Link
+                href={`/${primarySpecialtySlug}`}
+                className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
+              >
+                View all <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
+            ) : null}
+          </div>
+          <ul className="grid grid-cols-1 gap-3">
+            {relatedDoctors.map((d) => (
+              <li key={d.slug}>
+                <DoctorCard doctor={d} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </article>
   );
 }

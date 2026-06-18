@@ -281,6 +281,134 @@ export async function listFeaturedVerifiedDoctors(limit = 6): Promise<FeaturedDo
   });
 }
 
+/**
+ * The canonical catalog slug for a specialty name (e.g. "Gynecology &
+ * Obstetrics" → its real slug). A doctor's embedded specialty subdoc only
+ * carries the name, so breadcrumb + cross-links from a profile need this to
+ * build a valid `/[specialty]` URL. Null if not in the active catalog.
+ */
+export async function findSpecialtySlugByName(name: string): Promise<string | null> {
+  await dbConnect();
+  const sp = (await (Specialty as unknown as Loose)
+    .findOne({ name: new RegExp(`^${escapeRegex(name)}$`, "i"), active: true })
+    .select("slug")
+    .lean()) as { slug: string } | null;
+  return sp?.slug ?? null;
+}
+
+/**
+ * Other published doctors in the same primary specialty — same district first,
+ * then filled nationally. Powers the "Related doctors" block, which spreads
+ * internal links to deep profiles and keeps visitors on-site.
+ */
+export async function listRelatedDoctors(doc: DoctorDocLike, limit = 6): Promise<DoctorDocLike[]> {
+  await dbConnect();
+  const specialty = (doc.specialties.find((s) => s.isPrimary) ?? doc.specialties[0])?.name;
+  if (!specialty) return [];
+  const district = (doc.chambers.find((c) => c.isPrimary) ?? doc.chambers[0])?.district;
+
+  const specialtyFilter = { "specialties.name": new RegExp(`^${escapeRegex(specialty)}$`, "i") };
+  const sortByRank: Record<string, 1 | -1> = {
+    "foundingDoctor.isFounding": -1,
+    bmdcVerified: -1,
+    nidVerified: -1,
+    profileCompletenessScore: -1,
+    updatedAt: -1,
+  };
+
+  const collected: Record<string, unknown>[] = [];
+  const seen = new Set<string>([doc.slug]);
+
+  if (district) {
+    const sameDistrict = (await (Doctor as unknown as Loose)
+      .find({
+        status: "published",
+        slug: { $ne: doc.slug },
+        ...specialtyFilter,
+        "chambers.district": new RegExp(`^${escapeRegex(district)}$`, "i"),
+      })
+      .sort(sortByRank)
+      .limit(limit)
+      .lean()) as Record<string, unknown>[];
+    for (const r of sameDistrict) {
+      const slug = String(r.slug);
+      if (seen.has(slug)) continue;
+      seen.add(slug);
+      collected.push(r);
+    }
+  }
+
+  if (collected.length < limit) {
+    const more = (await (Doctor as unknown as Loose)
+      .find({ status: "published", slug: { $nin: [...seen] }, ...specialtyFilter })
+      .sort(sortByRank)
+      .limit(limit - collected.length)
+      .lean()) as Record<string, unknown>[];
+    collected.push(...more);
+  }
+
+  return collected.slice(0, limit).map((r) => JSON.parse(JSON.stringify(r))) as DoctorDocLike[];
+}
+
+/**
+ * Threshold of published doctors a specialty×district combo needs to be worth
+ * indexing. Set to 1 so EMPTY combos (the soft-404 / thin-content risk across
+ * the ~2,300 cartesian pages) are excluded from the sitemap and get
+ * robots:noindex, while every combo with real supply stays indexable. Raise
+ * toward 3 once GSC confirms which thin combos hurt — see
+ * .claude/plans/seo-growth-plan.md task 22.
+ */
+export const MIN_INDEXABLE_COMBO_DOCTORS = 1;
+
+export interface SpecialtyDistrictCombo {
+  specialtySlug: string;
+  /** Lowercased, URL-ready district. */
+  district: string;
+  count: number;
+}
+
+/**
+ * Specialty×district combos that actually have doctors (count ≥ minCount).
+ * Replaces the old full cartesian product in the sitemap so crawl budget isn't
+ * spent on empty pages. `$addToSet` of `_id` de-dups doctors with multiple
+ * chambers in the same district.
+ */
+export async function listSpecialtyDistrictCombos(
+  minCount = MIN_INDEXABLE_COMBO_DOCTORS,
+): Promise<SpecialtyDistrictCombo[]> {
+  await dbConnect();
+  const specialties = await listActiveSpecialties();
+  const nameToSlug = new Map(specialties.map((s) => [s.name.toLowerCase(), s.slug]));
+
+  const rows = (await (Doctor as unknown as Loose).aggregate([
+    { $match: { status: "published" } },
+    { $unwind: "$specialties" },
+    { $unwind: "$chambers" },
+    { $group: { _id: { s: "$specialties.name", d: "$chambers.district" }, docs: { $addToSet: "$_id" } } },
+    { $project: { count: { $size: "$docs" } } },
+    { $match: { count: { $gte: minCount } } },
+  ])) as { _id: { s?: string; d?: string }; count: number }[];
+
+  const out: SpecialtyDistrictCombo[] = [];
+  for (const r of rows) {
+    const slug = nameToSlug.get((r._id.s ?? "").toLowerCase());
+    const district = (r._id.d ?? "").trim();
+    if (!slug || !district) continue;
+    out.push({ specialtySlug: slug, district: district.toLowerCase(), count: r.count });
+  }
+  return out;
+}
+
+/** Published-doctor count for one specialty×district combo (drives noindex). */
+export async function countDoctorsInCombo(specialtyName: string, district: string): Promise<number> {
+  await dbConnect();
+  return (await (Doctor as unknown as Loose).countDocuments({
+    status: "published",
+    "specialties.name": new RegExp(`^${escapeRegex(specialtyName)}$`, "i"),
+    "chambers.district": new RegExp(`^${escapeRegex(district)}$`, "i"),
+  })) as number;
+}
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
