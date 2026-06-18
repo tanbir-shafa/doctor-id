@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { publicEnv } from "@/lib/env";
 import { buildOrganizationJsonLd, buildWebSiteJsonLd, pruneJsonLd } from "@/lib/seo/jsonld";
+import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        <GoogleAnalytics />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(pruneJsonLd(buildOrganizationJsonLd())) }}

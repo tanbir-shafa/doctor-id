@@ -108,6 +108,10 @@ const PublicEnvSchema = z.object({
   // Cloudflare Turnstile public site key — rendered by the client widget on the
   // register/login OTP forms. Unset → the widget is skipped (dev).
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
+  // Google Analytics 4 measurement ID (e.g. "G-XXXXXXXXXX"). Unset → the GA
+  // script is never loaded and trackEvent()/pageview() no-op (see
+  // components/analytics/google-analytics.tsx + lib/analytics/gtag.ts).
+  NEXT_PUBLIC_GA_MEASUREMENT_ID: z.string().optional(),
 });
 
 // During `next build` Next will collect referenced env vars; we still want the
@@ -157,6 +161,7 @@ export function env() {
 export const publicEnv = PublicEnvSchema.parse({
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+  NEXT_PUBLIC_GA_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
 });
 
 export function adminEmails(): string[] {

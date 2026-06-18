@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { startRegistrationAction, completeRegistrationAction } from "@/server/actions/auth";
 import { SelfieCapture, type SelfieData } from "./selfie-capture";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
+import { trackEvent } from "@/lib/analytics/gtag";
 
 type Step = "details" | "verify" | "pending";
 
@@ -72,6 +73,7 @@ export function RegisterForm({
         setError(result.error);
         return;
       }
+      trackEvent("otp_requested", { flow: claimSlug ? "claim" : "register" });
       setInfo("We sent a 6-digit verification code to your phone. It expires in 10 minutes.");
       setStep("verify");
     });
@@ -86,6 +88,7 @@ export function RegisterForm({
         setError(result.error);
         return;
       }
+      trackEvent("sign_up", { method: "phone_otp", flow: claimSlug ? "claim" : "register" });
       // Auto sign-in with the same OTP (left valid by completeRegistrationAction)
       // → straight into the dashboard. No second code to enter.
       const signedIn = await signIn("sms-otp", { phone, otp, redirect: false });

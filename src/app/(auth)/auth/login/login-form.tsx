@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestLoginOtpAction } from "@/server/actions/auth";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
+import { trackEvent } from "@/lib/analytics/gtag";
 
 type Step = "phone" | "otp";
 
@@ -43,6 +44,7 @@ export function DoctorLoginForm({ defaultPhone = "", next }: { defaultPhone?: st
         setError(result.error);
         return;
       }
+      trackEvent("otp_requested", { flow: "login" });
       setInfo("We sent a 6-digit code to your phone. It expires in 10 minutes.");
       setStep("otp");
     });
@@ -57,6 +59,7 @@ export function DoctorLoginForm({ defaultPhone = "", next }: { defaultPhone?: st
         setError("That code is incorrect or expired. Try again or request a new code.");
         return;
       }
+      trackEvent("login", { method: "phone_otp" });
       router.push(next ?? "/dashboard");
       router.refresh();
     });
