@@ -25,7 +25,14 @@ export function EmrRewardBand() {
               height={2860}
               sizes="(min-width: 768px) 48vw, 100vw"
               className="h-auto w-full"
-              priority={false}
+              // This screenshot is the measured LCP element on desktop (the
+              // text hero above it carries no image). Opt out of lazy-loading
+              // and lift its fetch priority so the largest paint isn't deferred.
+              // NOT `preload` (deprecated `priority`'s successor): on mobile the
+              // band is single-column with the image below the text (order-2),
+              // so a <head> preload would waste bandwidth on a below-fold fetch.
+              loading="eager"
+              fetchPriority="high"
             />
           </div>
           <div className="order-1 md:order-2">
