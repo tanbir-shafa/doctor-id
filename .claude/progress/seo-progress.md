@@ -13,11 +13,11 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 ## Summary
 
-**7 / 54 done** · 0 in-progress · 47 not-started
+**7 / 55 done** · 0 in-progress · 48 not-started
 
 | Dept | Total | Done |
 |---|---|---|
-| ENG (engineering) | 19 | 7 |
+| ENG (engineering) | 20 | 7 |
 | PRD (product/design) | 6 | 0 |
 | CON (content/editorial) | 9 | 0 |
 | MKT (marketing/growth) | 8 | 0 |
@@ -77,6 +77,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 | 35 | Translate UI + money-page templates + nouns (Bangla) | CON | 5, 15 | not-started | |
 | 36 | Build add-to-website badge/embed widget | ENG | 14 | not-started | |
 | 37 | Run claim-rate campaigns (SMS/WhatsApp outbound) | MKT | 27 | not-started | Use [outbound](../../scripts/outbound.ts) |
+| 55 | Cookie-consent banner + GA Consent Mode v2 gating | ENG+LEG | 6 | not-started | Added after task 2 — **gates turning GA on in prod**; gtag defaults denied → granted on accept; copy from Legal |
 
 ## Stage 3 — Second-order builds
 
@@ -127,5 +128,6 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 ## Changelog
 
 - **2026-06-17** — Progress board created from [seo-growth-plan.md](../plans/seo-growth-plan.md); 54 tasks across 6 dependency-ordered stages, all `not-started`.
+- **2026-06-17** — Added **task 55** (cookie-consent banner + GA Consent Mode v2) to Stage 2; it gates turning GA on in production (surfaced by task 2).
 - **2026-06-17** — **Task 2 — GA4 + conversion instrumentation ✅** — `<GoogleAnalytics/>` ([component](../../src/components/analytics/google-analytics.tsx)) loads gtag.js via `next/script` + tracks SPA page_views, **only** when `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set (clean no-op otherwise — same pattern as SES/SMS/Turnstile). SSR-safe `trackEvent`/`pageview` helpers ([gtag.ts](../../src/lib/analytics/gtag.ts)); conversion events wired into the funnels — `otp_requested` + `sign_up` (register/claim), `otp_requested` + `login` (sign-in). New env `NEXT_PUBLIC_GA_MEASUREMENT_ID`. Gate green: typecheck + 570 tests + lint 0/0 + build; live-verified the no-op (0 gtag tags when unset). **Remaining for activation:** Analytics provides the GA4 property + measurement ID, then marks the events as conversions (task 3).
 - **2026-06-17** — **Stage 1 engineering (tasks 19–24) ✅** — site-wide `Organization` + `WebSite` (SearchAction) schema; `BreadcrumbList` on profile / specialty / specialty×district; unique auto-generated profile copy ([profile-text.ts](../../src/lib/seo/profile-text.ts)) feeding the meta description, `Physician.description`, and an on-page "About" card so no profile is thin content; sitemap pruned to specialty×district combos with real supply + `robots:noindex` on empty combos; related-doctor block + "all [specialty]" cross-links (also fixed the latent `name.toLowerCase()` district-pivot bug); self-referencing page-aware canonicals on paginated search / specialty / district pages. New files: `profile-text.ts` + `tests/profile-text.test.ts`; 3 new jsonld builders + 4 new query helpers. Gate green: typecheck + 568 tests + lint 0/0 + build. **Deferred:** `rel=next/prev` (Google-deprecated and no first-class Next metadata support — self-canonical covers the consolidation need).

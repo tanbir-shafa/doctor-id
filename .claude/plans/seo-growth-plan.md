@@ -83,6 +83,7 @@ Highest-ROI engineering, zero cross-team dependency — ship as fast as Stage 0 
 35. **[CON]** Translate UI + money-page templates + specialty/district nouns to Bangla. _Dep: 5, 15_
 36. **[ENG]** Build "add to your website" badge/embed widget. _Dep: 14_
 37. **[MKT]** Run claim-rate campaigns (SMS/WhatsApp via outbound). _Dep: 27_
+55. **[ENG + LEG]** Cookie-consent banner + GA Consent Mode v2 gating — gtag defaults to consent *denied*, upgraded on accept; banner copy from Legal. _Dep: 6_ — **prerequisite for activating GA (tasks 2/3) in production.** (Added 2026-06-17 after task 2 surfaced the gap; numbered 55 to avoid renumbering.)
 
 ### Stage 3 — Second-order builds (need Stage 2 copy/specs)
 
@@ -138,3 +139,4 @@ Stage 1 (pure-code wins 19–24) has **no external dependency** and should ship 
 ## Changelog
 
 - **2026-06-17** — Plan drafted from the 5-pillar SEO strategy; 54 tasks ordered by dependency into 6 stages.
+- **2026-06-17** — Added task 55 (cookie-consent banner + GA Consent Mode) after task 2 shipped; it gates turning GA on in production.
