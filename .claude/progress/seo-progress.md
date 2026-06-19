@@ -13,7 +13,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 ## Summary
 
-**11 / 55 done** · 5 in-progress · 39 not-started
+**15 / 55 done** · 2 in-progress · 38 not-started
 
 | Dept | Total | Done |
 |---|---|---|
@@ -21,7 +21,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 | PRD (product/design) | 6 | 0 |
 | CON (content/editorial) | 9 | 1 |
 | MKT (marketing/growth) | 8 | 0 |
-| LEG (legal/compliance) | 6 | 0 |
+| LEG (legal/compliance) | 6 | 4 |
 | ANA (analytics/data) | 6 | 0 |
 
 ---
@@ -35,10 +35,10 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 | 3 | Configure GA4 + organic→claim funnel | ANA | 2 | not-started | |
 | 4 | Rank-tracking baseline (3 keyword baskets) | ANA | — | not-started | Names sample · specialty×district · head terms |
 | 5 | Source Bangla name data + specialty/district glossary | ANA | — | in-progress | **Glossary shipped** — `src/lib/geo/bn-glossary.ts` (8 divisions + 64 districts + 47 specialties, dual-reviewer-corrected). Per-doctor name transliteration still needs a data source. Feeds 29, 35 |
-| 6 | Draft `/privacy` policy | LEG | — | in-progress | Starter draft live at `/privacy` (marked "Draft — pending legal review"); **needs Legal review** + fill gaps (contact email, registered address, effective date, retention periods) |
-| 7 | Draft `/terms` of service | LEG | — | in-progress | Starter draft live at `/terms` (marked draft); **needs Legal review** + entity legal name/address/jurisdiction/effective date |
-| 8 | Draft data-sources + editorial/verification policy | LEG | — | in-progress | Shipped at `/data-sources` (operational policy); **Legal to confirm wording** |
-| 9 | Review verification-claim wording | LEG | — | not-started | Gates trust copy (30) — start Day 1 |
+| 6 | Draft `/privacy` policy | LEG | — | done | Production at `/privacy` — owner-finalized (acting legal head), PDPO 2025-aligned, support@daktar.link, effective 19 Jun 2026; retention copy non-committal (matches implemented soft-delete). Open PDPO items in Blockers. |
+| 7 | Draft `/terms` of service | LEG | — | done | Production at `/terms` — owner-finalized; no-AI/no-scraping + TDM clauses backed by robots.ts + next.config headers; effective 19 Jun 2026. |
+| 8 | Draft data-sources + editorial/verification policy | LEG | — | done | Production at `/data-sources` — owner-finalized; data sources genericized ("publicly available on the internet"). |
+| 9 | Review verification-claim wording | LEG | — | done | Verification claims on /how-verification-works + /about adversarially verified vs code + owner-finalized. |
 | 10 | Approve "best [specialty]" ranking methodology + disclosure | LEG | — | not-started | Gates intent pages |
 | 11 | Define UGC/review policy + moderation | LEG | — | not-started | Gates reviews build (44) |
 | 12 | Design district-hub + intent-page templates | PRD | — | not-started | Long pole — feeds 31/32/33, 40/41 |
@@ -121,9 +121,11 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 - **GSC/GA4/rank-tracker accounts** — external setup needed before tasks 1–4 (and therefore 27, 53) can proceed.
 - **Bangla data (task 5)** — gates the entire bilingual chain (29, 35, 43) and Bangla `alternateName`. Source early.
-- **Legal capacity (tasks 6–11)** — all of Stage 0 Legal gates Stage 3 builds (38, 41, 44). If Legal is slow, the trust/authority chain slips.
+- **Legal (tasks 10–11 remain)** — 6–9 done (trust pages owner-finalized to production). Task 10 ("best" ranking methodology) gates intent pages (41); task 11 (UGC/moderation policy) gates reviews (44).
 - **"best [specialty]" pages (41)** — must not ship before Legal sign-off on ranking methodology (10), or it reads as spam / liability.
 - **Reviews (44)** — do not launch before the UGC/moderation policy (11) is in place.
+- **⚠️ Biometric-consent auth change (uncommitted, 7 files) — NOT production-ready.** Adversarial recheck (2026-06-19) found 2 PDPO blockers: (1) the registration **selfie is uploaded to the private S3 bucket BEFORE the consent box is enforced** (`uploadRegistrationSelfieAction` has no consent gate; consent only checked later in `startRegistrationAction`); (2) **consent is validated but never PERSISTED** — no `consentAt`/policy-version/IP record on `regDraft`/Doctor/`IdentityVerificationRequest`, so no burden-of-proof. Also: `AccountVerificationSchema.consent` untested; `uploadIdentityDocAction` lacks a server-side consent check. **Hold these 7 files out of the deploy until fixed. Does NOT block the SEO/trust deploy** (separate, committed work).
+- **Open PDPO compliance (eng/counsel):** data localization (selfies/IDs on AWS/Atlas, likely outside Bangladesh); lawful basis for compiling non-consenting doctors; and the **retention/deletion jobs are not built** (soft-delete only — no S3/identity deletion, no `AppointmentRequest` TTL, no hard-delete job). Build the deletion jobs before stating specific retention periods in /privacy.
 
 ## Changelog
 
@@ -138,3 +140,4 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 - **2026-06-19** — **Deploy-clearing: cookie-consent banner (task 55 ✅) + honest /privacy retention.** Built a consent gate — GA's gtag.js loads ONLY after the visitor clicks Accept (first-party `dl_consent` cookie; [consent.ts](../../src/lib/analytics/consent.ts) + [cookie-consent-banner.tsx](../../src/components/analytics/cookie-consent-banner.tsx)); the banner appears only when a GA ID is configured; a footer "Cookie preferences" control re-opens it; [google-analytics.tsx](../../src/components/analytics/google-analytics.tsx) reacts live. This clears the GA-activation blocker (safe to set `NEXT_PUBLIC_GA_MEASUREMENT_ID` anytime) and makes the privacy "analytics only with consent" claim true. Also softened the now-binding /privacy retention section (Option A) — removed the unimplemented 90-day selfie-deletion / 24-month appointment / ~30-day hard-delete / 5-year RoPA commitments down to truthful "kept only as long as necessary; deleted when no longer required". An adversarial workflow re-review found the rest production-ready (anti-AI/TDM enforcement confirmed implemented). Gate green; live-verified. **Deploy blockers cleared.**
 - **2026-06-19** — **Task 1 (in progress) — Search Console / Bing enablement.** Added env-gated site-verification `<meta>` tags via Next's `metadata.verification` ([layout.tsx](../../src/app/layout.tsx)) + new `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` / `NEXT_PUBLIC_BING_SITE_VERIFICATION`; no-op until set (live-verified 0 tags when unset). Sitemap already advertised in robots.txt + returns 200. **Manual account steps remain:** create the GSC + Bing properties, paste tokens, deploy, verify, submit `/sitemap.xml` — then tasks 3/4/27/46/53 unblock. Gate green: typecheck + 581 tests + lint 0/0 + build.
 - **2026-06-19** — **UI: de-emphasised the profile "Browse more" links.** Per request, the bottom-of-profile category/hub nav is now visually quiet — a small uppercase muted "Browse more" label + `text-xs` muted, icon-less links wrapped in a row behind a top divider (was a prominent `text-xl` "Find more doctors" heading with brand-coloured, arrow-led links). Links stay crawlable; only styling changed. [doctor-profile-view.tsx](../../src/components/profile/doctor-profile-view.tsx). Gate green (typecheck + 581 tests + lint 0/0 + build); live-verified.
+- **2026-06-19** — **Comprehensive recheck ✅ — SEO/trust/consent production-ready; biometric-auth change held.** Full gate green (typecheck + lint + 587 tests + build) on the current tree; live-verified every surface (homepage Org/WebSite/SearchAction; profile Physician/Breadcrumb/FAQ; sitemap 6,827 incl. trust pages; robots AI-block with search engines still allowed; TDM headers; consent banner present with gtag gated off pre-consent; support@ everywhere, zero info@). Adversarial workflow (4 agents): **zero SEO regressions** — the uncommitted `robots.ts`/`next.config.ts` edits verified correct (no `noindex`); trust pages production-ready (fixed one stale `/privacy` analytics line). Marked tasks 6/7/8/9 done (legal pages owner-finalized). **Biometric-consent auth change (7 uncommitted files) found NOT production-ready** — 2 PDPO blockers (selfie stored before consent enforced; consent never persisted) — see Blockers; held from deploy. SEO/trust deploy is GO.
