@@ -4,6 +4,7 @@ import "./globals.css";
 import { publicEnv } from "@/lib/env";
 import { buildOrganizationJsonLd, buildWebSiteJsonLd, pruneJsonLd } from "@/lib/seo/jsonld";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
+import { CookieConsentBanner } from "@/components/analytics/cookie-consent-banner";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           dangerouslySetInnerHTML={{ __html: JSON.stringify(pruneJsonLd(buildWebSiteJsonLd())) }}
         />
         {children}
+        <CookieConsentBanner />
       </body>
     </html>
   );

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CookiePreferencesButton } from "@/components/layout/cookie-preferences-button";
 
 export function SiteFooter() {
   const year = new Date().getFullYear();
@@ -32,6 +33,7 @@ export function SiteFooter() {
           <Link href="/terms" className="hover:text-foreground">
             Terms
           </Link>
+          <CookiePreferencesButton />
         </nav>
       </div>
     </footer>

@@ -2,33 +2,44 @@
 
 import Script from "next/script";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { GA_MEASUREMENT_ID, analyticsEnabled, pageview } from "@/lib/analytics/gtag";
+import { readConsent, CONSENT_EVENT } from "@/lib/analytics/consent";
+
+function subscribeConsent(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(CONSENT_EVENT, callback);
+  return () => window.removeEventListener(CONSENT_EVENT, callback);
+}
 
 /**
- * GA4 loader + SPA page_view tracker. Renders nothing (and loads no script)
- * unless NEXT_PUBLIC_GA_MEASUREMENT_ID is set, so it's a clean no-op in dev and
- * until an ID is provisioned.
- *
- * The gtag `config` fires the initial page_view automatically; we fire
- * subsequent client-navigation page_views ourselves (skipping the first effect
- * run so the landing page isn't counted twice). Only `usePathname` is used (no
- * `useSearchParams`), so no Suspense boundary is required.
+ * GA4 loader + SPA page_view tracker. Loads gtag.js ONLY when analytics is
+ * configured (NEXT_PUBLIC_GA_MEASUREMENT_ID set) AND the visitor has consented
+ * (cookie-consent banner → "granted"), so no analytics cookie/script exists
+ * before consent. Consent is read via useSyncExternalStore so a change (Accept
+ * in the banner) flips GA on live, with no reload and no hydration mismatch.
+ * The gtag `config` fires the initial page_view; we fire subsequent
+ * client-navigation page_views ourselves, skipping the first effect run to avoid
+ * a double count. Only `usePathname` is used (no `useSearchParams`), so no
+ * Suspense is required.
  */
 export function GoogleAnalytics() {
   const pathname = usePathname();
   const isInitial = useRef(true);
+  const consent = useSyncExternalStore(subscribeConsent, readConsent, () => null);
+
+  const active = analyticsEnabled && consent === "granted";
 
   useEffect(() => {
-    if (!analyticsEnabled) return;
+    if (!active) return;
     if (isInitial.current) {
       isInitial.current = false;
       return;
     }
     pageview(pathname);
-  }, [pathname]);
+  }, [pathname, active]);
 
-  if (!analyticsEnabled || !GA_MEASUREMENT_ID) return null;
+  if (!active || !GA_MEASUREMENT_ID) return null;
 
   return (
     <>
