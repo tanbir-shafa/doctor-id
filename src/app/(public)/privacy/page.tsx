@@ -20,7 +20,7 @@ export default function PrivacyPage() {
           paragraphs: [
             `Daktar.Link is a public, search-engine-friendly directory of doctors practising in Bangladesh. It is operated by Shafa Care Ltd ("we", "us", "our") and is currently provided free of charge. Each doctor on Daktar.Link has their own public profile page at a daktar.link web address. The directory also serves as the channel through which doctors discover Shafa Care Ltd's wider clinical software, but using Daktar.Link does not enrol you in any other product.`,
             `This policy covers everyone who interacts with the site: members of the public who search for and view doctor profiles, doctors who register for, claim or manage a profile, and patients who send an appointment request to a doctor. It explains what data we collect, why, how long we keep it, who processes it on our behalf, and the rights available to you.`,
-            `The controller responsible for your personal data — the "data fiduciary" under the Personal Data Protection Ordinance, 2025 — is Shafa Care Ltd, based in Bangladesh. Questions about this policy or your data can be sent to us by email at info@daktar.link or by phone on 01531390647.`,
+            `The controller responsible for your personal data — the "data fiduciary" under the Personal Data Protection Ordinance, 2025 — is Shafa Care Ltd, based in Bangladesh. Questions about this policy or your data can be sent to us by email at support@daktar.link or by phone on 01531390647.`,
           ],
         },
         {
@@ -59,7 +59,7 @@ export default function PrivacyPage() {
           paragraphs: [
             `In line with the Personal Data Protection Ordinance, 2025, you have the right to access the personal information we hold about you, to receive it in an intelligible format (data portability), to correct inaccurate or incomplete information, to withdraw any consent you have given, and to request deletion of your profile and account, subject to applicable Bangladeshi law. Doctors can update most profile information directly from the dashboard and can soft-delete their own account from account settings; note that changing your verified legal name will revoke the identity verification badge until the name is re-verified.`,
             `Many profiles in the directory were compiled from information that was already publicly available on the internet and are shown as "Unclaimed" until the listed doctor claims them. If a profile is about you, you can claim it to take control, correct it, or request its removal. If you do not wish to manage it yourself, you can ask us to correct or remove it, and you can withdraw any consent you have given at any time.`,
-            `To exercise any of these rights, or to ask a question about your data, contact us by email at info@daktar.link or by phone on 01531390647. We may need to verify your identity before acting on a request, particularly where sensitive verification material is involved, and we will respond within a reasonable time.`,
+            `To exercise any of these rights, or to ask a question about your data, contact us by email at support@daktar.link or by phone on 01531390647. We may need to verify your identity before acting on a request, particularly where sensitive verification material is involved, and we will respond within a reasonable time.`,
           ],
         },
         {
@@ -67,7 +67,7 @@ export default function PrivacyPage() {
           paragraphs: [
             `Daktar.Link is intended for doctors and for adults seeking to find a doctor. It is not directed at children, and we do not knowingly collect personal information from children, nor do we track, profile, or direct advertising at children. If you believe a child has provided us with personal information, please contact us so we can remove it.`,
             `We may update this Privacy Policy from time to time to reflect changes in our practices, our service, or the law. When we make material changes, we will update the effective date below and, where appropriate, provide additional notice on the site. Your continued use of Daktar.Link after an update takes effect means you accept the revised policy.`,
-            `This policy is governed by the laws of Bangladesh, including the Personal Data Protection Ordinance, 2025. For any privacy-related query, contact Shafa Care Ltd at info@daktar.link or on 01531390647.`,
+            `This policy is governed by the laws of Bangladesh, including the Personal Data Protection Ordinance, 2025. For any privacy-related query, contact Shafa Care Ltd at support@daktar.link or on 01531390647.`,
           ],
         },
       ]}
