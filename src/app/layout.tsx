@@ -27,6 +27,14 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary_large_image" },
   robots: { index: true, follow: true },
+  // Search Console / Bing Webmaster ownership tags. No-op until the tokens are
+  // set (see lib/env.ts). The sitemap is already advertised in robots.txt.
+  verification: {
+    google: publicEnv.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
+    other: publicEnv.NEXT_PUBLIC_BING_SITE_VERIFICATION
+      ? { "msvalidate.01": publicEnv.NEXT_PUBLIC_BING_SITE_VERIFICATION }
+      : undefined,
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

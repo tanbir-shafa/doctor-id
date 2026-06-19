@@ -112,6 +112,11 @@ const PublicEnvSchema = z.object({
   // script is never loaded and trackEvent()/pageview() no-op (see
   // components/analytics/google-analytics.tsx + lib/analytics/gtag.ts).
   NEXT_PUBLIC_GA_MEASUREMENT_ID: z.string().optional(),
+  // Search-engine site-verification tokens, rendered as <meta> tags site-wide.
+  // Paste the token from Google Search Console / Bing Webmaster Tools, deploy,
+  // then click "verify". Unset → no tag is emitted.
+  NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: z.string().optional(),
+  NEXT_PUBLIC_BING_SITE_VERIFICATION: z.string().optional(),
 });
 
 // During `next build` Next will collect referenced env vars; we still want the
@@ -162,6 +167,8 @@ export const publicEnv = PublicEnvSchema.parse({
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   NEXT_PUBLIC_GA_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
+  NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+  NEXT_PUBLIC_BING_SITE_VERIFICATION: process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION,
 });
 
 export function adminEmails(): string[] {
