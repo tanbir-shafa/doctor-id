@@ -19,7 +19,7 @@ export default function HowVerificationWorksPage() {
           paragraphs: [
             `Every doctor profile on Daktar.Link can be verified along two independent axes. The first is professional registration: we confirm the doctor's BMDC registration number, the credential that licenses a person to practise medicine or dentistry in Bangladesh. The second is identity: we confirm the person behind the profile by checking a government-issued photo ID against the legal name on the profile.`,
             `The two checks are deliberately kept apart because they answer different questions. BMDC registration tells you the person is a registered medical or dental practitioner. Identity verification tells you the profile genuinely belongs to that named individual. A profile can pass one, both, or neither, and we show that state honestly rather than rounding it up.`,
-            `Each axis is reviewed by a real member of our team, not an automated decision, and verification is completely free for doctors. We aim to complete each review within about 24 hours of a complete submission.`,
+            `Each axis is reviewed by a real member of our team, not an automated decision, and verification is currently free for doctors. We aim to complete each review within about 24 hours of a complete submission.`,
           ],
         },
         {
@@ -40,7 +40,7 @@ export default function HowVerificationWorksPage() {
         {
           heading: "Unverified and unclaimed listings",
           paragraphs: [
-            `Many profiles on Daktar.Link were created from publicly available Bangladeshi sources, such as hospital and diagnostic-centre directories including Popular Diagnostic, Ibn Sina, Sasthya Seba and Doctor Bangladesh. Until the doctor takes ownership of their page, it is shown as an unclaimed profile and carries no Verified badge.`,
+            `Many profiles on Daktar.Link were created from information that was already publicly available on the internet. Until the doctor takes ownership of their page, it is shown as an unclaimed profile and carries no Verified badge.`,
             `An unclaimed or unverified listing simply means we have not yet confirmed the credentials and identity behind it through our own checks. The information may still be accurate, but it has not passed Daktar.Link verification. We label these clearly so you can weigh the listing accordingly.`,
             `Any doctor can claim their own profile to correct the information, request its removal, or take it through verification. Patients should also remember that Daktar.Link is a directory: it provides no medical advice, an appointment sent through the site is a request rather than a confirmed booking, and nothing here is a substitute for professional medical care.`,
           ],

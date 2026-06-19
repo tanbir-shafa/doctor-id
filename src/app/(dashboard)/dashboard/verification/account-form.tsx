@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +27,7 @@ export function AccountVerificationForm({
   const [last, setLast] = useState(initialLast);
   const [idType, setIdType] = useState<string>("nid");
   const [notes, setNotes] = useState("");
+  const [consent, setConsent] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -33,6 +35,11 @@ export function AccountVerificationForm({
   async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!consent) {
+      setError("Please give consent below before uploading your ID.");
+      event.target.value = "";
+      return;
+    }
     setError(null);
     setUploading(true);
     try {
@@ -51,6 +58,10 @@ export function AccountVerificationForm({
 
   function submit() {
     setError(null);
+    if (!consent) {
+      setError("Please consent to processing your ID for identity verification.");
+      return;
+    }
     if (!uploadedFileId) {
       setError("Upload a photo of your Government ID first.");
       return;
@@ -61,6 +72,7 @@ export function AccountVerificationForm({
       fd.set("legalLastName", last);
       fd.set("idDocumentType", idType);
       fd.set("notes", notes);
+      fd.set("consent", "true");
       fd.append("documentFileId", uploadedFileId);
       const r = await requestAccountVerificationAction(fd);
       if (!r.ok) setError(r.error);
@@ -110,6 +122,23 @@ export function AccountVerificationForm({
         </select>
       </div>
 
+      {/* PDPO 2025: explicit, specific consent for sensitive personal data,
+          captured BEFORE the document uploads (it uploads on file-select). */}
+      <label className="flex items-start gap-2 text-xs text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={consent}
+          onChange={(e) => setConsent(e.target.checked)}
+          className="mt-0.5 size-4 shrink-0"
+        />
+        <span>
+          I consent to Daktar.Link processing my government ID and legal name as sensitive
+          personal data to verify my identity. The document is stored privately, seen only by
+          authorised reviewers, and I can withdraw consent at any time — see the{" "}
+          <Link href="/privacy" className="underline">Privacy Policy</Link>.
+        </span>
+      </label>
+
       <div className="space-y-1.5">
         <Label htmlFor="idFile">Government photo ID (JPG/PNG/WebP/PDF)</Label>
         <Input
@@ -117,7 +146,7 @@ export function AccountVerificationForm({
           type="file"
           accept="image/*,application/pdf"
           onChange={handleFile}
-          disabled={uploading}
+          disabled={uploading || !consent}
         />
         {uploading ? (
           <p className="text-xs text-muted-foreground">Uploading…</p>
@@ -144,7 +173,7 @@ export function AccountVerificationForm({
       </p>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <Button type="button" onClick={submit} disabled={pending || uploading}>
+      <Button type="button" onClick={submit} disabled={pending || uploading || !consent}>
         {pending ? "Submitting…" : "Submit for review"}
       </Button>
     </div>

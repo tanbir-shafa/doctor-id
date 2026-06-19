@@ -18,5 +18,11 @@ export const AccountVerificationSchema = z.object({
     .min(1, "Upload your Government photo ID.")
     .max(3),
   notes: z.string().max(1000).optional(),
+  // PDPO 2025: a government photo ID and legal name are sensitive personal data,
+  // which require specific, explicit consent. Re-validated server-side because
+  // the fiduciary bears the burden of proving consent was obtained.
+  consent: z.boolean().refine((v) => v === true, {
+    message: "Please consent to processing your ID for identity verification.",
+  }),
 });
 export type AccountVerificationInput = z.infer<typeof AccountVerificationSchema>;

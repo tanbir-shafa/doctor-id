@@ -39,6 +39,12 @@ export const RegisterSchema = z.object({
   agreeTerms: z
     .boolean()
     .refine((v) => v === true, { message: "You must agree to the terms to continue" }),
+  // PDPO 2025: a live selfie is biometric (sensitive) personal data, which
+  // requires specific, explicit consent separate from the general terms — and
+  // the fiduciary bears the burden of proving it, so we re-validate server-side.
+  agreeBiometric: z.boolean().refine((v) => v === true, {
+    message: "Please consent to processing your selfie for identity verification.",
+  }),
 });
 export type RegisterInput = z.infer<typeof RegisterSchema>;
 

@@ -8,6 +8,7 @@ const VALID_REGISTER = {
   lastName: "Rahman",
   selfieS3Key: "dev/doctor/identity/selfie/registration/2026-06-03/abc123/selfie.jpg",
   agreeTerms: true,
+  agreeBiometric: true,
 };
 
 describe("auth Zod validators", () => {
@@ -55,6 +56,15 @@ describe("auth Zod validators", () => {
   it("RegisterSchema rejects unchecked terms checkbox", () => {
     const result = RegisterSchema.safeParse({ ...VALID_REGISTER, agreeTerms: false });
     expect(result.success).toBe(false);
+  });
+
+  it("RegisterSchema rejects unchecked biometric consent", () => {
+    expect(RegisterSchema.safeParse({ ...VALID_REGISTER, agreeBiometric: false }).success).toBe(
+      false,
+    );
+    expect(
+      RegisterSchema.safeParse({ ...VALID_REGISTER, agreeBiometric: undefined }).success,
+    ).toBe(false);
   });
 
   it("RegisterSchema rejects an invalid email when provided", () => {

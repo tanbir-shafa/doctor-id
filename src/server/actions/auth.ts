@@ -90,6 +90,7 @@ export async function startRegistrationAction(form: FormData): Promise<ActionRes
   const candidate = {
     ...raw,
     agreeTerms: raw.agreeTerms === "on" || raw.agreeTerms === "true",
+    agreeBiometric: raw.agreeBiometric === "on" || raw.agreeBiometric === "true",
   };
   const parsed = RegisterSchema.safeParse(candidate);
   if (!parsed.success) {

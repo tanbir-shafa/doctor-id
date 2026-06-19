@@ -79,6 +79,7 @@ export async function requestAccountVerificationAction(form: FormData): Promise<
     idDocumentType: form.get("idDocumentType"),
     documentFileIds: form.getAll("documentFileId").map(String).filter(Boolean),
     notes: String(form.get("notes") ?? "") || undefined,
+    consent: form.get("consent") === "on" || form.get("consent") === "true",
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };

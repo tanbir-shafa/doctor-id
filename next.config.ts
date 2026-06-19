@@ -81,6 +81,31 @@ const nextConfig: NextConfig = {
       allowedOrigins: serverActionOrigins,
     },
   },
+
+  // Site-wide rights-reservation headers (Terms §4 — no AI/TDM use, no bulk
+  // collection). These are machine-readable opt-out signals honoured by many
+  // AI crawlers and TDM tools. Deliberately NO `noindex`/`nofollow`: search
+  // engines must keep indexing the public profiles (SEO is the product).
+  //   - X-Robots-Tag: noai, noimageai → no AI training / generative use of page
+  //     content or images (recognised by a number of AI crawlers).
+  //   - TDM-Reservation: 1 → W3C TDM Reservation Protocol opt-out (a legal
+  //     reservation of text-and-data-mining rights). TDM-Policy points readers
+  //     at the binding terms.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noai, noimageai" },
+          { key: "TDM-Reservation", value: "1" },
+          {
+            key: "TDM-Policy",
+            value: `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://daktar.link").replace(/\/$/, "")}/terms`,
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

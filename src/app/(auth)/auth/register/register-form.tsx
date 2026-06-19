@@ -36,6 +36,7 @@ export function RegisterForm({
   const [otp, setOtp] = useState("");
   const [referralCode, setReferralCode] = useState(initialReferralCode);
   const [selfie, setSelfie] = useState<SelfieData | null>(null);
+  const [bioConsent, setBioConsent] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -45,6 +46,10 @@ export function RegisterForm({
     event.preventDefault();
     if (!selfie) {
       setError("Capture your live selfie to continue.");
+      return;
+    }
+    if (!bioConsent) {
+      setError("Please tick the consent to process your selfie to continue.");
       return;
     }
     const form = new FormData(event.currentTarget);
@@ -242,6 +247,7 @@ export function RegisterForm({
         <Label>Live selfie (required)</Label>
         <p className="text-xs text-muted-foreground">
           We&apos;ll open your camera for a quick identity selfie — used for verification only.
+          By capturing it you consent to the biometric processing described below.
         </p>
         <SelfieCapture
           onCaptured={(data) => {
@@ -253,8 +259,27 @@ export function RegisterForm({
         />
       </div>
 
+      {/* PDPO 2025: explicit, specific consent for biometric (sensitive) data,
+          kept separate from the general terms agreement. Server re-validates
+          `agreeBiometric` in startRegistrationAction. */}
       <label className="flex items-start gap-2 text-sm text-muted-foreground">
-        <input type="checkbox" name="agreeTerms" required className="mt-1 size-4" />
+        <input
+          type="checkbox"
+          name="agreeBiometric"
+          required
+          checked={bioConsent}
+          onChange={(e) => setBioConsent(e.target.checked)}
+          className="mt-1 size-4 shrink-0"
+        />
+        <span>
+          I consent to Daktar.Link processing my live selfie as biometric data to verify my
+          identity and prevent fraud. It is kept private, never shown publicly, and I can
+          withdraw consent at any time — see the{" "}
+          <Link href="/privacy" className="underline">privacy policy</Link>.
+        </span>
+      </label>
+      <label className="flex items-start gap-2 text-sm text-muted-foreground">
+        <input type="checkbox" name="agreeTerms" required className="mt-1 size-4 shrink-0" />
         <span>
           I confirm I am a registered medical professional and agree to the{" "}
           <Link href="/terms" className="underline">terms</Link> and{" "}
@@ -267,7 +292,7 @@ export function RegisterForm({
           {error}
         </p>
       ) : null}
-      <Button type="submit" className="w-full" disabled={pending || !selfie}>
+      <Button type="submit" className="w-full" disabled={pending || !selfie || !bioConsent}>
         {pending ? "Sending code…" : claimSlug ? "Claim profile" : "Create account"}
       </Button>
     </form>
