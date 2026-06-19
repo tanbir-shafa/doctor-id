@@ -297,60 +297,6 @@ export async function findSpecialtySlugByName(name: string): Promise<string | nu
 }
 
 /**
- * Other published doctors in the same primary specialty — same district first,
- * then filled nationally. Powers the "Related doctors" block, which spreads
- * internal links to deep profiles and keeps visitors on-site.
- */
-export async function listRelatedDoctors(doc: DoctorDocLike, limit = 6): Promise<DoctorDocLike[]> {
-  await dbConnect();
-  const specialty = (doc.specialties.find((s) => s.isPrimary) ?? doc.specialties[0])?.name;
-  if (!specialty) return [];
-  const district = (doc.chambers.find((c) => c.isPrimary) ?? doc.chambers[0])?.district;
-
-  const specialtyFilter = { "specialties.name": new RegExp(`^${escapeRegex(specialty)}$`, "i") };
-  const sortByRank: Record<string, 1 | -1> = {
-    "foundingDoctor.isFounding": -1,
-    bmdcVerified: -1,
-    nidVerified: -1,
-    profileCompletenessScore: -1,
-    updatedAt: -1,
-  };
-
-  const collected: Record<string, unknown>[] = [];
-  const seen = new Set<string>([doc.slug]);
-
-  if (district) {
-    const sameDistrict = (await (Doctor as unknown as Loose)
-      .find({
-        status: "published",
-        slug: { $ne: doc.slug },
-        ...specialtyFilter,
-        "chambers.district": new RegExp(`^${escapeRegex(district)}$`, "i"),
-      })
-      .sort(sortByRank)
-      .limit(limit)
-      .lean()) as Record<string, unknown>[];
-    for (const r of sameDistrict) {
-      const slug = String(r.slug);
-      if (seen.has(slug)) continue;
-      seen.add(slug);
-      collected.push(r);
-    }
-  }
-
-  if (collected.length < limit) {
-    const more = (await (Doctor as unknown as Loose)
-      .find({ status: "published", slug: { $nin: [...seen] }, ...specialtyFilter })
-      .sort(sortByRank)
-      .limit(limit - collected.length)
-      .lean()) as Record<string, unknown>[];
-    collected.push(...more);
-  }
-
-  return collected.slice(0, limit).map((r) => JSON.parse(JSON.stringify(r))) as DoctorDocLike[];
-}
-
-/**
  * Threshold of published doctors a specialty×district combo needs to be worth
  * indexing. Set to 1 so EMPTY combos (the soft-404 / thin-content risk across
  * the ~2,300 cartesian pages) are excluded from the sitemap and get
@@ -407,6 +353,38 @@ export async function countDoctorsInCombo(specialtyName: string, district: strin
     "specialties.name": new RegExp(`^${escapeRegex(specialtyName)}$`, "i"),
     "chambers.district": new RegExp(`^${escapeRegex(district)}$`, "i"),
   })) as number;
+}
+
+/**
+ * Districts that have published supply for one specialty, most-populous first.
+ * Powers the neutral "find more doctors" hub links at the bottom of a profile
+ * (category links, not named peers — see seo-progress.md task 23). Filtered to
+ * count ≥ MIN_INDEXABLE_COMBO_DOCTORS so a profile never links to a noindex thin
+ * combo. `$addToSet` of `_id` de-dups a doctor with two chambers in one district.
+ */
+export async function listDistrictsForSpecialty(
+  specialtyName: string,
+  limit = 8,
+): Promise<{ district: string; count: number }[]> {
+  await dbConnect();
+  const rows = (await (Doctor as unknown as Loose).aggregate([
+    {
+      $match: {
+        status: "published",
+        "specialties.name": new RegExp(`^${escapeRegex(specialtyName)}$`, "i"),
+      },
+    },
+    { $unwind: "$chambers" },
+    { $group: { _id: "$chambers.district", docs: { $addToSet: "$_id" } } },
+    { $project: { count: { $size: "$docs" } } },
+    { $match: { count: { $gte: MIN_INDEXABLE_COMBO_DOCTORS } } },
+    { $sort: { count: -1, _id: 1 } },
+    { $limit: limit },
+  ])) as { _id: string | null; count: number }[];
+
+  return rows
+    .map((r) => ({ district: String(r._id ?? "").trim(), count: r.count }))
+    .filter((r) => r.district);
 }
 
 function escapeRegex(s: string): string {

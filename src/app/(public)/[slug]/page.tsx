@@ -11,7 +11,7 @@ import {
   buildFaqJsonLd,
   pruneJsonLd,
 } from "@/lib/seo/jsonld";
-import { buildProfileFaq } from "@/lib/seo/profile-text";
+import { buildProfileFaq, buildSpecialtyNavLinks } from "@/lib/seo/profile-text";
 import { recordProfileViewAction } from "@/server/actions/doctor";
 import { DoctorProfileView } from "@/components/profile/doctor-profile-view";
 import { SpecialtyListing } from "@/components/search/specialty-listing";
@@ -19,7 +19,7 @@ import {
   searchDoctors,
   listDistricts,
   findSpecialtySlugByName,
-  listRelatedDoctors,
+  listDistrictsForSpecialty,
 } from "@/lib/db/queries/doctors";
 import type { DoctorDocLike } from "@/types/doctor";
 import { publicEnv } from "@/lib/env";
@@ -131,10 +131,23 @@ export default async function SlugPage({
   recordProfileViewAction(doctor.slug).catch(() => {});
 
   const primarySpecialty = doctor.specialties.find((s) => s.isPrimary) ?? doctor.specialties[0];
-  const [relatedDoctors, primarySpecialtySlug] = await Promise.all([
-    listRelatedDoctors(doctor, 6),
+  const [specialtyDistricts, primarySpecialtySlug] = await Promise.all([
+    primarySpecialty ? listDistrictsForSpecialty(primarySpecialty.name) : Promise.resolve([]),
     primarySpecialty ? findSpecialtySlugByName(primarySpecialty.name) : Promise.resolve(null),
   ]);
+  // Neutral category links (specialty/district hubs) — never named peers, so a
+  // doctor's shared profile doesn't advertise competitors. See seo-progress task 23.
+  const primaryChamberDistrict =
+    (doctor.chambers.find((c) => c.isPrimary) ?? doctor.chambers[0])?.district ?? null;
+  const categoryLinks =
+    primarySpecialty && primarySpecialtySlug
+      ? buildSpecialtyNavLinks({
+          specialtyName: primarySpecialty.name,
+          specialtySlug: primarySpecialtySlug,
+          primaryDistrict: primaryChamberDistrict,
+          districts: specialtyDistricts.map((d) => d.district),
+        })
+      : [];
 
   const base = publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   const crumbs = [{ name: "Home", url: `${base}/` }];
@@ -169,11 +182,7 @@ export default async function SlugPage({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }}
         />
       ))}
-      <DoctorProfileView
-        doctor={doctor}
-        relatedDoctors={relatedDoctors}
-        primarySpecialtySlug={primarySpecialtySlug}
-      />
+      <DoctorProfileView doctor={doctor} categoryLinks={categoryLinks} />
     </>
   );
 }

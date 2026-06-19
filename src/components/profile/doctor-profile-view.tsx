@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { Calendar, GraduationCap, Briefcase, Languages, Phone, Mail, MessageCircle, Users, ArrowRight, HelpCircle } from "lucide-react";
+import { Calendar, GraduationCap, Briefcase, Languages, Phone, Mail, MessageCircle, HelpCircle } from "lucide-react";
 import { renderBioMarkdown } from "@/lib/utils/sanitize";
 import { profileUrl } from "@/lib/seo/jsonld";
 import { buildAutoProfileSummary, buildProfileFaq } from "@/lib/seo/profile-text";
-import { DoctorCard } from "@/components/search/doctor-card";
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { ProfileCredentials } from "@/components/profile/profile-credentials";
 import { ChamberCard } from "@/components/profile/chamber-card";
@@ -27,18 +26,14 @@ import type { DoctorDocLike } from "@/types/doctor";
 export function DoctorProfileView({
   doctor,
   preview = false,
-  relatedDoctors = [],
-  primarySpecialtySlug = null,
+  categoryLinks = [],
 }: {
   doctor: DoctorDocLike;
   preview?: boolean;
-  relatedDoctors?: DoctorDocLike[];
-  primarySpecialtySlug?: string | null;
+  categoryLinks?: { label: string; href: string }[];
 }) {
   const bioHtml = renderBioMarkdown(doctor.bio);
   const primaryChamber = doctor.chambers.find((c) => c.isPrimary) ?? doctor.chambers[0];
-  const primarySpecialtyName =
-    (doctor.specialties.find((s) => s.isPrimary) ?? doctor.specialties[0])?.name ?? null;
   const faq = buildProfileFaq(doctor);
   const url = profileUrl(doctor.slug);
 
@@ -285,30 +280,27 @@ export function DoctorProfileView({
         </aside>
       </div>
 
-      {!preview && relatedDoctors.length > 0 ? (
-        <section className="mx-auto mt-10 max-w-4xl px-4 sm:px-6" aria-label="Related doctors">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
-              <Users className="size-5 text-primary" aria-hidden="true" />
-              {primarySpecialtyName ? `More ${primarySpecialtyName} doctors` : "Related doctors"}
-            </h2>
-            {primarySpecialtySlug ? (
-              <Link
-                href={`/${primarySpecialtySlug}`}
-                className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
-              >
-                View all <ArrowRight className="size-4" aria-hidden="true" />
-              </Link>
-            ) : null}
-          </div>
-          <ul className="grid grid-cols-1 gap-3">
-            {relatedDoctors.map((d) => (
-              <li key={d.slug}>
-                <DoctorCard doctor={d} />
+      {!preview && categoryLinks.length > 0 ? (
+        <nav
+          className="mx-auto mt-12 max-w-4xl border-t border-border px-4 pt-5 sm:px-6"
+          aria-label="Browse more doctors"
+        >
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Browse more
+          </h2>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+            {categoryLinks.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  {link.label}
+                </Link>
               </li>
             ))}
           </ul>
-        </section>
+        </nav>
       ) : null}
     </article>
   );

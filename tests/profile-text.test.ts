@@ -3,6 +3,7 @@ import {
   buildAutoMetaDescription,
   buildAutoProfileSummary,
   buildProfileFaq,
+  buildSpecialtyNavLinks,
 } from "@/lib/seo/profile-text";
 import type { DoctorDocLike } from "@/types/doctor";
 
@@ -113,5 +114,67 @@ describe("data-driven profile FAQ", () => {
       concentrations: [],
     };
     expect(buildProfileFaq(sparse).length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("buildSpecialtyNavLinks (neutral category links)", () => {
+  const base = {
+    specialtyName: "Cardiology",
+    specialtySlug: "cardiology",
+    districts: ["Dhaka", "Chittagong", "Sylhet", "Khulna"],
+  };
+
+  it("leads with the doctor's primary district and ends with the all-specialty hub", () => {
+    const links = buildSpecialtyNavLinks({ ...base, primaryDistrict: "Dhaka" });
+    expect(links[0]).toEqual({ label: "Cardiology doctors in Dhaka", href: "/cardiology/dhaka" });
+    expect(links[links.length - 1]).toEqual({
+      label: "All Cardiology doctors in Bangladesh",
+      href: "/cardiology",
+    });
+    // No named-peer links — every href points to a category/hub page.
+    expect(links.every((l) => l.href.startsWith("/cardiology"))).toBe(true);
+  });
+
+  it("dedupes the primary district out of the others list (case-insensitive)", () => {
+    const links = buildSpecialtyNavLinks({ ...base, primaryDistrict: "dhaka" });
+    expect(links.filter((l) => l.href === "/cardiology/dhaka")).toHaveLength(1);
+  });
+
+  it("caps the other-district links at maxOtherDistricts (default 3)", () => {
+    const links = buildSpecialtyNavLinks({
+      ...base,
+      primaryDistrict: null,
+      districts: ["Dhaka", "Chittagong", "Sylhet", "Khulna", "Rajshahi"],
+    });
+    expect(links).toHaveLength(4); // 3 districts + 1 hub
+  });
+
+  it("allows the primary district plus maxOtherDistricts others plus the hub", () => {
+    const links = buildSpecialtyNavLinks({ ...base, primaryDistrict: "Barisal" });
+    expect(links).toHaveLength(5); // Barisal + 3 others + hub
+    expect(links[0]!.href).toBe("/cardiology/barisal");
+  });
+
+  it("lowercases + URL-encodes the district in the href but keeps canonical case in the label", () => {
+    const links = buildSpecialtyNavLinks({
+      ...base,
+      primaryDistrict: "Cox's Bazar",
+      districts: [],
+    });
+    expect(links[0]).toEqual({
+      label: "Cardiology doctors in Cox's Bazar",
+      href: `/cardiology/${encodeURIComponent("cox's bazar")}`,
+    });
+  });
+
+  it("returns [] when there is no specialty slug", () => {
+    expect(
+      buildSpecialtyNavLinks({ ...base, specialtySlug: "", primaryDistrict: "Dhaka" }),
+    ).toEqual([]);
+  });
+
+  it("returns just the hub link when there are no districts at all", () => {
+    const links = buildSpecialtyNavLinks({ ...base, primaryDistrict: null, districts: [] });
+    expect(links).toEqual([{ label: "All Cardiology doctors in Bangladesh", href: "/cardiology" }]);
   });
 });

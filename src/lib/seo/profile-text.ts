@@ -211,3 +211,63 @@ export function buildProfileFaq(doc: DoctorDocLike): ProfileFaqItem[] {
 
   return items;
 }
+
+export interface SpecialtyNavLink {
+  label: string;
+  href: string;
+}
+
+/**
+ * Crawlable, neutral "find more doctors" links for the bottom of a profile —
+ * the doctor's own specialty×district hub, a few sibling district hubs for the
+ * same specialty, then the all-specialty hub. Deliberately links to category
+ * pages, never to named peer profiles, so a doctor's shared profile doesn't
+ * advertise competitors — while still spreading internal links to the indexable
+ * hub pages (see .claude/progress/seo-progress.md task 23).
+ *
+ * `districts` must already be filtered to combos with real supply (so we never
+ * link to a noindex thin page) and canonical-cased — pass the output of
+ * listDistrictsForSpecialty(). The href convention matches
+ * specialty-listing.tsx + the /[specialty]/[district] route. Pure + DB-less so
+ * it is unit-testable and safe in any boundary.
+ */
+export function buildSpecialtyNavLinks(args: {
+  specialtyName: string;
+  specialtySlug: string;
+  primaryDistrict: string | null;
+  districts: string[];
+  maxOtherDistricts?: number;
+}): SpecialtyNavLink[] {
+  const { specialtyName, specialtySlug, primaryDistrict, districts, maxOtherDistricts = 3 } = args;
+  if (!specialtySlug) return [];
+
+  const districtHref = (d: string) => `/${specialtySlug}/${encodeURIComponent(d.toLowerCase())}`;
+  const districtLabel = (d: string) => `${specialtyName} doctors in ${d}`;
+
+  const links: SpecialtyNavLink[] = [];
+  const used = new Set<string>();
+  const primary = primaryDistrict?.trim() || null;
+
+  // 1 — the doctor's own district first (most relevant; always indexable since
+  // this doctor is published there).
+  if (primary) {
+    links.push({ label: districtLabel(primary), href: districtHref(primary) });
+    used.add(primary.toLowerCase());
+  }
+
+  // 2 — up to `maxOtherDistricts` other districts where this specialty has supply.
+  let others = 0;
+  for (const d of districts) {
+    if (others >= maxOtherDistricts) break;
+    const district = d?.trim();
+    if (!district || used.has(district.toLowerCase())) continue;
+    used.add(district.toLowerCase());
+    links.push({ label: districtLabel(district), href: districtHref(district) });
+    others += 1;
+  }
+
+  // 3 — the all-specialty hub, always last.
+  links.push({ label: `All ${specialtyName} doctors in Bangladesh`, href: `/${specialtySlug}` });
+
+  return links;
+}
