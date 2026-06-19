@@ -46,6 +46,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/`, lastModified: now, changeFrequency: "daily", priority: 1.0 },
     { url: `${base}/search`, lastModified: now, changeFrequency: "daily", priority: 0.8 },
     { url: `${base}/auth/register`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    // Trust / E-E-A-T pages — important for a YMYL (medical) site.
+    { url: `${base}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/how-verification-works`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/data-sources`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${base}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${base}/terms`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
   ];
 
   const doctorEntries: MetadataRoute.Sitemap = (doctors as unknown as { slug: string; updatedAt: Date }[]).map(

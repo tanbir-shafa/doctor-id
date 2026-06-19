@@ -20,6 +20,12 @@ export function SiteFooter() {
           <Link href="/about" className="hover:text-foreground">
             About
           </Link>
+          <Link href="/how-verification-works" className="hover:text-foreground">
+            How verification works
+          </Link>
+          <Link href="/data-sources" className="hover:text-foreground">
+            Data sources
+          </Link>
           <Link href="/privacy" className="hover:text-foreground">
             Privacy
           </Link>

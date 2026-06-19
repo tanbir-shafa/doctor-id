@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createAppointmentRequestAction } from "@/server/actions/appointment";
+import { trackEvent } from "@/lib/analytics/gtag";
 
 type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 
@@ -127,6 +128,7 @@ export function AppointmentRequestForm({
         setError(result.error);
         return;
       }
+      trackEvent("appointment_request", { slug });
       setSent(true);
     });
   }

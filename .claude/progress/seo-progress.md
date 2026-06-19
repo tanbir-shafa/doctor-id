@@ -13,13 +13,13 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 ## Summary
 
-**8 / 55 done** · 1 in-progress · 46 not-started
+**10 / 55 done** · 5 in-progress · 40 not-started
 
 | Dept | Total | Done |
 |---|---|---|
-| ENG (engineering) | 20 | 8 |
+| ENG (engineering) | 20 | 9 |
 | PRD (product/design) | 6 | 0 |
-| CON (content/editorial) | 9 | 0 |
+| CON (content/editorial) | 9 | 1 |
 | MKT (marketing/growth) | 8 | 0 |
 | LEG (legal/compliance) | 6 | 0 |
 | ANA (analytics/data) | 6 | 0 |
@@ -31,13 +31,13 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 | # | Task | Dept | Depends on | Status | Notes |
 |---|---|---|---|---|---|
 | 1 | GSC + Bing Webmaster verified; sitemap submitted | ANA | — | in-progress | **ENG enablement shipped** — env-gated `verification` meta tags ([layout.tsx](../../src/app/layout.tsx)) + sitemap already in robots.txt. **Remaining (your side):** create GSC + Bing properties → paste tokens into `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` / `NEXT_PUBLIC_BING_SITE_VERIFICATION` → deploy → click verify → submit `/sitemap.xml`. |
-| 2 | Install GA4 + conversion events (claim, OTP-start) | ENG | — | done | [google-analytics.tsx](../../src/components/analytics/google-analytics.tsx) + [gtag.ts](../../src/lib/analytics/gtag.ts); no-op until `NEXT_PUBLIC_GA_MEASUREMENT_ID` set. Fires `sign_up`/`login`/`otp_requested`. Task 3 (ANA) marks them as conversions in the GA property. |
+| 2 | Install GA4 + conversion events (claim, OTP-start) | ENG | — | done | [google-analytics.tsx](../../src/components/analytics/google-analytics.tsx) + [gtag.ts](../../src/lib/analytics/gtag.ts); no-op until `NEXT_PUBLIC_GA_MEASUREMENT_ID` set. Fires `sign_up`/`login`/`otp_requested`/`appointment_request`. Task 3 (ANA) marks them as conversions in the GA property. |
 | 3 | Configure GA4 + organic→claim funnel | ANA | 2 | not-started | |
 | 4 | Rank-tracking baseline (3 keyword baskets) | ANA | — | not-started | Names sample · specialty×district · head terms |
-| 5 | Source Bangla name data + specialty/district glossary | ANA | — | not-started | Long pole — feeds 29, 35 |
-| 6 | Draft `/privacy` policy | LEG | — | not-started | Selfie/Gov-ID handling, retention |
-| 7 | Draft `/terms` of service | LEG | — | not-started | |
-| 8 | Draft data-sources + editorial/verification policy | LEG | — | not-started | YMYL trust signal |
+| 5 | Source Bangla name data + specialty/district glossary | ANA | — | in-progress | **Glossary shipped** — `src/lib/geo/bn-glossary.ts` (8 divisions + 64 districts + 47 specialties, dual-reviewer-corrected). Per-doctor name transliteration still needs a data source. Feeds 29, 35 |
+| 6 | Draft `/privacy` policy | LEG | — | in-progress | Starter draft live at `/privacy` (marked "Draft — pending legal review"); **needs Legal review** + fill gaps (contact email, registered address, effective date, retention periods) |
+| 7 | Draft `/terms` of service | LEG | — | in-progress | Starter draft live at `/terms` (marked draft); **needs Legal review** + entity legal name/address/jurisdiction/effective date |
+| 8 | Draft data-sources + editorial/verification policy | LEG | — | in-progress | Shipped at `/data-sources` (operational policy); **Legal to confirm wording** |
 | 9 | Review verification-claim wording | LEG | — | not-started | Gates trust copy (30) — start Day 1 |
 | 10 | Approve "best [specialty]" ranking methodology + disclosure | LEG | — | not-started | Gates intent pages |
 | 11 | Define UGC/review policy + moderation | LEG | — | not-started | Gates reviews build (44) |
@@ -69,7 +69,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 | 27 | Define KPIs + reporting cadence | MKT | 1, 3, 4 | not-started | |
 | 28 | `FAQPage` schema + visible FAQ (profiles) | ENG | (17) | done | Data-driven [buildProfileFaq](../../src/lib/seo/profile-text.ts) → visible "Frequently asked" card + FAQPage JSON-LD. Brought forward w/o Content; task 17 can refine copy. **Hub FAQ (specialty/district) still pending.** |
 | 29 | Bangla `alternateName` + `sameAs`/`alumniOf`/`dateModified` | ENG | 5 | not-started | Unlocks Bangla name queries |
-| 30 | `/about` + `/how-verification-works` copy | CON | 9 | not-started | |
+| 30 | `/about` + `/how-verification-works` copy | CON | 9 | done | Drafted + adversarially verified vs codebase; live at `/about` + `/how-verification-works` |
 | 31 | Hub unique-intro copy templates | CON | 12 | not-started | |
 | 32 | District-only hub copy | CON | 12 | not-started | |
 | 33 | Intent-page copy (best/female/near-me) | CON | 12, 10 | not-started | |
@@ -83,7 +83,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 | # | Task | Dept | Depends on | Status | Notes |
 |---|---|---|---|---|---|
-| 38 | Build trust/legal page routes | ENG | 30, 6, 7, 8 | not-started | /about, /how-verification-works, /data-sources, /contact, /privacy, /terms |
+| 38 | Build trust/legal page routes | ENG | 30, 6, 7, 8 | done | 5 routes live via `ContentPage` shell (about, how-verification-works, data-sources, privacy, terms) + footer + sitemap. **/contact deferred** (needs a contact channel) |
 | 39 | `ItemList` + unique intro on hubs | ENG | 31 | not-started | |
 | 40 | Build district-only hub route (`/doctors-in-[district]`) | ENG | 12, 32 | not-started | Targets "doctor dhaka" |
 | 41 | Build intent pages (best/female/near-me) | ENG | 12, 33, 10 | not-started | |
@@ -133,5 +133,6 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 - **2026-06-17** — **Task 2 — GA4 + conversion instrumentation ✅** — `<GoogleAnalytics/>` ([component](../../src/components/analytics/google-analytics.tsx)) loads gtag.js via `next/script` + tracks SPA page_views, **only** when `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set (clean no-op otherwise — same pattern as SES/SMS/Turnstile). SSR-safe `trackEvent`/`pageview` helpers ([gtag.ts](../../src/lib/analytics/gtag.ts)); conversion events wired into the funnels — `otp_requested` + `sign_up` (register/claim), `otp_requested` + `login` (sign-in). New env `NEXT_PUBLIC_GA_MEASUREMENT_ID`. Gate green: typecheck + 570 tests + lint 0/0 + build; live-verified the no-op (0 gtag tags when unset). **Remaining for activation:** Analytics provides the GA4 property + measurement ID, then marks the events as conversions (task 3).
 - **2026-06-17** — **Stage 1 engineering (tasks 19–24) ✅** — site-wide `Organization` + `WebSite` (SearchAction) schema; `BreadcrumbList` on profile / specialty / specialty×district; unique auto-generated profile copy ([profile-text.ts](../../src/lib/seo/profile-text.ts)) feeding the meta description, `Physician.description`, and an on-page "About" card so no profile is thin content; sitemap pruned to specialty×district combos with real supply + `robots:noindex` on empty combos; related-doctor block + "all [specialty]" cross-links (also fixed the latent `name.toLowerCase()` district-pivot bug); self-referencing page-aware canonicals on paginated search / specialty / district pages. New files: `profile-text.ts` + `tests/profile-text.test.ts`; 3 new jsonld builders + 4 new query helpers. Gate green: typecheck + 568 tests + lint 0/0 + build. **Deferred:** `rel=next/prev` (Google-deprecated and no first-class Next metadata support — self-canonical covers the consolidation need).
 - **2026-06-19** — **Task 23 reworked — profile cross-links no longer name competitors.** The original block showed 6 named peer-doctor cards ("More Cardiology doctors") at the bottom of every profile — but doctors share their profile URL on WhatsApp bios / prescription pads / business cards, and won't share a page that advertises rivals. Replaced the named-peer cards with a neutral **"Find more doctors"** nav of crawlable category links: the doctor's own specialty×district hub, a few sibling district hubs, and the all-specialty hub (new pure `buildSpecialtyNavLinks` in [profile-text.ts](../../src/lib/seo/profile-text.ts) + new `listDistrictsForSpecialty` query, filtered to indexable combos so we never link a `noindex` thin page). SEO is preserved — crawl connectivity already comes from the sitemap (every profile, priority 0.9) + the specialty/district hubs, and equity now concentrates on the indexable mid-tail hubs instead of spraying across ~3,200 thin name-pages. Removed the now-dead `listRelatedDoctors`. Gate: typecheck + tests + lint 0/0 + build; live-verified the nav renders category links (no doctor names/photos) and `/preview` is unaffected.
+- **2026-06-19** — **Stage 0 content push — trust pages + Bangla glossary (tasks 30, 38 ✅; 5/6/7/8 in progress).** Authored + adversarially verified (workflow, 13 agents — every product claim checked against the codebase) and shipped 5 trust/E-E-A-T pages — `/about`, `/how-verification-works`, `/data-sources`, `/privacy`, `/terms` — via a reusable [ContentPage](../../src/components/layout/content-page.tsx) shell; privacy + terms marked "Draft — pending legal review". Wired into the footer + sitemap. Built the Bangla glossary ([bn-glossary.ts](../../src/lib/geo/bn-glossary.ts): 8 divisions + 64 districts + 47 specialties, dual-reviewer-corrected — নেত্রকোনা, রাঙামাটি) — task 5 partial (per-doctor names still need a source). Completed the GA funnel — `appointment_request` now fires on a booking request. Gate green: typecheck + 585 tests + lint 0/0 + build; live-verified all 5 pages (200 + canonical + draft notices + sitemap). **Remaining:** Legal review + fill bracketed gaps (contact email, registered address, effective date); a `/contact` page; per-doctor Bangla names.
 - **2026-06-19** — **Task 1 (in progress) — Search Console / Bing enablement.** Added env-gated site-verification `<meta>` tags via Next's `metadata.verification` ([layout.tsx](../../src/app/layout.tsx)) + new `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` / `NEXT_PUBLIC_BING_SITE_VERIFICATION`; no-op until set (live-verified 0 tags when unset). Sitemap already advertised in robots.txt + returns 200. **Manual account steps remain:** create the GSC + Bing properties, paste tokens, deploy, verify, submit `/sitemap.xml` — then tasks 3/4/27/46/53 unblock. Gate green: typecheck + 581 tests + lint 0/0 + build.
 - **2026-06-19** — **UI: de-emphasised the profile "Browse more" links.** Per request, the bottom-of-profile category/hub nav is now visually quiet — a small uppercase muted "Browse more" label + `text-xs` muted, icon-less links wrapped in a row behind a top divider (was a prominent `text-xl` "Find more doctors" heading with brand-coloured, arrow-led links). Links stay crawlable; only styling changed. [doctor-profile-view.tsx](../../src/components/profile/doctor-profile-view.tsx). Gate green (typecheck + 581 tests + lint 0/0 + build); live-verified.
