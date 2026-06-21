@@ -455,6 +455,209 @@ Don't worry, and don't skip it — in almost all cases a missed vaccine can be "
 
 See a doctor if, after a vaccination, your child has a high fever that does not settle, is unusually drowsy or difficult to wake, has a fit, or has any reaction that worries you. When in doubt, it is always reasonable to ask.`,
   },
+  {
+    title: "Piles and Anal Fistula: Symptoms, Relief, and When to See a Doctor",
+    slug: "piles-and-anal-fistula-symptoms-and-treatment",
+    excerpt:
+      "Piles (haemorrhoids) and anal fistula are common but often hidden out of embarrassment. Learn the difference, how to ease symptoms, and why any rectal bleeding should be checked.",
+    specialties: ["Colorectal Surgery", "Surgery"],
+    body: `Problems around the back passage — piles and fistula — are very common, but many people delay seeing a doctor out of embarrassment. They are treatable, and getting checked early matters.
+
+## What are piles (haemorrhoids)?
+
+Piles are swollen blood vessels in and around the back passage. Common symptoms:
+
+- Bright red bleeding, usually noticed on toilet paper or in the toilet after passing stool
+- Itching or irritation around the anus
+- A lump you can feel near the anus
+- Discomfort or, if a pile becomes thrombosed, sudden pain
+
+## What is an anal fistula?
+
+A fistula is different — it is a small tunnel that forms between the inside of the back passage and the skin nearby, often after an abscess (a collection of pus). Signs include:
+
+- Persistent discharge of pus or fluid near the anus
+- Recurrent painful swelling or abscess
+- Skin irritation around the opening
+
+A fistula usually needs to be assessed by a surgeon.
+
+## Why they happen
+
+- Constipation and straining to pass stool
+- A low-fibre diet
+- Sitting for long periods (including long spells on the toilet)
+- Pregnancy
+- Being overweight
+
+## Easing symptoms and preventing them
+
+- Eat more fibre — vegetables, fruit, whole grains — and drink plenty of water to keep stools soft
+- Don't strain or sit on the toilet for long periods
+- Stay active
+- Soothing creams or warm sitz baths can relieve discomfort
+- Treat constipation early
+
+Mild piles often settle with these steps; more troublesome piles or any fistula may need a procedure or surgery.
+
+## When to see a doctor
+
+**Always see a doctor about rectal bleeding** — do not just assume it is piles. Bleeding can have other causes, including serious ones, and only an examination can tell. See a doctor promptly if you have ongoing bleeding, a persistent lump, discharge, recurrent abscesses, severe pain, a change in your usual bowel habit, or unexplained weight loss.`,
+  },
+  {
+    title: "Kidney Stones: Symptoms, Causes, and How to Prevent Them",
+    slug: "kidney-stones-symptoms-and-prevention",
+    excerpt:
+      "Kidney stones cause some of the most severe pain people experience. Learn the warning signs, why staying hydrated matters in a hot climate, and when stone pain is an emergency.",
+    specialties: ["Urology", "Nephrology"],
+    body: `Kidney stones are hard deposits that form in the kidneys from minerals in the urine. Small stones may pass unnoticed, but a stone that blocks the flow of urine can cause sudden, severe pain.
+
+## Symptoms
+
+- Severe pain in the side and back, below the ribs, that may come in waves
+- Pain that spreads to the lower abdomen and groin
+- Pain or a burning feeling when passing urine
+- Pink, red or brown urine (blood)
+- Cloudy or foul-smelling urine
+- Nausea and vomiting
+- Needing to pass urine more often
+
+## Why stones form
+
+- **Not drinking enough fluid** — a big factor, especially in Bangladesh's hot, humid climate where you lose a lot through sweat
+- A diet high in salt
+- Being overweight
+- A family or personal history of stones
+- Some medical conditions
+
+## How to lower your risk
+
+- **Drink plenty of water** through the day — enough that your urine stays pale, not dark
+- Cut down on salt and very salty foods
+- Eat a balanced diet; don't overdo high-oxalate or high-protein extremes
+- Maintain a healthy weight
+
+## Treatment
+
+Many small stones pass on their own with fluids and pain relief. Larger stones, or ones that block the urine or cause infection, may need a procedure to break up or remove them — your doctor will advise based on the size and position.
+
+## When to see a doctor
+
+See a doctor if you have stone symptoms, especially blood in the urine. **Seek emergency care immediately** if you have severe pain with **fever and chills** (a blocked, infected kidney is a medical emergency), if you are vomiting and cannot keep fluids down, or if you are unable to pass urine at all.`,
+  },
+  {
+    title: "PCOS (Polycystic Ovary Syndrome): Symptoms and Management",
+    slug: "pcos-symptoms-and-management",
+    excerpt:
+      "PCOS is a common hormonal condition in women that affects periods, skin, weight and fertility. Learn the signs, why it matters for long-term health, and how it's managed.",
+    specialties: ["Gynecology", "Endocrinology"],
+    body: `Polycystic ovary syndrome (PCOS) is a common hormonal condition affecting women of reproductive age. It is very manageable, but because the symptoms vary, it often goes undiagnosed for years.
+
+## Common symptoms
+
+- Irregular, infrequent or absent periods
+- Difficulty getting pregnant
+- Excess hair growth on the face or body
+- Acne or oily skin
+- Weight gain, or difficulty losing weight
+- Thinning hair on the scalp
+
+Not everyone has every symptom, and they range from mild to more troublesome.
+
+## Why it matters
+
+Beyond periods and fertility, PCOS is linked to a higher long-term risk of type 2 diabetes, high blood pressure and high cholesterol. That is why managing it is about overall health, not just symptoms.
+
+## How it is managed
+
+There is no single cure, but symptoms can be controlled well:
+
+- **Lifestyle is the foundation** — a balanced diet, regular activity, and reaching a healthy weight can restore more regular periods and improve symptoms significantly.
+- **Medicines** can help regulate periods, manage excess hair or acne, or help with fertility when you are trying to conceive — guided by your doctor.
+- Regular checks of blood sugar, blood pressure and cholesterol help protect long-term health.
+
+## When to see a doctor
+
+See a doctor if your periods are irregular or absent, if you have troubling acne or excess hair growth, or if you are having difficulty becoming pregnant. A doctor can confirm PCOS with a few simple tests and put together a plan that fits your goals — whether that's regular periods, clearer skin, or planning a pregnancy.`,
+  },
+  {
+    title: "Low Back Pain: Common Causes, Self-Care, and Warning Signs",
+    slug: "low-back-pain-causes-and-relief",
+    excerpt:
+      "Most low back pain is not serious and improves on its own. Learn what helps, what to avoid, and the warning signs that mean you should see a doctor without delay.",
+    specialties: ["Orthopedics", "Physical Medicine & Rehabilitation"],
+    body: `Low back pain is extremely common — most people experience it at some point. The good news is that the great majority of cases are not serious and improve within a few weeks.
+
+## Common causes
+
+- Muscle or ligament strain from lifting, bending or a sudden awkward movement
+- Poor posture, or sitting for long periods
+- Heavy or repeated lifting
+- Being overweight or out of condition
+- Sometimes a "slipped" (prolapsed) disc pressing on a nerve
+
+## What helps
+
+- **Keep moving.** Gentle, normal activity helps recovery more than bed rest — avoid long periods lying down.
+- Use heat (a warm compress) for comfort.
+- Simple painkillers such as paracetamol, or others if your doctor advises, can help you stay active.
+- Pay attention to posture; when lifting, bend your knees and keep your back straight.
+- Gradually return to your usual activities.
+
+Most episodes settle within a few weeks with this approach.
+
+## Warning signs — see a doctor
+
+See a doctor promptly if your back pain comes with any of these:
+
+- Numbness, tingling or weakness in one or both legs
+- Pain that follows a significant fall or injury
+- A fever, or feeling generally unwell
+- Unexplained weight loss
+- Pain that is constant, severe, or noticeably worse at night
+- Pain that is not improving after a few weeks
+
+**Seek emergency care immediately** if you lose control of your bladder or bowels, or have numbness around the back passage or inner thighs — these are rare but serious signs that need urgent attention.`,
+  },
+  {
+    title: "Skin Allergies and Rashes: Causes, Care, and When to Worry",
+    slug: "skin-allergy-and-rashes-causes-and-care",
+    excerpt:
+      "Itchy rashes and hives are common and usually harmless. Learn the typical triggers, how to calm your skin at home, and the emergency signs of a severe allergic reaction.",
+    specialties: ["Dermatology", "Allergy & Immunology"],
+    body: `Itchy skin, rashes and hives are among the most common reasons people see a doctor. Most are harmless and settle quickly, but it helps to know the triggers — and the rare signs that need emergency care.
+
+## Common types
+
+- **Contact reactions** — redness and itching where the skin touched something irritating (soap, cosmetics, metal, plants, chemicals)
+- **Hives (urticaria)** — raised, itchy welts that can appear and fade within hours
+- **Eczema** — dry, itchy, inflamed patches, often long-term
+
+## Common triggers
+
+- Certain foods
+- Medicines
+- Soaps, detergents, cosmetics and perfumes
+- Metals (such as in cheap jewellery) and some fabrics
+- Plants, dust and pollen
+- Heat and sweat, which are common irritants in a humid climate
+
+## Calming your skin at home
+
+- Identify and avoid the trigger if you can
+- Use a cool compress to ease itching
+- Keep skin moisturised; use gentle, fragrance-free products
+- An over-the-counter antihistamine can relieve itching and hives
+- Try not to scratch, which worsens irritation and can cause infection
+
+## When to see a doctor
+
+See a doctor if a rash is widespread, painful, blistering, or not improving; if it keeps coming back; if it looks infected (warm, oozing, spreading redness); or if it is affecting your sleep or daily life. A doctor can help identify the cause and prescribe stronger treatment if needed.
+
+## Emergency — act immediately
+
+Call for emergency help or go to hospital at once if a skin reaction comes with **swelling of the face, lips, tongue or throat, difficulty breathing, wheezing, dizziness or fainting**. This can be anaphylaxis — a severe, life-threatening allergic reaction that needs treatment within minutes.`,
+  },
 ];
 
 async function main() {
