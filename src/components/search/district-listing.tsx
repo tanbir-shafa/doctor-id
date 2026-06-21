@@ -23,6 +23,8 @@ export function DistrictListing({
   intro,
   faq,
   whyNote,
+  pathPrefix = "",
+  heading,
 }: {
   district: string;
   doctors: DoctorDocLike[];
@@ -36,6 +38,10 @@ export function DistrictListing({
   intro?: ReactNode;
   faq?: { question: string; answer: string }[];
   whyNote?: string;
+  /** Locale path prefix for internal hub links (e.g. "/bn"); "" for English. */
+  pathPrefix?: string;
+  /** Override the H1 (e.g. the Bangla heading on /bn pages). */
+  heading?: string;
 }) {
   const districtLower = district.toLowerCase();
 
@@ -44,7 +50,7 @@ export function DistrictListing({
       <header className="mb-8">
         <p className="text-sm font-medium uppercase tracking-wider text-primary">Doctors by district</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          Doctors in {district}
+          {heading ?? `Doctors in ${district}`}
         </h1>
         {intro ? <div className="mt-3 max-w-3xl text-muted-foreground">{intro}</div> : null}
       </header>
@@ -55,7 +61,7 @@ export function DistrictListing({
           {specialties.map((s) => (
             <Link
               key={s.specialtySlug}
-              href={`/${s.specialtySlug}/${encodeURIComponent(districtLower)}`}
+              href={`${pathPrefix}/${s.specialtySlug}/${encodeURIComponent(districtLower)}`}
               className="rounded-full border border-border bg-card px-3 py-1 text-sm text-foreground hover:border-primary/40 hover:bg-accent"
             >
               {s.specialtyName}
@@ -88,7 +94,7 @@ export function DistrictListing({
             {nearby.map((n) => (
               <Link
                 key={n}
-                href={`/doctors-in-${encodeURIComponent(n.toLowerCase())}`}
+                href={`${pathPrefix}/doctors-in-${encodeURIComponent(n.toLowerCase())}`}
                 className="rounded-full border border-border bg-card px-3 py-1 text-sm text-foreground hover:border-primary/40 hover:bg-accent"
               >
                 Doctors in {n}

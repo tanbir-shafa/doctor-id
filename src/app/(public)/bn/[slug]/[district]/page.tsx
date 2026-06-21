@@ -6,9 +6,9 @@ import {
 } from "@/components/search/hub-views";
 import { findSpecialtyBySlug } from "@/lib/db/queries/doctors";
 
+// Bangla (bn) mirror of /[specialty]/[district].
 export const revalidate = 60;
 
-// `slug` here is the specialty slug; `district` is the lowercase district name.
 type Params = Promise<{ slug: string; district: string }>;
 type SP = Promise<Record<string, string | string[] | undefined>>;
 
@@ -24,14 +24,14 @@ export async function generateMetadata({
   if (!specialty) return { title: "Not found" };
   const sp = await searchParams;
   return buildSpecialtyDistrictMetadata({
-    locale: "en",
+    locale: "bn",
     specialty,
     districtParam: district,
     page: sp.page ? Number(sp.page) : 1,
   });
 }
 
-export default async function SpecialtyDistrictPage({
+export default async function BnSpecialtyDistrictPage({
   params,
   searchParams,
 }: {
@@ -43,7 +43,7 @@ export default async function SpecialtyDistrictPage({
   if (!specialty) notFound();
   return (
     <SpecialtyDistrictView
-      locale="en"
+      locale="bn"
       specialty={specialty}
       districtParam={district}
       searchParams={await searchParams}

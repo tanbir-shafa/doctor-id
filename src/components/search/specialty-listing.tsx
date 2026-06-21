@@ -27,6 +27,8 @@ export function SpecialtyListing({
   intro,
   faq,
   whyNote,
+  pathPrefix = "",
+  heading,
 }: {
   specialtyName: string;
   /** Canonical catalog slug — drives the district pivot + "all" cross-links. */
@@ -44,6 +46,10 @@ export function SpecialtyListing({
   faq?: { question: string; answer: string }[];
   /** One-line verification trust note rendered at the foot of the content. */
   whyNote?: string;
+  /** Locale path prefix for internal hub links (e.g. "/bn"); "" for English. */
+  pathPrefix?: string;
+  /** Override the H1 (e.g. the Bangla heading on /bn pages). */
+  heading?: string;
 }) {
   const districtLabel = district ? ` in ${district}` : " in Bangladesh";
 
@@ -52,7 +58,7 @@ export function SpecialtyListing({
       <header className="mb-8">
         {district ? (
           <Link
-            href={`/${specialtySlug}`}
+            href={`${pathPrefix}/${specialtySlug}`}
             className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
           >
             ← All {specialtyName} doctors in Bangladesh
@@ -61,7 +67,7 @@ export function SpecialtyListing({
           <p className="text-sm font-medium uppercase tracking-wider text-primary">{specialtyName}</p>
         )}
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          {specialtyName} doctors{districtLabel}
+          {heading ?? `${specialtyName} doctors${districtLabel}`}
         </h1>
         {intro ? (
           <div className="mt-3 max-w-3xl text-muted-foreground">{intro}</div>
@@ -80,7 +86,7 @@ export function SpecialtyListing({
           {districts.map((d) => (
             <Link
               key={d}
-              href={`/${specialtySlug}/${encodeURIComponent(d.toLowerCase())}`}
+              href={`${pathPrefix}/${specialtySlug}/${encodeURIComponent(d.toLowerCase())}`}
               className="rounded-full border border-border bg-card px-3 py-1 text-sm text-foreground hover:border-primary/40 hover:bg-accent"
             >
               {d}
