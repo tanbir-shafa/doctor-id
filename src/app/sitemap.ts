@@ -74,11 +74,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
   );
 
+  // Reciprocal en/bn alternates for a money-page path (task 43). Each money URL
+  // advertises its Bangla twin at /bn so Google indexes both (pairs with the
+  // per-page hreflang in metadata).
+  const bnAlt = (path: string) => ({
+    languages: { "en-BD": `${base}${path}`, "bn-BD": `${base}/bn${path}` },
+  });
+
   const specialtyEntries: MetadataRoute.Sitemap = (specialties as unknown as { slug: string }[]).map((s) => ({
     url: `${base}/${s.slug}`,
     lastModified: now,
     changeFrequency: "weekly",
     priority: 0.7,
+    alternates: bnAlt(`/${s.slug}`),
   }));
 
   // Specialty × district combos — high-intent SEO landing pages. Only combos
@@ -88,6 +96,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: now,
     changeFrequency: "weekly",
     priority: 0.6,
+    alternates: bnAlt(`/${c.specialtySlug}/${encodeURIComponent(c.district)}`),
   }));
 
   // District-only hubs (/doctors-in-[district]) — "doctor in [city]" head terms.
@@ -96,6 +105,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: now,
     changeFrequency: "weekly",
     priority: 0.7,
+    alternates: bnAlt(`/doctors-in-${encodeURIComponent(d.toLowerCase())}`),
   }));
 
   // Intent hubs (/female/[specialty], /best/[specialty]) above the intent threshold.
@@ -104,6 +114,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: now,
     changeFrequency: "weekly",
     priority: 0.5,
+    alternates: bnAlt(`/${h.intent}/${h.specialtySlug}`),
   }));
 
   return [

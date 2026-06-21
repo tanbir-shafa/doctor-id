@@ -205,6 +205,9 @@ export async function IntentPageView({
   const disclosureLabel = isBn(locale) ? "এই তালিকা যেভাবে সাজানো হয়।" : "How this list is ordered.";
   const verificationLinkLabel = isBn(locale) ? "যাচাই যেভাবে কাজ করে →" : "How verification works →";
   const whyNote = isBn(locale) ? HUB_WHY_DAKTAR_NOTE_BN : HUB_WHY_DAKTAR_NOTE;
+  const localeAlt = isBn(locale)
+    ? { href: selfPath, label: "English" }
+    : { href: localizedPath("bn", selfPath), label: "বাংলা" };
 
   return (
     <>
@@ -222,6 +225,14 @@ export async function IntentPageView({
 
       <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <header className="mb-8">
+          <div className="mb-3">
+            <Link
+              href={localeAlt.href}
+              className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground hover:border-primary hover:text-primary"
+            >
+              {localeAlt.label}
+            </Link>
+          </div>
           <Link href={lp(hubPath)} className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
             ← All {specialty.name} doctors{district ? ` in ${district}` : " in Bangladesh"}
           </Link>

@@ -49,6 +49,13 @@ const siteBase = () => publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
 const titleCase = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 const pageOf = (sp: SP) => (sp.page ? Number(sp.page) : 1);
 
+/** The en↔bn toggle link for a money page, given its English (default) path. */
+function localeToggle(locale: AppLocale, enPath: string): { href: string; label: string } {
+  return isBn(locale)
+    ? { href: enPath, label: "English" }
+    : { href: localizedPath("bn", enPath), label: "বাংলা" };
+}
+
 /**
  * District-hub dispatch: `/doctors-in-[district]` (and `/bn/doctors-in-[district]`)
  * is handled in the `/[slug]` chain, not a folder (Next has no `prefix-[param]`).
@@ -166,6 +173,7 @@ export async function SpecialtyHubView({
         whyNote={whyNote(locale)}
         pathPrefix={prefix}
         heading={heading}
+        localeAlternate={localeToggle(locale, `/${specialty.slug}`)}
       />
     </>
   );
@@ -275,6 +283,7 @@ export async function SpecialtyDistrictView({
         whyNote={whyNote(locale)}
         pathPrefix={prefix}
         heading={heading}
+        localeAlternate={localeToggle(locale, `/${specialty.slug}/${districtParam}`)}
       />
     </>
   );
@@ -371,6 +380,7 @@ export async function DistrictHubView({
         whyNote={whyNote(locale)}
         pathPrefix={prefix}
         heading={heading}
+        localeAlternate={localeToggle(locale, `/doctors-in-${encodeURIComponent(district.toLowerCase())}`)}
       />
     </>
   );

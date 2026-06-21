@@ -84,7 +84,13 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    /* Bengali fonts appended so Bangla codepoints on /bn pages render in a
+       Bengali typeface (Inter has no Bengali glyphs → the browser falls through
+       to the first stack font that does). System fonts only for now — common on
+       BD devices + Android ships Noto Sans Bengali. Self-hosting the woff2 for
+       guaranteed coverage is a follow-up (needs the font asset). See task 43. */
+    font-family: var(--font-sans), "Noto Sans Bengali", "Hind Siliguri", "SolaimanLipi", ui-sans-serif,
+      system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }

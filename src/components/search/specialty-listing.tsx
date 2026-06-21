@@ -29,6 +29,7 @@ export function SpecialtyListing({
   whyNote,
   pathPrefix = "",
   heading,
+  localeAlternate,
 }: {
   specialtyName: string;
   /** Canonical catalog slug — drives the district pivot + "all" cross-links. */
@@ -50,12 +51,24 @@ export function SpecialtyListing({
   pathPrefix?: string;
   /** Override the H1 (e.g. the Bangla heading on /bn pages). */
   heading?: string;
+  /** Link to the same page in the other language (en↔bn toggle). */
+  localeAlternate?: { href: string; label: string };
 }) {
   const districtLabel = district ? ` in ${district}` : " in Bangladesh";
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <header className="mb-8">
+        {localeAlternate ? (
+          <div className="mb-3">
+            <Link
+              href={localeAlternate.href}
+              className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground hover:border-primary hover:text-primary"
+            >
+              {localeAlternate.label}
+            </Link>
+          </div>
+        ) : null}
         {district ? (
           <Link
             href={`${pathPrefix}/${specialtySlug}`}
