@@ -13,7 +13,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 ## Summary
 
-**26 / 55 done** · 3 in-progress · 26 not-started
+**26 / 55 done** · 4 in-progress · 25 not-started
 
 | Dept | Total | Done |
 |---|---|---|
@@ -74,7 +74,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 | 32 | District-only hub copy | CON | 12 | done | `buildDistrictHubIntro` + `buildDistrictHubFaq` + nearby/empty-state in [hub-text.ts](../../src/lib/seo/hub-text.ts) (3 deterministic intro variants; references top specialties in the district). Count-neutral. |
 | 33 | Intent-page copy (best/female/near-me) | CON | 12, 10 | done | `buildIntentIntro` + `buildIntentFaq` + `BEST_METHODOLOGY_DISCLOSURE` (verbatim from task 10) in [hub-text.ts](../../src/lib/seo/hub-text.ts). Female + best/"Top"; national or district. "Top" framing only (no bare superlative); best FAQ states ranking can't be bought. Near-me deferred per spec §9. **Wiring is task 41.** |
 | 34 | `/for-doctors` copy | CON | 13 | not-started | |
-| 35 | Translate UI + money-page templates + nouns (Bangla) | CON | 5, 15 | in-progress | **Money-page templates + nouns done** — [hub-text.ts](../../src/lib/seo/hub-text.ts) builders are now locale-aware (`locale: "bn"`); Bangla drafts for all hub/district/intent intros + FAQ + the `/best` disclosure + why-note, off the shipped `bn-glossary` nouns. en output unchanged. **Bangla is DRAFT — needs native review** (esp. locative case forms). **Remaining: UI chrome catalog** (`messages/bn.json`) — folded into task 43's next-intl wiring (keys are extracted there). |
+| 35 | Translate UI + money-page templates + nouns (Bangla) | CON | 5, 15 | in-progress | **Money-page templates + nouns + chrome catalog drafted** — locale-aware [hub-text.ts](../../src/lib/seo/hub-text.ts) (`locale: "bn"`: hub/district/intent intros + FAQ + `/best` disclosure + why-note) + seeded chrome catalog [messages/bn.json](../../messages/bn.json). en output unchanged. On branch `feat/bilingual-bn`. **All Bangla is DRAFT — pending owner native review.** Chrome catalog extended as task 43 extracts UI keys. |
 | 36 | Build add-to-website badge/embed widget | ENG | 14 | not-started | |
 | 37 | Run claim-rate campaigns (SMS/WhatsApp outbound) | MKT | 27 | not-started | Use [outbound](../../scripts/outbound.ts) |
 | 55 | Cookie-consent banner + GA consent gating | ENG+LEG | 6 | done | Banner + `consent.ts` gate GA — gtag loads ONLY after "Accept" (first-party `dl_consent` cookie); shows only when a GA ID is set; footer "Cookie preferences" re-opens it. **Clears the GA-activation blocker** — safe to set `NEXT_PUBLIC_GA_MEASUREMENT_ID` post-deploy. |
@@ -88,7 +88,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 | 40 | Build district-only hub route (`/doctors-in-[district]`) | ENG | 12, 32 | done | **Live** via the `/[slug]` dispatch (`doctors-in-*` → `canonicalizeDistrict`), per spec §2. New [DistrictListing](../../src/components/search/district-listing.tsx) (specialty pivot → `/[specialty]/[district]`, sibling-district nav) + shared [HubFaqSection](../../src/components/search/hub-faq-section.tsx); new queries `listSpecialtiesForDistrict` + `countDoctorsInDistrict`; Breadcrumb + ItemList + FAQPage JSON-LD; noindex below threshold. Added to **sitemap** + repointed homepage "Popular districts" links here (was `/search?district=`). Targets "doctor in [city]". |
 | 41 | Build intent pages (best/female/near-me) | ENG | 12, 33, 10 | done | **4 routes live** — `/female/[slug]`, `/female/[slug]/[district]`, `/best/[slug]`, `/best/[slug]/[district]` (static-prefix trees per spec §2) via shared [intent-page.tsx](../../src/components/search/intent-page.tsx) engine. `/best` uses the dedicated **founding-EXCLUDED `best` sort** + mandatory on-page disclosure (LEG task 10); `/female` filters `gender:"female"`. Breadcrumb + ItemList + FAQPage JSON-LD; `noindex` below `MIN_INDEXABLE_INTENT_DOCTORS=3`. National pages render a district pivot (→ indexable district intent pages = discovery path); national intent hubs added to **sitemap**. **Near-me deferred** per spec §9. |
 | 42 | Build `/for-doctors` page | ENG | 13, 34 | not-started | |
-| 43 | Wire `bn` locale + `hreflang` on money pages | ENG | 35, 15 | not-started | The 2× volume multiplier |
+| 43 | Wire `bn` locale + `hreflang` on money pages | ENG | 35, 15 | in-progress | On branch `feat/bilingual-bn` (PR). **Build-verified foundation shipped**: [i18n/config.ts](../../src/lib/i18n/config.ts) (locale helpers + reciprocal `hreflangAlternates`, tested) + chrome catalogs [messages/{en,bn}.json](../../messages/bn.json). **Route + proxy migration deferred to the live-verification pass (D6)** — sandbox can't reach the DB. The 2× volume multiplier. |
 | 44 | Build reviews/ratings + `aggregateRating` | ENG | 16, 11 | not-started | Review stars in SERP |
 | 45 | Promote add-to-website badge to claimed doctors | MKT | 36 | not-started | Backlink engine |
 

@@ -1,0 +1,33 @@
+{
+  "_note": "DRAFT Bangla — pending native-speaker review. Keys mirror en.json. Wired into the UI by task 43 (next-intl).",
+  "nav": {
+    "home": "হোম",
+    "search": "খুঁজুন",
+    "forDoctors": "ডাক্তারদের জন্য",
+    "signIn": "সাইন ইন",
+    "register": "নিবন্ধন"
+  },
+  "common": {
+    "viewProfile": "প্রোফাইল দেখুন",
+    "requestAppointment": "অ্যাপয়েন্টমেন্টের অনুরোধ",
+    "browse": "ব্রাউজ করুন",
+    "verified": "যাচাইকৃত",
+    "loadMore": "আরও দেখুন",
+    "filters": "ফিল্টার",
+    "nearbyDistricts": "পাশের জেলা",
+    "frequentlyAsked": "সচরাচর জিজ্ঞাসা"
+  },
+  "language": {
+    "label": "ভাষা",
+    "switchToBangla": "বাংলা",
+    "switchToEnglish": "English"
+  },
+  "footer": {
+    "about": "আমাদের সম্পর্কে",
+    "howVerificationWorks": "যাচাই যেভাবে কাজ করে",
+    "dataSources": "তথ্যসূত্র",
+    "privacy": "গোপনীয়তা নীতি",
+    "terms": "শর্তাবলি",
+    "cookiePreferences": "কুকি পছন্দ"
+  }
+}

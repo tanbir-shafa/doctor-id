@@ -1,0 +1,32 @@
+{
+  "nav": {
+    "home": "Home",
+    "search": "Search",
+    "forDoctors": "For doctors",
+    "signIn": "Sign in",
+    "register": "Register"
+  },
+  "common": {
+    "viewProfile": "View profile",
+    "requestAppointment": "Request appointment",
+    "browse": "Browse",
+    "verified": "Verified",
+    "loadMore": "Load more",
+    "filters": "Filters",
+    "nearbyDistricts": "Nearby districts",
+    "frequentlyAsked": "Frequently asked questions"
+  },
+  "language": {
+    "label": "Language",
+    "switchToBangla": "বাংলা",
+    "switchToEnglish": "English"
+  },
+  "footer": {
+    "about": "About",
+    "howVerificationWorks": "How verification works",
+    "dataSources": "Data sources",
+    "privacy": "Privacy policy",
+    "terms": "Terms of service",
+    "cookiePreferences": "Cookie preferences"
+  }
+}
