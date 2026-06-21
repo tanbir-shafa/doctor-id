@@ -11,7 +11,9 @@ import {
   buildIntentIntro,
   buildIntentFaq,
   BEST_METHODOLOGY_DISCLOSURE,
+  BEST_METHODOLOGY_DISCLOSURE_BN,
   HUB_WHY_DAKTAR_NOTE,
+  HUB_WHY_DAKTAR_NOTE_BN,
   type HubCopyInput,
   type DistrictHubCopyInput,
   type IntentCopyInput,
@@ -209,5 +211,51 @@ describe("hub-text — intent pages (page type D)", () => {
     expect(buildIntentFaq(female)[0]!.answer).toContain("18 female gynecology doctors");
     const zero = buildIntentFaq({ ...female, count: 0 });
     expect(zero[0]!.answer).toContain("don't have");
+  });
+});
+
+describe("hub-text — Bangla (bn) locale", () => {
+  const bnRe = /[ঀ-৿]/; // Bengali Unicode block
+
+  it("hub intro returns Bangla + the count; en path unchanged without locale", () => {
+    const bn = buildHubIntro({ specialty: "Cardiology", district: "Dhaka", division: "Dhaka", count: 12, locale: "bn" });
+    expect(bn).toMatch(bnRe);
+    expect(bn).toContain("12");
+
+    const en = buildHubIntro({ specialty: "Cardiology", district: "Dhaka", division: "Dhaka", count: 12 });
+    expect(en).not.toMatch(bnRe);
+    expect(en).toContain("cardiology");
+  });
+
+  it("district + intent intros return Bangla; best uses শীর্ষ ('top')", () => {
+    expect(
+      buildDistrictHubIntro({ district: "Gazipur", division: "Dhaka", count: 80, topSpecialties: ["Medicine"], locale: "bn" }),
+    ).toMatch(bnRe);
+    expect(buildIntentIntro({ intent: "female", specialty: "Gynecology", district: "Dhaka", count: 9, locale: "bn" })).toMatch(bnRe);
+    expect(buildIntentIntro({ intent: "best", specialty: "Cardiology", count: 20, locale: "bn" })).toContain("শীর্ষ");
+  });
+
+  it("bn FAQ questions are Bangla with non-empty answers", () => {
+    for (const faq of [
+      buildHubFaq({ specialty: "Cardiology", district: "Dhaka", count: 5, locale: "bn" }),
+      buildDistrictHubFaq({ district: "Dhaka", count: 5, locale: "bn" }),
+      buildIntentFaq({ intent: "best", specialty: "Cardiology", district: "Dhaka", count: 5, locale: "bn" }),
+    ]) {
+      expect(faq.length).toBeGreaterThan(0);
+      expect(faq.every((f) => bnRe.test(f.question) && f.answer.trim().length > 0)).toBe(true);
+    }
+  });
+
+  it("bn disclosure preserves the legal meaning (clinical-quality + can't-pay)", () => {
+    expect(BEST_METHODOLOGY_DISCLOSURE_BN).toContain("চিকিৎসার মান"); // clinical quality
+    expect(BEST_METHODOLOGY_DISCLOSURE_BN).toContain("অর্থের বিনিময়ে"); // cannot be paid for
+    expect(HUB_WHY_DAKTAR_NOTE_BN).toContain("BMDC");
+    expect(BEST_METHODOLOGY_DISCLOSURE_BN).not.toBe(BEST_METHODOLOGY_DISCLOSURE);
+  });
+
+  it("en output is unaffected by the bn layer", () => {
+    expect(buildIntentFaq({ intent: "best", specialty: "Cardiology", district: "Dhaka", count: 5 })[0]!.question).not.toMatch(
+      bnRe,
+    );
   });
 });
