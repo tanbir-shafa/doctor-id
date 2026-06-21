@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
     "seed:unified": "tsx --env-file=.env.local scripts/seed-unified.ts",
+    "seed:articles": "tsx --env-file=.env.local scripts/seed-articles.ts",
     "seed:unified:photos": "tsx --env-file=.env.local scripts/seed-unified-photos.ts",
     "clean:legacy-photos": "tsx --env-file=.env.local scripts/clean-legacy-unified-photos.ts",
     "outbound": "tsx --env-file=.env.local scripts/outbound.ts",
