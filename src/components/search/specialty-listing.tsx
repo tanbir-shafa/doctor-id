@@ -1,13 +1,18 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { DoctorCard } from "./doctor-card";
 import { Pagination } from "./pagination";
+import { HubFaqSection } from "./hub-faq-section";
 import type { DoctorDocLike } from "@/types/doctor";
 
 /**
  * Reusable listing layout for /[specialty] and /[specialty]/[district].
  *
  * SEO-critical surface — the H1 + intro paragraph are the strongest signals
- * for "[Specialty] in [District]" search queries.
+ * for "[Specialty] in [District]" search queries. The `intro`, `faq` and
+ * `whyNote` slots carry the unique, per-URL hub copy (built in hub-text.ts) that
+ * keeps these programmatic pages from reading as thin / duplicate content; the
+ * page also emits matching ItemList + FAQPage JSON-LD alongside this markup.
  */
 export function SpecialtyListing({
   specialtyName,
@@ -19,6 +24,9 @@ export function SpecialtyListing({
   totalPages,
   districts,
   searchParams,
+  intro,
+  faq,
+  whyNote,
 }: {
   specialtyName: string;
   /** Canonical catalog slug — drives the district pivot + "all" cross-links. */
@@ -30,6 +38,12 @@ export function SpecialtyListing({
   totalPages: number;
   districts: string[];
   searchParams: Record<string, string | string[] | undefined>;
+  /** Unique, per-URL hub intro paragraph (hub-text.ts). Falls back to a generic line. */
+  intro?: ReactNode;
+  /** Visible hub FAQ — must mirror the FAQPage JSON-LD emitted by the page. */
+  faq?: { question: string; answer: string }[];
+  /** One-line verification trust note rendered at the foot of the content. */
+  whyNote?: string;
 }) {
   const districtLabel = district ? ` in ${district}` : " in Bangladesh";
 
@@ -49,10 +63,15 @@ export function SpecialtyListing({
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
           {specialtyName} doctors{districtLabel}
         </h1>
-        <p className="mt-3 max-w-3xl text-muted-foreground">
-          Browse {Intl.NumberFormat("en-IN").format(total)} verified {specialtyName.toLowerCase()}{" "}
-          doctors{districtLabel}. Filter by district, verification, or language. Every profile is BMDC-aligned.
-        </p>
+        {intro ? (
+          <div className="mt-3 max-w-3xl text-muted-foreground">{intro}</div>
+        ) : (
+          <p className="mt-3 max-w-3xl text-muted-foreground">
+            Browse {Intl.NumberFormat("en-IN").format(total)} {specialtyName.toLowerCase()}{" "}
+            doctors{districtLabel}. Filter by district, verification, or language. Every profile is
+            matched to public BMDC records.
+          </p>
+        )}
       </header>
 
       {/* District pivot bar — links to /<specialty>/<district> */}
@@ -85,6 +104,8 @@ export function SpecialtyListing({
       )}
 
       <Pagination page={page} totalPages={totalPages} searchParams={searchParams} />
+
+      <HubFaqSection faq={faq} whyNote={whyNote} />
     </section>
   );
 }

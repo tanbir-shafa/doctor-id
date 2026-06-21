@@ -17,7 +17,7 @@ export interface DoctorSearchParams {
   verificationLevel?: "unverified" | "bmdc_verified" | "fully_verified";
   language?: string;
   gender?: "male" | "female" | "other";
-  sort?: "relevance" | "name" | "experience" | "completeness" | "verified";
+  sort?: "relevance" | "name" | "experience" | "completeness" | "verified" | "best";
   page?: number;
   pageSize?: number;
 }
@@ -136,6 +136,12 @@ export async function searchDoctors(params: DoctorSearchParams): Promise<DoctorS
       break;
     case "verified":
       sort = { "foundingDoctor.isFounding": -1, bmdcVerified: -1, nidVerified: -1, updatedAt: -1 };
+      break;
+    case "best":
+      // /best/* "Top" ranking — objective + disclosed (LEG task 10). Deliberately
+      // EXCLUDES `foundingDoctor.isFounding` (a referral reward, not a patient
+      // signal — an undisclosed bias on a "best" page). Do not fold founding in.
+      sort = { bmdcVerified: -1, nidVerified: -1, profileCompletenessScore: -1, updatedAt: -1 };
       break;
     case "experience":
       // Approximate: rely on count of experience entries until we add a derived field.
@@ -306,6 +312,14 @@ export async function findSpecialtySlugByName(name: string): Promise<string | nu
  */
 export const MIN_INDEXABLE_COMBO_DOCTORS = 1;
 
+/**
+ * Intent pages (/best, /female) need a higher bar than plain combos: a "Top
+ * cardiologist in {district}" or "female {specialty}" page with 1–2 results
+ * reads as thin / spam (the liability LEG task 10 guards against). Below this →
+ * the page renders 200 + noindex,follow. See seo-hub-intent-templates.md §7.
+ */
+export const MIN_INDEXABLE_INTENT_DOCTORS = 3;
+
 export interface SpecialtyDistrictCombo {
   specialtySlug: string;
   /** Lowercased, URL-ready district. */
@@ -365,19 +379,22 @@ export async function countDoctorsInCombo(specialtyName: string, district: strin
 export async function listDistrictsForSpecialty(
   specialtyName: string,
   limit = 8,
+  opts?: { gender?: string; minCount?: number },
 ): Promise<{ district: string; count: number }[]> {
   await dbConnect();
+  const minCount = opts?.minCount ?? MIN_INDEXABLE_COMBO_DOCTORS;
   const rows = (await (Doctor as unknown as Loose).aggregate([
     {
       $match: {
         status: "published",
         "specialties.name": new RegExp(`^${escapeRegex(specialtyName)}$`, "i"),
+        ...(opts?.gender ? { gender: opts.gender } : {}),
       },
     },
     { $unwind: "$chambers" },
     { $group: { _id: "$chambers.district", docs: { $addToSet: "$_id" } } },
     { $project: { count: { $size: "$docs" } } },
-    { $match: { count: { $gte: MIN_INDEXABLE_COMBO_DOCTORS } } },
+    { $match: { count: { $gte: minCount } } },
     { $sort: { count: -1, _id: 1 } },
     { $limit: limit },
   ])) as { _id: string | null; count: number }[];
@@ -385,6 +402,130 @@ export async function listDistrictsForSpecialty(
   return rows
     .map((r) => ({ district: String(r._id ?? "").trim(), count: r.count }))
     .filter((r) => r.district);
+}
+
+/** Published-doctor count for a whole district (drives the district-hub noindex). */
+export async function countDoctorsInDistrict(district: string): Promise<number> {
+  await dbConnect();
+  return (await (Doctor as unknown as Loose).countDocuments({
+    status: "published",
+    "chambers.district": new RegExp(`^${escapeRegex(district)}$`, "i"),
+  })) as number;
+}
+
+export interface DistrictSpecialty {
+  specialtyName: string;
+  specialtySlug: string;
+  count: number;
+}
+
+/**
+ * Specialties with published supply in one district, most-populous first — the
+ * specialty pivot (M2b) on the district hub (/doctors-in-[district]). Filtered to
+ * count ≥ MIN_INDEXABLE_COMBO_DOCTORS so the pivot never links to a noindex thin
+ * combo, and limited to catalog specialties (each becomes a /<slug>/<district>
+ * link). Mirror of listDistrictsForSpecialty.
+ */
+export async function listSpecialtiesForDistrict(
+  district: string,
+  limit = 30,
+): Promise<DistrictSpecialty[]> {
+  await dbConnect();
+  const specialties = await listActiveSpecialties();
+  const nameToSlug = new Map(specialties.map((s) => [s.name.toLowerCase(), s.slug]));
+
+  const rows = (await (Doctor as unknown as Loose).aggregate([
+    {
+      $match: {
+        status: "published",
+        "chambers.district": new RegExp(`^${escapeRegex(district)}$`, "i"),
+      },
+    },
+    { $unwind: "$specialties" },
+    { $group: { _id: "$specialties.name", docs: { $addToSet: "$_id" } } },
+    { $project: { count: { $size: "$docs" } } },
+    { $match: { count: { $gte: MIN_INDEXABLE_COMBO_DOCTORS } } },
+    { $sort: { count: -1, _id: 1 } },
+    { $limit: limit },
+  ])) as { _id: string | null; count: number }[];
+
+  const out: DistrictSpecialty[] = [];
+  for (const r of rows) {
+    const name = String(r._id ?? "").trim();
+    const slug = nameToSlug.get(name.toLowerCase());
+    if (!name || !slug) continue;
+    out.push({ specialtyName: name, specialtySlug: slug, count: r.count });
+  }
+  return out;
+}
+
+/**
+ * Count for an intent page (specialty [+ district] [+ gender]) — drives the
+ * intent-page noindex decision. `best` passes no gender; `female` passes
+ * gender: "female".
+ */
+export async function countIntentDoctors(args: {
+  specialtyName: string;
+  district?: string | null;
+  gender?: string;
+}): Promise<number> {
+  await dbConnect();
+  const filter: Record<string, unknown> = {
+    status: "published",
+    "specialties.name": new RegExp(`^${escapeRegex(args.specialtyName)}$`, "i"),
+  };
+  if (args.district) filter["chambers.district"] = new RegExp(`^${escapeRegex(args.district)}$`, "i");
+  if (args.gender) filter.gender = args.gender;
+  return (await (Doctor as unknown as Loose).countDocuments(filter)) as number;
+}
+
+/** Active specialty catalog entry by slug — `{name, slug}` or null. */
+export async function findSpecialtyBySlug(slug: string): Promise<{ name: string; slug: string } | null> {
+  await dbConnect();
+  const sp = await (Specialty as unknown as Loose)
+    .findOne({ slug: slug.toLowerCase(), active: true })
+    .select("name slug")
+    .lean();
+  return (sp as { name: string; slug: string } | null) ?? null;
+}
+
+export interface IntentHub {
+  intent: "female" | "best";
+  specialtySlug: string;
+}
+
+/**
+ * National intent hubs (/female/[specialty], /best/[specialty]) that clear the
+ * intent index threshold — for the sitemap. `best` supply = all published in the
+ * specialty; `female` = female-only. District-level intent pages are discovered
+ * via the district pivot rendered on these national pages (not enumerated here —
+ * avoids a 47×64×2 gender-aware combo sweep; below-threshold ones are noindex).
+ */
+export async function listIntentHubsForSitemap(): Promise<IntentHub[]> {
+  await dbConnect();
+  const specialties = await listActiveSpecialties();
+  const nameToSlug = new Map(specialties.map((s) => [s.name.toLowerCase(), s.slug]));
+  const rows = (await (Doctor as unknown as Loose).aggregate([
+    { $match: { status: "published" } },
+    { $unwind: "$specialties" },
+    {
+      $group: {
+        _id: "$specialties.name",
+        total: { $addToSet: "$_id" },
+        female: { $addToSet: { $cond: [{ $eq: ["$gender", "female"] }, "$_id", "$$REMOVE"] } },
+      },
+    },
+    { $project: { total: { $size: "$total" }, female: { $size: "$female" } } },
+  ])) as { _id: string | null; total: number; female: number }[];
+
+  const out: IntentHub[] = [];
+  for (const r of rows) {
+    const slug = nameToSlug.get(String(r._id ?? "").toLowerCase());
+    if (!slug) continue;
+    if (r.total >= MIN_INDEXABLE_INTENT_DOCTORS) out.push({ intent: "best", specialtySlug: slug });
+    if (r.female >= MIN_INDEXABLE_INTENT_DOCTORS) out.push({ intent: "female", specialtySlug: slug });
+  }
+  return out;
 }
 
 function escapeRegex(s: string): string {

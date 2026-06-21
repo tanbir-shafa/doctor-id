@@ -10,7 +10,14 @@ import {
   MIN_INDEXABLE_COMBO_DOCTORS,
 } from "@/lib/db/queries/doctors";
 import { SpecialtyListing } from "@/components/search/specialty-listing";
-import { buildBreadcrumbJsonLd, pruneJsonLd } from "@/lib/seo/jsonld";
+import {
+  buildBreadcrumbJsonLd,
+  buildFaqJsonLd,
+  buildItemListJsonLd,
+  pruneJsonLd,
+} from "@/lib/seo/jsonld";
+import { buildHubIntro, buildHubFaq, HUB_WHY_DAKTAR_NOTE } from "@/lib/seo/hub-text";
+import { divisionForDistrict } from "@/lib/geo/bd-districts";
 import { publicEnv } from "@/lib/env";
 
 export const revalidate = 60;
@@ -76,7 +83,7 @@ export default async function SpecialtyDistrictPage({
   const decodedDistrict = decodeURIComponent(district);
   const districtLabel = decodedDistrict.replace(/\b\w/g, (c) => c.toUpperCase());
   const page = sp.page ? Number(sp.page) : 1;
-  const [{ doctors, total, totalPages }, districts] = await Promise.all([
+  const [{ doctors, total, totalPages, pageSize }, districts] = await Promise.all([
     searchDoctors({ specialty: specialty.name, district: decodedDistrict, page }),
     listDistricts(),
   ]);
@@ -89,6 +96,23 @@ export default async function SpecialtyDistrictPage({
       { name: districtLabel, url: `${base}/${slug}/${district}` },
     ]),
   );
+  // Unique per-URL hub copy + matching structured data (task 39).
+  const intro = buildHubIntro({
+    specialty: specialty.name,
+    district: districtLabel,
+    division: divisionForDistrict(decodedDistrict),
+    count: total,
+    variantKey: `${slug}/${district}`,
+  });
+  const faqItems = buildHubFaq({ specialty: specialty.name, district: districtLabel, count: total });
+  const faqLd = pruneJsonLd(buildFaqJsonLd(faqItems));
+  const itemListLd = pruneJsonLd(
+    buildItemListJsonLd({
+      items: doctors.map((d) => ({ slug: d.slug, name: d.name.displayName })),
+      startPosition: (page - 1) * pageSize + 1,
+      name: `${specialty.name} doctors in ${districtLabel}`,
+    }),
+  );
 
   return (
     <>
@@ -96,6 +120,16 @@ export default async function SpecialtyDistrictPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
+      />
+      {doctors.length > 0 ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
+        />
+      ) : null}
       <SpecialtyListing
         specialtyName={specialty.name}
         specialtySlug={slug}
@@ -106,6 +140,9 @@ export default async function SpecialtyDistrictPage({
         totalPages={totalPages}
         districts={districts}
         searchParams={sp}
+        intro={intro}
+        faq={faqItems}
+        whyNote={HUB_WHY_DAKTAR_NOTE}
       />
     </>
   );

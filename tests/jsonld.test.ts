@@ -6,6 +6,7 @@ import {
   buildWebSiteJsonLd,
   buildBreadcrumbJsonLd,
   buildFaqJsonLd,
+  buildItemListJsonLd,
   pruneJsonLd,
 } from "@/lib/seo/jsonld";
 import type { DoctorDocLike } from "@/types/doctor";
@@ -56,6 +57,49 @@ describe("Schema.org JSON-LD builders", () => {
     expect(ld.identifier).toMatchObject({ propertyID: "BMDC", value: "12345" });
   });
 
+  it("Physician graph adds sameAs (normalized + deduped), alumniOf, and dateModified", () => {
+    const doc: DoctorDocLike = {
+      ...baseDoc,
+      contact: { website: "drkarim.com" },
+      socialLinks: {
+        facebook: "https://facebook.com/drkarim",
+        linkedin: "linkedin.com/in/drkarim", // schemeless → coerced to https
+        youtube: "@drkarim", // not a URL → dropped
+      },
+      qualifications: [
+        { degree: "MBBS", institution: "Dhaka Medical College", year: 2010, country: "BD" },
+        { degree: "FCPS", institution: "Dhaka Medical College", year: 2015, country: "BD" }, // dup
+        { degree: "MD", institution: "BSMMU", year: 2018, country: "BD" },
+      ],
+      updatedAt: "2026-06-19T10:00:00.000Z",
+    };
+    const ld = buildPhysicianJsonLd(doc) as Record<string, unknown>;
+
+    const sameAs = ld.sameAs as string[];
+    expect(sameAs).toContain("https://facebook.com/drkarim");
+    expect(sameAs).toContain("https://linkedin.com/in/drkarim");
+    expect(sameAs).toContain("https://drkarim.com/");
+    expect(sameAs.some((u) => u.includes("@drkarim"))).toBe(false); // garbage dropped
+
+    const alumniOf = ld.alumniOf as Record<string, unknown>[];
+    expect(alumniOf).toHaveLength(2); // deduped
+    expect(alumniOf[0]).toMatchObject({
+      "@type": "EducationalOrganization",
+      name: "Dhaka Medical College",
+    });
+    expect(alumniOf.map((a) => a.name)).toContain("BSMMU");
+
+    expect(ld.dateModified).toBe("2026-06-19T10:00:00.000Z");
+  });
+
+  it("Physician graph omits sameAs/alumniOf entirely when there's no data (post-prune)", () => {
+    const ld = pruneJsonLd(
+      buildPhysicianJsonLd({ ...baseDoc, qualifications: [], socialLinks: undefined, contact: {} }),
+    ) as Record<string, unknown>;
+    expect(ld.sameAs).toBeUndefined();
+    expect(ld.alumniOf).toBeUndefined();
+  });
+
   it("Chamber graph emits MedicalBusiness with PostalAddress + OpeningHoursSpecification", () => {
     const [ld] = buildChamberJsonLd(baseDoc).map((x) => x as Record<string, unknown>);
     expect(ld!["@type"]).toBe("MedicalBusiness");
@@ -101,6 +145,24 @@ describe("Schema.org JSON-LD builders", () => {
     expect(main).toHaveLength(2);
     expect(main[0]).toMatchObject({ "@type": "Question", name: "Where does Dr. X practise?" });
     expect((main[0]!.acceptedAnswer as Record<string, unknown>).text).toBe("Dhaka.");
+  });
+
+  it("ItemList numbers ListItems from startPosition and points at profile URLs", () => {
+    const ld = buildItemListJsonLd({
+      items: [
+        { slug: "a-cardiologist", name: "Dr A" },
+        { slug: "b-cardiologist", name: "Dr B" },
+      ],
+      startPosition: 21,
+      name: "Cardiology doctors in Dhaka",
+    });
+    expect(ld["@type"]).toBe("ItemList");
+    expect(ld.name).toBe("Cardiology doctors in Dhaka");
+    const items = ld.itemListElement as Record<string, unknown>[];
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({ "@type": "ListItem", position: 21, name: "Dr A" });
+    expect(String(items[0]!.url)).toContain("/a-cardiologist");
+    expect(items[1]!.position).toBe(22);
   });
 
   it("pruneJsonLd strips undefined and empty arrays without mangling valid values", () => {

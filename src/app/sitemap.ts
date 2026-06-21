@@ -2,7 +2,11 @@ import type { Loose } from "@/lib/db/models/loose";
 import type { MetadataRoute } from "next";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Doctor, Specialty } from "@/lib/db/models";
-import { listSpecialtyDistrictCombos } from "@/lib/db/queries/doctors";
+import {
+  listSpecialtyDistrictCombos,
+  listDistricts,
+  listIntentHubsForSitemap,
+} from "@/lib/db/queries/doctors";
 import { publicEnv } from "@/lib/env";
 
 /**
@@ -27,7 +31,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   await dbConnect();
 
-  const [doctors, specialties, combos] = await Promise.all([
+  const [doctors, specialties, combos, districts] = await Promise.all([
     (Doctor as unknown as Loose)
       .find({ status: "published" })
       .select("slug updatedAt")
@@ -38,7 +42,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Only combos with real doctor supply — empty cartesian pages are excluded
     // (they'd be soft-404s and waste crawl budget). See queries/doctors.ts.
     listSpecialtyDistrictCombos(),
+    // Districts with published supply → the /doctors-in-[district] hubs.
+    listDistricts(),
   ]);
+
+  // National intent hubs (/female/[specialty], /best/[specialty]) that clear the
+  // intent index threshold. District-level intent pages are discovered via the
+  // district pivot on these national pages (not enumerated here).
+  const intentHubs = await listIntentHubsForSitemap();
 
   const now = new Date();
 
@@ -79,5 +90,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
-  return [...staticEntries, ...doctorEntries, ...specialtyEntries, ...districtComboEntries];
+  // District-only hubs (/doctors-in-[district]) — "doctor in [city]" head terms.
+  const districtHubEntries: MetadataRoute.Sitemap = districts.map((d) => ({
+    url: `${base}/doctors-in-${encodeURIComponent(d.toLowerCase())}`,
+    lastModified: now,
+    changeFrequency: "weekly",
+    priority: 0.7,
+  }));
+
+  // Intent hubs (/female/[specialty], /best/[specialty]) above the intent threshold.
+  const intentHubEntries: MetadataRoute.Sitemap = intentHubs.map((h) => ({
+    url: `${base}/${h.intent}/${h.specialtySlug}`,
+    lastModified: now,
+    changeFrequency: "weekly",
+    priority: 0.5,
+  }));
+
+  return [
+    ...staticEntries,
+    ...doctorEntries,
+    ...specialtyEntries,
+    ...districtComboEntries,
+    ...districtHubEntries,
+    ...intentHubEntries,
+  ];
 }

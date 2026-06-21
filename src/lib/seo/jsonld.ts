@@ -32,6 +32,34 @@ export function profileUrl(slug: string): string {
   return `${publicEnv.NEXT_PUBLIC_APP_URL}/${slug}`;
 }
 
+/**
+ * Normalize a doctor-supplied / ingested link to an absolute http(s) URL for
+ * Schema.org `sameAs`, or null if it can't be one. Bare domains
+ * ("facebook.com/x") are coerced to https; handles / garbage ("@x") are dropped.
+ */
+function toAbsoluteUrl(raw?: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const u = new URL(candidate);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    // Reject schemeless inputs with no real host (e.g. "@handle").
+    if (!u.hostname.includes(".")) return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+/** ISO-8601 string for Schema.org date fields, or undefined if unparseable. */
+function toIsoDate(value?: Date | string | null): string | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
 export function buildPhysicianJsonLd(doc: DoctorDocLike): Record<string, unknown> {
   const url = profileUrl(doc.slug);
 
@@ -43,6 +71,34 @@ export function buildPhysicianJsonLd(doc: DoctorDocLike): Record<string, unknown
     recognizedBy: { "@type": "EducationalOrganization", name: q.institution },
     dateCreated: String(q.year),
   }));
+
+  // sameAs — the doctor's OTHER authoritative web presences (own site + socials),
+  // so Google can reconcile the profile to a real-world entity. Ingestion
+  // provenance (`sourceUrl`) is deliberately NOT emitted — we never name data
+  // sources publicly.
+  const sameAs = [
+    ...new Set(
+      [
+        doc.contact?.website,
+        doc.socialLinks?.facebook,
+        doc.socialLinks?.linkedin,
+        doc.socialLinks?.researchGate,
+        doc.socialLinks?.googleScholar,
+        doc.socialLinks?.youtube,
+      ]
+        .map(toAbsoluteUrl)
+        .filter((u): u is string => Boolean(u)),
+    ),
+  ];
+
+  // alumniOf — the schools behind the qualifications, as the direct Person→school
+  // edge Google's entity graph reads (hasCredential.recognizedBy carries the same
+  // institutions, but nested under each credential).
+  const alumniOf = [
+    ...new Set(
+      doc.qualifications.map((q) => q.institution?.trim()).filter((s): s is string => Boolean(s)),
+    ),
+  ].map((name) => ({ "@type": "EducationalOrganization", name }));
 
   return {
     "@context": "https://schema.org",
@@ -63,6 +119,11 @@ export function buildPhysicianJsonLd(doc: DoctorDocLike): Record<string, unknown
         }
       : undefined,
     hasCredential: qualifications.length ? qualifications : undefined,
+    alumniOf: alumniOf.length ? alumniOf : undefined,
+    sameAs: sameAs.length ? sameAs : undefined,
+    // Bangla `alternateName` is deferred until per-doctor Bangla name data lands
+    // (SEO task 5 → 29 bilingual follow-up).
+    dateModified: toIsoDate(doc.updatedAt),
     worksFor: doc.chambers.map((c) => ({
       "@type": "MedicalOrganization",
       name: c.name,
@@ -195,6 +256,36 @@ export function buildFaqJsonLd(items: FaqItem[]): Record<string, unknown> {
       "@type": "Question",
       name: it.question,
       acceptedAnswer: { "@type": "Answer", text: it.answer },
+    })),
+  };
+}
+
+export interface ItemListEntry {
+  slug: string;
+  name: string;
+}
+
+/**
+ * `ItemList` JSON-LD for a hub/listing page — an ordered list of the doctor
+ * profiles shown on the page, by URL. `startPosition` keeps positions continuous
+ * across pagination (page 2 starts at `pageSize + 1`). It mirrors the visible
+ * `DoctorCard` list, so the structured data matches what the user sees.
+ */
+export function buildItemListJsonLd(args: {
+  items: ItemListEntry[];
+  startPosition?: number;
+  name?: string;
+}): Record<string, unknown> {
+  const { items, startPosition = 1, name } = args;
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name,
+    itemListElement: items.map((it, i) => ({
+      "@type": "ListItem",
+      position: startPosition + i,
+      url: profileUrl(it.slug),
+      name: it.name,
     })),
   };
 }
