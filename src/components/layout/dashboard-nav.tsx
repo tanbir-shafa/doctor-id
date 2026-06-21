@@ -13,6 +13,7 @@ import {
   FileText,
   Inbox,
   Gift,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +29,7 @@ const NAV: Array<{
   { href: "/dashboard/chambers", label: "Chambers", icon: MapPin },
   { href: "/dashboard/photos", label: "Photos", icon: ImageIcon },
   { href: "/dashboard/prescription-pad", label: "Prescription pad", icon: FileText },
+  { href: "/dashboard/website-badge", label: "Website badge", icon: Globe },
   { href: "/dashboard/requests", label: "Requests", icon: Inbox, badgeKey: "pendingRequestCount" },
   { href: "/dashboard/verification", label: "Verification", icon: BadgeCheck },
   { href: "/dashboard/referrals", label: "Refer & earn", icon: Gift },

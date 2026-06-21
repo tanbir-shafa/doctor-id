@@ -13,11 +13,11 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 ## Summary
 
-**26 / 55 done** · 4 in-progress · 25 not-started
+**27 / 55 done** · 4 in-progress · 24 not-started
 
 | Dept | Total | Done |
 |---|---|---|
-| ENG (engineering) | 20 | 13 |
+| ENG (engineering) | 20 | 14 |
 | PRD (product/design) | 6 | 2 |
 | CON (content/editorial) | 9 | 4 |
 | MKT (marketing/growth) | 8 | 0 |
@@ -75,7 +75,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 | 33 | Intent-page copy (best/female/near-me) | CON | 12, 10 | done | `buildIntentIntro` + `buildIntentFaq` + `BEST_METHODOLOGY_DISCLOSURE` (verbatim from task 10) in [hub-text.ts](../../src/lib/seo/hub-text.ts). Female + best/"Top"; national or district. "Top" framing only (no bare superlative); best FAQ states ranking can't be bought. Near-me deferred per spec §9. **Wiring is task 41.** |
 | 34 | `/for-doctors` copy | CON | 13 | not-started | |
 | 35 | Translate UI + money-page templates + nouns (Bangla) | CON | 5, 15 | in-progress | **Money-page templates + nouns + chrome catalog drafted** — locale-aware [hub-text.ts](../../src/lib/seo/hub-text.ts) (`locale: "bn"`: hub/district/intent intros + FAQ + `/best` disclosure + why-note) + seeded chrome catalog [messages/bn.json](../../messages/bn.json). en output unchanged. On branch `feat/bilingual-bn`. **All Bangla is DRAFT — pending owner native review.** Chrome catalog extended as task 43 extracts UI keys. |
-| 36 | Build add-to-website badge/embed widget | ENG | 14 | not-started | |
+| 36 | Build add-to-website badge/embed widget | ENG | 14 | done | Branch `feat/seo-badge-embed`. Doctor dashboard **"Add to your website"** page (`/dashboard/website-badge`) generates paste-ready embed snippets — a **followed `<a>`** (not iframe/script → passes link equity) to the doctor's `/[slug]`, in 3 variants (name/compact/dark). Pure builder [embed-badge.ts](../../src/lib/seo/embed-badge.ts) (+5 tests); "Verified" wording gated on `fully_verified`; name escaped. **Task 14 design baked in** (sizes/light-dark/copy). The off-page backlink loop. |
 | 37 | Run claim-rate campaigns (SMS/WhatsApp outbound) | MKT | 27 | not-started | Use [outbound](../../scripts/outbound.ts) |
 | 55 | Cookie-consent banner + GA consent gating | ENG+LEG | 6 | done | Banner + `consent.ts` gate GA — gtag loads ONLY after "Accept" (first-party `dl_consent` cookie); shows only when a GA ID is set; footer "Cookie preferences" re-opens it. **Clears the GA-activation blocker** — safe to set `NEXT_PUBLIC_GA_MEASUREMENT_ID` post-deploy. |
 
@@ -128,6 +128,8 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 - **Open PDPO compliance (eng/counsel):** data localization (selfies/IDs on AWS/Atlas, likely outside Bangladesh); lawful basis for compiling non-consenting doctors; and the **retention/deletion jobs are not built** (soft-delete only — no S3/identity deletion, no `AppointmentRequest` TTL, no hard-delete job). Build the deletion jobs before stating specific retention periods in /privacy.
 
 ## Changelog
+
+- **2026-06-21** — **Task 36 ✅ — "Add to your website" verified badge/embed (off-page backlink loop).** On branch `feat/seo-badge-embed` (off the now-merged bilingual `development`). New doctor dashboard page `/dashboard/website-badge` ([page](../../src/app/(dashboard)/dashboard/website-badge/page.tsx) + client [website-badge-embed.tsx](../../src/components/dashboard/website-badge-embed.tsx)) gives copy-paste embed snippets built by the pure, tested [embed-badge.ts](../../src/lib/seo/embed-badge.ts): each is a **followed `<a>`** (deliberately not an iframe/script, so it passes link equity) back to the doctor's `/[slug]` profile — a backlink no competitor can buy. 3 variants (name/compact/dark, inline-styled to render on any site); the word "Verified" + the blue tick appear only when `fully_verified` (accuracy); display name HTML-escaped. Added to both dashboard navs. Task-14 design decisions (sizes/light-dark/copy) baked in. +5 tests. Gate green: typecheck + lint 0/0 + **625 tests** + build; `/dashboard/website-badge` registered. **Next in the batch: 48 (content-hub plumbing — needs a content-source decision), 42 (`/for-doctors`).**
 
 - **2026-06-17** — Progress board created from [seo-growth-plan.md](../plans/seo-growth-plan.md); 54 tasks across 6 dependency-ordered stages, all `not-started`.
 - **2026-06-17** — **Task 28 — data-driven FAQ (profiles) ✅** — [buildProfileFaq](../../src/lib/seo/profile-text.ts) generates per-doctor Q&A from real fields (specialty, chambers, fees, verification, appointment, languages); rendered as a visible "Frequently asked" card **and** as `FAQPage` JSON-LD ([buildFaqJsonLd](../../src/lib/seo/jsonld.ts)) — schema matches on-page content. Brought forward without Content's hand-written templates (task 17 can refine wording later). Gate green: typecheck + 574 tests + lint 0/0 + build; live-verified (FAQPage + 4 Question nodes + visible section on a profile). **Caveat:** Google restricts FAQ *rich results* to authoritative gov/health sites, so the near-term value is on-page unique content + question-query targeting, not guaranteed SERP rich snippets. **Hub-level FAQ deferred.**
