@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Sparkles,
   Send,
+  Newspaper,
 } from "lucide-react";
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
 import { BrandMark } from "@/components/layout/brand-mark";
@@ -108,6 +109,15 @@ export function AdminSidebar({
           active={pathname.startsWith("/admin/specialties")}
         >
           Specialties
+        </NavItem>
+
+        <SectionLabel>Content</SectionLabel>
+        <NavItem
+          href="/admin/articles"
+          icon={Newspaper}
+          active={pathname.startsWith("/admin/articles")}
+        >
+          Articles
         </NavItem>
 
         <SectionLabel>Acquisition</SectionLabel>

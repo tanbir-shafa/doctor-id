@@ -13,11 +13,11 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 ## Summary
 
-**30 / 55 done** · 4 in-progress · 21 not-started
+**31 / 55 done** · 4 in-progress · 20 not-started
 
 | Dept | Total | Done |
 |---|---|---|
-| ENG (engineering) | 20 | 15 |
+| ENG (engineering) | 20 | 16 |
 | PRD (product/design) | 6 | 3 |
 | CON (content/editorial) | 9 | 5 |
 | MKT (marketing/growth) | 8 | 0 |
@@ -98,7 +98,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 |---|---|---|---|---|---|
 | 46 | Pull stats for PR data story | ANA | 1 | not-started | |
 | 47 | Write 4–8 Bangla cornerstone articles | CON | 5, 38 | not-started | Medically reviewed |
-| 48 | Content-hub plumbing (article/author schema, internal links) | ENG | — | not-started | Pairs with 47 |
+| 48 | Content-hub plumbing (article/author schema, internal links) | ENG | — | done | Branch `feat/seo-badge-embed`. DB-backed [Article](../../src/lib/db/models/Article.ts) model (submission-ready: `authorType`, `status: draft→pending_review→published`, `reviewedBy`); admin authoring at `/admin/articles` (list + new/edit + publish/approve/delete [actions](../../src/server/actions/article.ts)); public **`/guides`** + `/guides/[slug]` with Article JSON-LD + author + medical disclaimer + internal links to specialty hubs; sitemap + footer. Markdown body via existing `renderBioMarkdown` (sanitized). **Pairs with 47** (the articles to fill it). |
 | 49 | Digital PR + publish data story | MKT | 46, 47 | not-started | "State of doctor access in BD" link magnet |
 | 50 | Partnerships/BD (associations, hospitals) | MKT | 38 | not-started | Authoritative links |
 | 51 | Doctor success stories / case studies | CON | 37 | not-started | |
@@ -129,6 +129,7 @@ Each row mirrors a task in the plan's dependency-ordered build sequence. Update 
 
 ## Changelog
 
+- **2026-06-22** — **Task 48 ✅ — content-hub plumbing (DB-backed, admin-authored, submission-ready).** Built the E-E-A-T content pillar per the owner's call (DB-backed; doctor-submission-for-approval baked into the schema for later). New [Article](../../src/lib/db/models/Article.ts) model — `authorType: admin|doctor`, `status: draft → pending_review → published`, `reviewedBy`/`reviewerName`/`reviewedAt`, specialties, SEO fields (only `published` is ever public). Admin authoring: [/admin/articles](../../src/app/admin/articles/page.tsx) list (with status + awaiting-review count) + new/edit form + row publish/unpublish/delete, backed by [article.ts actions](../../src/server/actions/article.ts) (`requireAdmin` + Zod + revalidate; admin publishes directly, the future doctor flow approves `pending_review → published`). Public hub: **`/guides`** + `/guides/[slug]` — Markdown body rendered safe via existing `renderBioMarkdown`, **Article + Breadcrumb JSON-LD** (author + publisher = the Org, ISO dates), internal links from the article's specialty tags to their hubs, and a medical disclaimer (YMYL). Wired into the admin sidebar, sitemap (`/guides` + each published article), and footer. New [validators/article.ts](../../src/lib/validators/article.ts) + [queries/articles.ts](../../src/lib/db/queries/articles.ts) + `buildArticleJsonLd` (+2 tests). Gate green: typecheck + lint 0/0 + **627 tests** + build; all 5 routes registered. **Cover-image rendering deferred** (next/image remote config); **task 47** (the cornerstone articles) is the content that fills it. On branch `feat/seo-badge-embed` with tasks 36 + 42.
 - **2026-06-21** — **Task 42 (+ 13 + 34) ✅ — `/for-doctors` B2D landing page.** Built the one public B2D surface the positioning allows ([for-doctors/page.tsx](../../src/app/(public)/for-doctors/page.tsx)): hero → 8-perk grid (rank-for-your-name, blue tick, Rx pad, **the new website badge**, appointment requests, analytics, bilingual reach, 3-month EMR) → 3-step "how it works" → why-free + register/claim CTA (`/auth/register`) + BreadcrumbList JSON-LD. Copy drafted inline (tasks 13 design + 34 copy folded in) — perks framed accurately + the EMR offer kept time-boxed/revocable per legal posture. Added to footer + sitemap (priority 0.6). **Live-verified** — it's a static page, so it renders 200 with full content even though the sandbox DB is down (curl confirmed hero, perks, CTA, JSON-LD). Gate green: typecheck + lint 0/0 + **625 tests** + build; `/for-doctors` registered. On branch `feat/seo-badge-embed` (with task 36).
 - **2026-06-21** — **Task 36 ✅ — "Add to your website" verified badge/embed (off-page backlink loop).** On branch `feat/seo-badge-embed` (off the now-merged bilingual `development`). New doctor dashboard page `/dashboard/website-badge` ([page](../../src/app/(dashboard)/dashboard/website-badge/page.tsx) + client [website-badge-embed.tsx](../../src/components/dashboard/website-badge-embed.tsx)) gives copy-paste embed snippets built by the pure, tested [embed-badge.ts](../../src/lib/seo/embed-badge.ts): each is a **followed `<a>`** (deliberately not an iframe/script, so it passes link equity) back to the doctor's `/[slug]` profile — a backlink no competitor can buy. 3 variants (name/compact/dark, inline-styled to render on any site); the word "Verified" + the blue tick appear only when `fully_verified` (accuracy); display name HTML-escaped. Added to both dashboard navs. Task-14 design decisions (sizes/light-dark/copy) baked in. +5 tests. Gate green: typecheck + lint 0/0 + **625 tests** + build; `/dashboard/website-badge` registered. **Next in the batch: 48 (content-hub plumbing — needs a content-source decision), 42 (`/for-doctors`).**
 

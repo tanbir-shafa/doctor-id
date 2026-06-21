@@ -290,6 +290,46 @@ export function buildItemListJsonLd(args: {
   };
 }
 
+export interface ArticleLdInput {
+  title: string;
+  slug: string;
+  excerpt?: string;
+  coverImageUrl?: string | null;
+  authorName?: string;
+  publishedAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+}
+
+/**
+ * `Article` JSON-LD for a /guides/[slug] health guide — the E-E-A-T content
+ * pillar (task 48). Carries author (Person) + publisher (the Daktar.Link
+ * Organization) + publish/modified dates, the signals Google weighs for YMYL
+ * content. `pruneJsonLd` drops the empty optionals.
+ */
+export function buildArticleJsonLd(a: ArticleLdInput): Record<string, unknown> {
+  const base = siteBase();
+  const url = `${base}/guides/${a.slug}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "@id": url,
+    mainEntityOfPage: url,
+    headline: a.title.slice(0, 110),
+    description: a.excerpt || undefined,
+    image: a.coverImageUrl || undefined,
+    datePublished: toIsoDate(a.publishedAt),
+    dateModified: toIsoDate(a.updatedAt ?? a.publishedAt),
+    author: { "@type": "Person", name: a.authorName || "Daktar.Link Editorial" },
+    publisher: {
+      "@type": "Organization",
+      "@id": `${base}/#organization`,
+      name: "Daktar.Link",
+      logo: { "@type": "ImageObject", url: `${base}/logo.svg` },
+    },
+    inLanguage: "en-BD",
+  };
+}
+
 /** Strip `undefined` keys so the rendered JSON is clean for crawlers. */
 export function pruneJsonLd<T>(obj: T): T {
   if (Array.isArray(obj)) return obj.map(pruneJsonLd) as unknown as T;

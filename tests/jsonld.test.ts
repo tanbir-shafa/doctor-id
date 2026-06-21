@@ -7,6 +7,7 @@ import {
   buildBreadcrumbJsonLd,
   buildFaqJsonLd,
   buildItemListJsonLd,
+  buildArticleJsonLd,
   pruneJsonLd,
 } from "@/lib/seo/jsonld";
 import type { DoctorDocLike } from "@/types/doctor";
@@ -163,6 +164,32 @@ describe("Schema.org JSON-LD builders", () => {
     expect(items[0]).toMatchObject({ "@type": "ListItem", position: 21, name: "Dr A" });
     expect(String(items[0]!.url)).toContain("/a-cardiologist");
     expect(items[1]!.position).toBe(22);
+  });
+
+  it("Article graph carries headline, author, publisher + ISO dates", () => {
+    const ld = buildArticleJsonLd({
+      title: "Understanding High Blood Pressure",
+      slug: "understanding-high-blood-pressure",
+      excerpt: "What the numbers mean and when to worry.",
+      authorName: "Dr. A Rahman",
+      publishedAt: "2026-06-20T00:00:00.000Z",
+      updatedAt: "2026-06-21T00:00:00.000Z",
+    });
+    expect(ld["@type"]).toBe("Article");
+    expect(String(ld["@id"])).toContain("/guides/understanding-high-blood-pressure");
+    expect(String(ld.headline)).toContain("High Blood Pressure");
+    expect((ld.author as Record<string, unknown>).name).toBe("Dr. A Rahman");
+    expect((ld.publisher as Record<string, unknown>)["@type"]).toBe("Organization");
+    expect(ld.datePublished).toBe("2026-06-20T00:00:00.000Z");
+    expect(ld.dateModified).toBe("2026-06-21T00:00:00.000Z");
+    expect(ld.inLanguage).toBe("en-BD");
+  });
+
+  it("Article headline caps at 110 chars; author + dateModified fall back", () => {
+    const ld = buildArticleJsonLd({ title: "x".repeat(200), slug: "s", publishedAt: "2026-06-20T00:00:00.000Z" });
+    expect((ld.headline as string).length).toBeLessThanOrEqual(110);
+    expect((ld.author as Record<string, unknown>).name).toBe("Daktar.Link Editorial");
+    expect(ld.dateModified).toBe("2026-06-20T00:00:00.000Z"); // falls back to publishedAt
   });
 
   it("pruneJsonLd strips undefined and empty arrays without mangling valid values", () => {

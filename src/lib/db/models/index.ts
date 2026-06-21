@@ -10,6 +10,7 @@ export { AppointmentRequest } from "./AppointmentRequest";
 export { OutboundMessage } from "./OutboundMessage";
 export { OptOut } from "./OptOut";
 export { AuditLog } from "./AuditLog";
+export { Article } from "./Article";
 export {
   File,
   FILE_LINKED_ENTITY_TYPE,

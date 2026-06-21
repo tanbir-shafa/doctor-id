@@ -18,6 +18,9 @@ export function SiteFooter() {
           </a>
         </p>
         <nav className="flex flex-wrap gap-4">
+          <Link href="/guides" className="hover:text-foreground">
+            Health guides
+          </Link>
           <Link href="/for-doctors" className="hover:text-foreground">
             For doctors
           </Link>

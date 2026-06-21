@@ -7,6 +7,7 @@ import {
   listDistricts,
   listIntentHubsForSitemap,
 } from "@/lib/db/queries/doctors";
+import { listPublishedArticles } from "@/lib/db/queries/articles";
 import { publicEnv } from "@/lib/env";
 
 /**
@@ -51,6 +52,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // district pivot on these national pages (not enumerated here).
   const intentHubs = await listIntentHubsForSitemap();
 
+  // Published health guides (/guides/[slug]).
+  const articles = await listPublishedArticles(1000);
+
   const now = new Date();
 
   const staticEntries: MetadataRoute.Sitemap = [
@@ -58,6 +62,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/search`, lastModified: now, changeFrequency: "daily", priority: 0.8 },
     { url: `${base}/auth/register`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${base}/for-doctors`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${base}/guides`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
     // Trust / E-E-A-T pages — important for a YMYL (medical) site.
     { url: `${base}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${base}/how-verification-works`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
@@ -118,6 +123,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     alternates: bnAlt(`/${h.intent}/${h.specialtySlug}`),
   }));
 
+  const articleEntries: MetadataRoute.Sitemap = articles.map((a) => ({
+    url: `${base}/guides/${a.slug}`,
+    lastModified: a.updatedAt ? new Date(a.updatedAt) : now,
+    changeFrequency: "monthly",
+    priority: 0.6,
+  }));
+
   return [
     ...staticEntries,
     ...doctorEntries,
@@ -125,5 +137,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...districtComboEntries,
     ...districtHubEntries,
     ...intentHubEntries,
+    ...articleEntries,
   ];
 }
