@@ -63,6 +63,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/auth/register`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${base}/for-doctors`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     { url: `${base}/guides`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${base}/bn/guides`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
     // Trust / E-E-A-T pages — important for a YMYL (medical) site.
     { url: `${base}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${base}/how-verification-works`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
@@ -123,12 +124,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     alternates: bnAlt(`/${h.intent}/${h.specialtySlug}`),
   }));
 
-  const articleEntries: MetadataRoute.Sitemap = articles.map((a) => ({
-    url: `${base}/guides/${a.slug}`,
-    lastModified: a.updatedAt ? new Date(a.updatedAt) : now,
-    changeFrequency: "monthly",
-    priority: 0.6,
-  }));
+  const articleEntries: MetadataRoute.Sitemap = articles.map((a) => {
+    const hasBn = Boolean(a.bodyBn && a.bodyBn.trim());
+    return {
+      url: `${base}/guides/${a.slug}`,
+      lastModified: a.updatedAt ? new Date(a.updatedAt) : now,
+      changeFrequency: "monthly",
+      priority: 0.6,
+      ...(hasBn ? { alternates: bnAlt(`/guides/${a.slug}`) } : {}),
+    };
+  });
+
+  // Bangla guides — only articles that actually have a Bangla version.
+  const bnArticleEntries: MetadataRoute.Sitemap = articles
+    .filter((a) => a.bodyBn && a.bodyBn.trim())
+    .map((a) => ({
+      url: `${base}/bn/guides/${a.slug}`,
+      lastModified: a.updatedAt ? new Date(a.updatedAt) : now,
+      changeFrequency: "monthly",
+      priority: 0.55,
+      alternates: bnAlt(`/guides/${a.slug}`),
+    }));
 
   return [
     ...staticEntries,
@@ -138,5 +154,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...districtHubEntries,
     ...intentHubEntries,
     ...articleEntries,
+    ...bnArticleEntries,
   ];
 }

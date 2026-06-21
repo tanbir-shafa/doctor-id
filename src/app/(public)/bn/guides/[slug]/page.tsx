@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getPublishedArticleBySlug } from "@/lib/db/queries/articles";
 import { findSpecialtySlugByName } from "@/lib/db/queries/doctors";
 import { renderBioMarkdown } from "@/lib/utils/sanitize";
@@ -20,31 +20,33 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const a = await getPublishedArticleBySlug(slug);
-  if (!a) return { title: "Not found" };
-  const hasBn = Boolean(a.bodyBn && a.bodyBn.trim());
+  if (!a || !a.bodyBn || !a.bodyBn.trim()) return { title: "Not found" };
   return {
-    title: a.seoTitle || a.title,
-    description: a.seoDescription || a.excerpt || undefined,
+    title: a.titleBn || a.title,
+    description: a.excerptBn || a.excerpt || undefined,
     alternates: {
-      canonical: `${BASE}/guides/${a.slug}`,
-      ...(hasBn ? { languages: hreflangAlternates(`/guides/${a.slug}`) } : {}),
+      canonical: `${BASE}/bn/guides/${a.slug}`,
+      languages: hreflangAlternates(`/guides/${a.slug}`),
     },
   };
 }
 
-export default async function GuidePage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function BnGuidePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const a = await getPublishedArticleBySlug(slug);
   if (!a) notFound();
+  // No Bangla version → send to the English guide rather than a thin/empty page.
+  if (!a.bodyBn || !a.bodyBn.trim()) redirect(`/guides/${a.slug}`);
 
-  const html = renderBioMarkdown(a.body);
+  const title = a.titleBn || a.title;
+  const html = renderBioMarkdown(a.bodyBn);
 
-  // Internal-link automation: link the article's specialty tags to their hubs.
+  // Internal links → the Bangla specialty hubs, to keep bn readers in bn.
   const related = (
     await Promise.all(
       (a.specialties ?? []).slice(0, 6).map(async (name) => {
         const sslug = await findSpecialtySlugByName(name);
-        return sslug ? { name, href: `/${sslug}` } : null;
+        return sslug ? { name, href: `/bn/${sslug}` } : null;
       }),
     )
   ).filter(Boolean) as { name: string; href: string }[];
@@ -52,20 +54,21 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
   const published = a.publishedAt ? new Date(a.publishedAt) : null;
   const articleLd = pruneJsonLd(
     buildArticleJsonLd({
-      title: a.title,
+      title,
       slug: a.slug,
-      excerpt: a.excerpt,
+      excerpt: a.excerptBn || a.excerpt,
       coverImageUrl: a.coverImageUrl,
       authorName: a.authorName,
       publishedAt: a.publishedAt,
       updatedAt: a.updatedAt,
+      locale: "bn",
     }),
   );
   const breadcrumbLd = pruneJsonLd(
     buildBreadcrumbJsonLd([
-      { name: "Home", url: `${BASE}/` },
-      { name: "Health guides", url: `${BASE}/guides` },
-      { name: a.title, url: `${BASE}/guides/${a.slug}` },
+      { name: "হোম", url: `${BASE}/` },
+      { name: "স্বাস্থ্য গাইড", url: `${BASE}/bn/guides` },
+      { name: title, url: `${BASE}/bn/guides/${a.slug}` },
     ]),
   );
 
@@ -79,24 +82,20 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
 
       <article className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <div className="flex items-center justify-between gap-3">
-          <Link href="/guides" className="text-sm font-medium text-primary hover:underline">
-            ← All health guides
+          <Link href="/bn/guides" className="text-sm font-medium text-primary hover:underline">
+            ← সব স্বাস্থ্য গাইড
           </Link>
-          {a.bodyBn && a.bodyBn.trim() ? (
-            <Link
-              href={`/bn/guides/${a.slug}`}
-              className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground hover:border-primary hover:text-primary"
-            >
-              বাংলায় পড়ুন
-            </Link>
-          ) : null}
+          <Link
+            href={`/guides/${a.slug}`}
+            className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground hover:border-primary hover:text-primary"
+          >
+            English
+          </Link>
         </div>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          {a.title}
-        </h1>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">{title}</h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          By {a.authorName}
-          {a.reviewerName ? ` · Medically reviewed by ${a.reviewerName}` : ""}
+          লিখেছেন {a.authorName}
+          {a.reviewerName ? ` · চিকিৎসা-পর্যালোচনা: ${a.reviewerName}` : ""}
           {published ? ` · ${published.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}` : ""}
         </p>
 
@@ -107,7 +106,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
 
         {related.length > 0 ? (
           <aside className="mt-10 border-t border-border pt-6">
-            <p className="mb-2 text-sm font-medium text-foreground">Find a doctor</p>
+            <p className="mb-2 text-sm font-medium text-foreground">ডাক্তার খুঁজুন</p>
             <div className="flex flex-wrap gap-2">
               {related.map((r) => (
                 <Link
@@ -115,7 +114,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
                   href={r.href}
                   className="rounded-full border border-border bg-card px-3 py-1 text-sm text-foreground hover:border-primary/40 hover:bg-accent"
                 >
-                  {r.name} doctors
+                  {r.name} ডাক্তার
                 </Link>
               ))}
             </div>
@@ -123,8 +122,8 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
         ) : null}
 
         <p className="mt-10 rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
-          This guide is general health information, not a substitute for professional medical advice,
-          diagnosis or treatment. Always consult a qualified doctor about your individual situation.
+          এই গাইডটি সাধারণ স্বাস্থ্য তথ্য — কোনো পেশাদার চিকিৎসা পরামর্শ, রোগনির্ণয় বা চিকিৎসার বিকল্প নয়।
+          আপনার নিজের অবস্থা সম্পর্কে সবসময় একজন যোগ্য ডাক্তারের পরামর্শ নিন।
         </p>
       </article>
     </>

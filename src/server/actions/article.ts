@@ -43,13 +43,20 @@ function parseForm(form: FormData) {
     specialties,
     authorName: String(form.get("authorName") ?? ""),
     status: String(form.get("status") ?? "draft"),
+    titleBn: String(form.get("titleBn") ?? ""),
+    excerptBn: String(form.get("excerptBn") ?? ""),
+    bodyBn: String(form.get("bodyBn") ?? ""),
   });
 }
 
 function revalidate(slug?: string) {
   revalidatePath("/admin/articles");
   revalidatePath("/guides");
-  if (slug) revalidatePath(`/guides/${slug}`);
+  revalidatePath("/bn/guides");
+  if (slug) {
+    revalidatePath(`/guides/${slug}`);
+    revalidatePath(`/bn/guides/${slug}`);
+  }
 }
 
 export async function createArticleAction(form: FormData): Promise<Result> {
@@ -73,6 +80,9 @@ export async function createArticleAction(form: FormData): Promise<Result> {
     excerpt: data.excerpt ?? "",
     body: data.body,
     coverImageUrl: data.coverImageUrl || null,
+    titleBn: data.titleBn || null,
+    excerptBn: data.excerptBn ?? "",
+    bodyBn: data.bodyBn || null,
     specialties: data.specialties ?? [],
     authorType: "admin",
     authorId: ctx.id,
@@ -112,6 +122,9 @@ export async function updateArticleAction(id: string, form: FormData): Promise<R
   doc.excerpt = data.excerpt ?? "";
   doc.body = data.body;
   doc.coverImageUrl = data.coverImageUrl || null;
+  doc.titleBn = data.titleBn || null;
+  doc.excerptBn = data.excerptBn ?? "";
+  doc.bodyBn = data.bodyBn || null;
   doc.specialties = data.specialties ?? [];
   if (data.authorName) doc.authorName = data.authorName;
   doc.status = data.status;

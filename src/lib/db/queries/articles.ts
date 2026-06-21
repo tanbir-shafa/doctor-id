@@ -14,6 +14,9 @@ export interface ArticleRecord {
   slug: string;
   excerpt: string;
   body: string;
+  titleBn: string | null;
+  excerptBn: string;
+  bodyBn: string | null;
   coverImageUrl: string | null;
   specialties: string[];
   authorType: "admin" | "doctor";
@@ -41,6 +44,22 @@ export async function listPublishedArticles(limit = 60): Promise<ArticleRecord[]
     .limit(limit)
     .lean();
   return (docs as unknown[]).map(serialize);
+}
+
+/** Published articles that have a Bangla version — for the /bn/guides hub. */
+export async function listPublishedBnArticles(limit = 60): Promise<ArticleRecord[]> {
+  await dbConnect();
+  const docs = await (Article as unknown as Loose)
+    .find({ status: "published", bodyBn: { $nin: [null, ""] } })
+    .sort({ publishedAt: -1 })
+    .limit(limit)
+    .lean();
+  return (docs as unknown[]).map(serialize);
+}
+
+/** True when the article has publishable Bangla content. */
+export function hasBangla(a: Pick<ArticleRecord, "bodyBn">): boolean {
+  return Boolean(a.bodyBn && a.bodyBn.trim().length > 0);
 }
 
 /** One published article by slug, or null (the public detail page). */

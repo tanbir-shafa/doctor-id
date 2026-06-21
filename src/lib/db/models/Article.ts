@@ -21,6 +21,13 @@ const ArticleSchema = new Schema(
     // Markdown. Rendered through renderBioMarkdown() (sanitized) on display.
     body: { type: String, required: true, maxlength: 50000 },
     coverImageUrl: { type: String, default: null, trim: true },
+
+    // Bangla version (optional). A guide appears at /bn/guides/[slug] only when
+    // `bodyBn` is set; otherwise the bn surface has no entry for it and the en
+    // page emits no bn hreflang. Same slug across locales (hreflang pairs them).
+    titleBn: { type: String, default: null, trim: true, maxlength: 200 },
+    excerptBn: { type: String, default: "", trim: true, maxlength: 320 },
+    bodyBn: { type: String, default: null, maxlength: 50000 },
     // Specialty names this article relates to — drives internal links to the
     // matching specialty hubs (the "internal-link automation").
     specialties: { type: [String], default: [] },

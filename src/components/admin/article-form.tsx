@@ -13,6 +13,9 @@ interface Initial {
   specialties?: string[];
   authorName?: string;
   status?: string;
+  titleBn?: string | null;
+  excerptBn?: string;
+  bodyBn?: string | null;
 }
 
 const FIELD = "w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground";
@@ -90,6 +93,26 @@ export function ArticleForm({ articleId, initial }: { articleId?: string; initia
         <label className={LABEL} htmlFor="coverImageUrl">Cover image URL (optional)</label>
         <input id="coverImageUrl" name="coverImageUrl" defaultValue={initial?.coverImageUrl ?? ""} className={FIELD} />
       </div>
+
+      <fieldset className="space-y-4 rounded-lg border border-border p-4">
+        <legend className="px-1 text-sm font-semibold text-foreground">Bangla version (optional)</legend>
+        <p className="text-xs text-muted-foreground">
+          Fill the body to publish a Bangla version at /bn/guides/&lt;slug&gt; (same slug, paired to the
+          English page via hreflang). Leave blank for English-only.
+        </p>
+        <div className="space-y-1">
+          <label className={LABEL} htmlFor="titleBn">Title (Bangla)</label>
+          <input id="titleBn" name="titleBn" defaultValue={initial?.titleBn ?? ""} className={FIELD} />
+        </div>
+        <div className="space-y-1">
+          <label className={LABEL} htmlFor="excerptBn">Excerpt (Bangla)</label>
+          <textarea id="excerptBn" name="excerptBn" rows={2} defaultValue={initial?.excerptBn} className={FIELD} />
+        </div>
+        <div className="space-y-1">
+          <label className={LABEL} htmlFor="bodyBn">Body — Bangla (Markdown)</label>
+          <textarea id="bodyBn" name="bodyBn" rows={12} defaultValue={initial?.bodyBn ?? ""} className={`${FIELD} font-mono`} />
+        </div>
+      </fieldset>
 
       <div className="space-y-1">
         <label className={LABEL} htmlFor="status">Status</label>

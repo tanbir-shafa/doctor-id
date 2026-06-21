@@ -298,6 +298,8 @@ export interface ArticleLdInput {
   authorName?: string;
   publishedAt?: string | Date | null;
   updatedAt?: string | Date | null;
+  /** "bn" emits the /bn/guides URL + `inLanguage: "bn"`. Default English. */
+  locale?: "en" | "bn";
 }
 
 /**
@@ -308,7 +310,7 @@ export interface ArticleLdInput {
  */
 export function buildArticleJsonLd(a: ArticleLdInput): Record<string, unknown> {
   const base = siteBase();
-  const url = `${base}/guides/${a.slug}`;
+  const url = a.locale === "bn" ? `${base}/bn/guides/${a.slug}` : `${base}/guides/${a.slug}`;
   return {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -326,7 +328,7 @@ export function buildArticleJsonLd(a: ArticleLdInput): Record<string, unknown> {
       name: "Daktar.Link",
       logo: { "@type": "ImageObject", url: `${base}/logo.svg` },
     },
-    inLanguage: "en-BD",
+    inLanguage: a.locale === "bn" ? "bn" : "en-BD",
   };
 }
 

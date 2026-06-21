@@ -19,6 +19,10 @@ export const articleInputSchema = z.object({
   excerpt: z.string().trim().max(320).optional().default(""),
   body: z.string().trim().min(20, "Body is too short").max(50000),
   coverImageUrl: z.string().trim().url("Cover image must be a valid URL").max(500).optional().or(z.literal("")),
+  // Optional Bangla version. A guide goes bilingual only when bodyBn is filled.
+  titleBn: z.string().trim().max(200).optional().or(z.literal("")),
+  excerptBn: z.string().trim().max(320).optional().default(""),
+  bodyBn: z.string().trim().max(50000).optional().or(z.literal("")),
   specialties: z.array(z.string().trim().min(1)).max(12).optional().default([]),
   authorName: z.string().trim().max(120).optional().or(z.literal("")),
   status: z.enum(ARTICLE_STATUSES).optional().default("draft"),
