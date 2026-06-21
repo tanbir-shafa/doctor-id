@@ -185,6 +185,17 @@ describe("Schema.org JSON-LD builders", () => {
     expect(ld.inLanguage).toBe("en-BD");
   });
 
+  it("Article locale:bn emits the /bn/guides URL + inLanguage bn", () => {
+    const ld = buildArticleJsonLd({ title: "উচ্চ রক্তচাপ", slug: "high-blood-pressure", locale: "bn" });
+    expect(String(ld["@id"])).toContain("/bn/guides/high-blood-pressure");
+    expect(ld.inLanguage).toBe("bn");
+    // default (no locale) stays English at /guides
+    const en = buildArticleJsonLd({ title: "x", slug: "high-blood-pressure" });
+    expect(String(en["@id"])).toContain("/guides/high-blood-pressure");
+    expect(String(en["@id"])).not.toContain("/bn/");
+    expect(en.inLanguage).toBe("en-BD");
+  });
+
   it("Article headline caps at 110 chars; author + dateModified fall back", () => {
     const ld = buildArticleJsonLd({ title: "x".repeat(200), slug: "s", publishedAt: "2026-06-20T00:00:00.000Z" });
     expect((ld.headline as string).length).toBeLessThanOrEqual(110);
