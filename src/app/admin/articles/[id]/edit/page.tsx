@@ -29,6 +29,9 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
           specialties: a.specialties,
           authorName: a.authorName,
           status: a.status,
+          titleBn: a.titleBn,
+          excerptBn: a.excerptBn,
+          bodyBn: a.bodyBn,
         }}
       />
     </div>
