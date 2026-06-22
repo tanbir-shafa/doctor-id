@@ -19,11 +19,9 @@ import mongoose from "mongoose";
 import { dbConnect, dbDisconnect } from "@/lib/db/mongoose";
 import { Article } from "@/lib/db/models";
 import type { Loose } from "@/lib/db/models/loose";
+import { assertSeedAllowed } from "./lib/prod-guard";
 
-if (process.env.NODE_ENV === "production") {
-  console.error("Refusing to seed: NODE_ENV is production. Set to development to run.");
-  process.exit(1);
-}
+assertSeedAllowed("seed articles");
 
 const DRY_RUN = process.argv.includes("--dry-run");
 

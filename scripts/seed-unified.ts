@@ -23,11 +23,9 @@ import mongoose from "mongoose";
 import { dbConnect, dbDisconnect } from "@/lib/db/mongoose";
 import { Doctor, Chamber } from "@/lib/db/models";
 import { generateSlug } from "@/lib/utils/slug";
+import { assertSeedAllowed } from "./lib/prod-guard";
 
-if (process.env.NODE_ENV === "production") {
-  console.error("Refusing to seed: NODE_ENV is production.");
-  process.exit(1);
-}
+assertSeedAllowed("seed unified doctors");
 
 const PROVIDER = "unified";
 

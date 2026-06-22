@@ -55,14 +55,11 @@ import {
 import { uploadBufferToS3, computeSha256 } from "@/lib/s3/s3-service";
 import { sniffImageMime, type SniffedImageMime } from "@/lib/utils/image-sniff";
 import { optimizeImageBuffer, generateBlurDataUrl } from "@/lib/images/optimize";
+import { assertSeedAllowed } from "./lib/prod-guard";
 
-if (process.env.NODE_ENV === "production") {
-  console.error("Refusing to seed: NODE_ENV is production.");
-  process.exit(1);
-}
+assertSeedAllowed("seed unified photos");
 
 const PROVIDER = "unified";
-const UNIFIED_FILE = join(process.cwd(), "data/unified/doctors.json");
 const PROFILE_MAX_EDGE = 1024; // matches the real profile-upload path (doctor-photo.ts)
 const PROFILE_QUALITY = 80;
 const FLUSH_CHUNK = 500;
@@ -119,11 +116,15 @@ function parseArgs() {
     return Number.isFinite(v) ? v : dflt;
   };
   const limitArg = argv.find((a) => a.startsWith("--limit="));
+  const fileArg = argv.find((a) => a.startsWith("--file="));
   return {
     report: argv.includes("--report"),
     dryRun: argv.includes("--dry-run"),
     force: argv.includes("--force"),
     limit: limitArg ? num("--limit=", 0) || null : null,
+    // Which unified file's photos to seed. Defaults to the full corpus; pass
+    // `--file=data/unified/doctime-new.json` for just the DocTime images.
+    file: join(process.cwd(), fileArg ? fileArg.slice("--file=".length) : "data/unified/doctors.json"),
     dupThreshold: Math.max(2, num("--dup-threshold=", 2)),
     concurrency: Math.max(1, num("--concurrency=", 8)),
     // Below this byte floor we skip the lossy re-encode and store the original as-is
@@ -220,10 +221,10 @@ function printReport(
 
 async function main() {
   const opts = parseArgs();
-  const all = JSON.parse(readFileSync(UNIFIED_FILE, "utf8")) as UnifiedDoctor[];
+  const all = JSON.parse(readFileSync(opts.file, "utf8")) as UnifiedDoctor[];
 
   const mode = opts.report ? " (report)" : opts.dryRun ? " (dry-run)" : "";
-  console.log(`→ Seeding unified photos${mode}`);
+  console.log(`→ Seeding unified photos from ${opts.file}${mode}`);
   console.log(`  hashing source images across the full dataset (${all.length} doctors)…`);
 
   // PASS 1 — classify EVERY doctor (full dataset, ignoring --limit) so placeholder

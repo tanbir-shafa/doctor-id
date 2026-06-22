@@ -1,4 +1,4 @@
-name: Deploy (doctor.shafa.care)
+name: Deploy (daktar.link)
 
 # Build on a Linux ARM64 runner (so the @img/sharp-linux-arm64 native binary
 # matches the t4g.medium box — CLAUDE.md #22), then ship the artifact to the box

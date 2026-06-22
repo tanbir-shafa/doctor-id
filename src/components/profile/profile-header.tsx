@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Award, Building2, Eye, MapPin } from "lucide-react";
+import { Award, BadgeCheck, Building2, Eye, IdCard, MapPin } from "lucide-react";
 import { VerifiedBadgeExplainer } from "./verified-badge-explainer";
 import { FoundingDoctorBadge } from "./founding-doctor-badge";
 import type { DoctorDocLike } from "@/types/doctor";
@@ -81,6 +81,18 @@ export function ProfileHeader({ doctor }: { doctor: DoctorDocLike }) {
               <span className="inline-flex items-center gap-1">
                 <Award className="size-4" aria-hidden="true" />
                 {doctor.yearsOfExperience}+ years experience
+              </span>
+            ) : null}
+            {doctor.bmdcNumber ? (
+              <span className="inline-flex items-center gap-1">
+                <IdCard className="size-4" aria-hidden="true" />
+                BMDC Reg. {doctor.bmdcNumber}
+                {doctor.bmdcVerified ? (
+                  <BadgeCheck
+                    className="size-3.5 text-sky-600"
+                    aria-label="BMDC registration verified"
+                  />
+                ) : null}
               </span>
             ) : null}
             {doctor.institute ? (
