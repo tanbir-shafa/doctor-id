@@ -126,6 +126,24 @@ add them per guide later in `/admin/articles` on the live site.
 
 ---
 
+## 5b. (Optional) Bulk-mark the DocTime cohort as BMDC-verified
+
+Sets `bmdcVerified=true` + recomputes `verificationLevel` to `bmdc_verified` for the
+~1,331 DocTime doctors that carry a BMDC number — so their public profile shows the
+"BMDC verified" chip. This is a **bulk trust assertion** (no per-doctor document
+review); it touches the BMDC axis only — not identity, names, or any `User`/login
+state. Idempotent; scoped to the file's ids (never `doctors.json`).
+
+```bash
+# preview
+MONGO_URI="$PROD_MONGO" npm run verify:bmdc -- --file=data/unified/doctime-new.json --dry-run
+# apply
+MONGO_URI="$PROD_MONGO" npm run verify:bmdc -- --file=data/unified/doctime-new.json
+```
+
+Rollback: re-run a one-off setting `bmdcVerified:false` + recomputed level over the
+same `sourceProviderId` set (see the script header).
+
 ## 6. Verify on the live site
 
 - `https://daktar.link/sitemap.xml` and `/llms.txt` list the new doctors + guides.
