@@ -11,11 +11,24 @@ interface Initial {
   body?: string;
   coverImageUrl?: string | null;
   specialties?: string[];
+  keyFacts?: string[];
+  keyFactsBn?: string[];
+  citations?: { label: string; url: string; publisher: string | null }[];
   authorName?: string;
+  reviewerName?: string | null;
+  reviewerCredential?: string | null;
+  reviewerProfileUrl?: string | null;
   status?: string;
   titleBn?: string | null;
   excerptBn?: string;
   bodyBn?: string | null;
+}
+
+/** Render stored citations back into the "Label | URL | Publisher" textarea format. */
+function citationsToText(citations?: { label: string; url: string; publisher: string | null }[]): string {
+  return (citations ?? [])
+    .map((c) => [c.label, c.url, c.publisher].filter(Boolean).join(" | "))
+    .join("\n");
 }
 
 const FIELD = "w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground";
@@ -85,9 +98,67 @@ export function ArticleForm({ articleId, initial }: { articleId?: string; initia
       </div>
 
       <div className="space-y-1">
+        <label className={LABEL} htmlFor="keyFacts">Key facts (one per line)</label>
+        <textarea
+          id="keyFacts"
+          name="keyFacts"
+          rows={4}
+          defaultValue={initial?.keyFacts?.join("\n")}
+          placeholder={"Adults should keep blood pressure below 120/80 mmHg.\nMost high blood pressure has no symptoms — get checked."}
+          className={FIELD}
+        />
+        <p className="text-xs text-muted-foreground">
+          Short, self-contained takeaways shown as a TL;DR block — the answer AI search engines lift + cite.
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        <label className={LABEL} htmlFor="citations">References (one per line)</label>
+        <textarea
+          id="citations"
+          name="citations"
+          rows={4}
+          defaultValue={citationsToText(initial?.citations)}
+          placeholder={"WHO — Hypertension fact sheet | https://www.who.int/... | WHO\nDGHS Bangladesh guideline | https://dghs.gov.bd/..."}
+          className={`${FIELD} font-mono`}
+        />
+        <p className="text-xs text-muted-foreground">
+          Format: <code>Label | URL | Publisher</code> (publisher optional). Rendered as a References list and
+          emitted as schema.org citations — the sourcing signal for health (YMYL) ranking.
+        </p>
+      </div>
+
+      <div className="space-y-1">
         <label className={LABEL} htmlFor="authorName">Author byline</label>
         <input id="authorName" name="authorName" defaultValue={initial?.authorName} placeholder="Daktar.Link Editorial" className={FIELD} />
       </div>
+
+      <fieldset className="space-y-4 rounded-lg border border-border p-4">
+        <legend className="px-1 text-sm font-semibold text-foreground">Medical review (E-E-A-T)</legend>
+        <p className="text-xs text-muted-foreground">
+          The reviewing clinician — shown as &ldquo;Medically reviewed by …&rdquo; and emitted in schema.org{" "}
+          <code>reviewedBy</code>. Leave the name blank to use the publishing admin. The review date is set
+          automatically when the guide is published.
+        </p>
+        <div className="space-y-1">
+          <label className={LABEL} htmlFor="reviewerName">Reviewer name</label>
+          <input id="reviewerName" name="reviewerName" defaultValue={initial?.reviewerName ?? ""} placeholder="Dr. Ayesha Rahman" className={FIELD} />
+        </div>
+        <div className="space-y-1">
+          <label className={LABEL} htmlFor="reviewerCredential">Reviewer credential</label>
+          <input
+            id="reviewerCredential"
+            name="reviewerCredential"
+            defaultValue={initial?.reviewerCredential ?? ""}
+            placeholder="MBBS, FCPS (Medicine) · BMDC 12345"
+            className={FIELD}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className={LABEL} htmlFor="reviewerProfileUrl">Reviewer profile URL (optional)</label>
+          <input id="reviewerProfileUrl" name="reviewerProfileUrl" defaultValue={initial?.reviewerProfileUrl ?? ""} className={FIELD} />
+        </div>
+      </fieldset>
 
       <div className="space-y-1">
         <label className={LABEL} htmlFor="coverImageUrl">Cover image URL (optional)</label>
@@ -111,6 +182,11 @@ export function ArticleForm({ articleId, initial }: { articleId?: string; initia
         <div className="space-y-1">
           <label className={LABEL} htmlFor="bodyBn">Body — Bangla (Markdown)</label>
           <textarea id="bodyBn" name="bodyBn" rows={12} defaultValue={initial?.bodyBn ?? ""} className={`${FIELD} font-mono`} />
+        </div>
+        <div className="space-y-1">
+          <label className={LABEL} htmlFor="keyFactsBn">Key facts — Bangla (one per line)</label>
+          <textarea id="keyFactsBn" name="keyFactsBn" rows={4} defaultValue={initial?.keyFactsBn?.join("\n")} className={FIELD} />
+          <p className="text-xs text-muted-foreground">Bangla TL;DR shown on /bn/guides. References are shared across both languages.</p>
         </div>
       </fieldset>
 

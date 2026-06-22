@@ -82,21 +82,23 @@ const nextConfig: NextConfig = {
     },
   },
 
-  // Site-wide rights-reservation headers (Terms §4 — no AI/TDM use, no bulk
-  // collection). These are machine-readable opt-out signals honoured by many
-  // AI crawlers and TDM tools. Deliberately NO `noindex`/`nofollow`: search
-  // engines must keep indexing the public profiles (SEO is the product).
-  //   - X-Robots-Tag: noai, noimageai → no AI training / generative use of page
-  //     content or images (recognised by a number of AI crawlers).
-  //   - TDM-Reservation: 1 → W3C TDM Reservation Protocol opt-out (a legal
-  //     reservation of text-and-data-mining rights). TDM-Policy points readers
-  //     at the binding terms.
+  // Site-wide rights-reservation headers. We WANT AI *search* engines to index
+  // and cite the public directory (that's the acquisition channel — see
+  // robots.ts), so we deliberately do NOT send `X-Robots-Tag: noai`: that signal
+  // tells compliant bots not to use the page in AI answers, which would suppress
+  // the very citations we're after. Search-vs-training bot gating is done by
+  // user-agent in robots.ts instead.
+  //   - TDM-Reservation: 1 → W3C TDM Reservation Protocol opt-out: a legal
+  //     reservation of text-and-data-mining (i.e. model-training) rights. This is
+  //     a training/data-mining reservation, not a "don't index/cite" signal, so
+  //     it coexists with allowing AI search. TDM-Policy points at the binding terms.
+  //   - Deliberately NO `noindex`/`nofollow`: search engines must keep indexing
+  //     the public profiles (SEO is the product).
   async headers() {
     return [
       {
         source: "/:path*",
         headers: [
-          { key: "X-Robots-Tag", value: "noai, noimageai" },
           { key: "TDM-Reservation", value: "1" },
           {
             key: "TDM-Policy",

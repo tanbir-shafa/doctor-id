@@ -290,6 +290,12 @@ export function buildItemListJsonLd(args: {
   };
 }
 
+export interface ArticleCitation {
+  label: string;
+  url: string;
+  publisher?: string | null;
+}
+
 export interface ArticleLdInput {
   title: string;
   slug: string;
@@ -300,20 +306,51 @@ export interface ArticleLdInput {
   updatedAt?: string | Date | null;
   /** "bn" emits the /bn/guides URL + `inLanguage: "bn"`. Default English. */
   locale?: "en" | "bn";
+  /** Medical reviewer (E-E-A-T) — emitted as `reviewedBy` Person + `lastReviewed`. */
+  reviewerName?: string | null;
+  reviewerCredential?: string | null;
+  reviewerProfileUrl?: string | null;
+  reviewedAt?: string | Date | null;
+  /** Authoritative references → schema.org `citation`. */
+  citations?: ArticleCitation[];
+  /** Medical specialties the page covers → MedicalWebPage `specialty`. */
+  specialties?: string[];
 }
 
 /**
- * `Article` JSON-LD for a /guides/[slug] health guide — the E-E-A-T content
- * pillar (task 48). Carries author (Person) + publisher (the Daktar.Link
- * Organization) + publish/modified dates, the signals Google weighs for YMYL
- * content. `pruneJsonLd` drops the empty optionals.
+ * Health-guide JSON-LD for /guides/[slug] — the E-E-A-T content pillar (task 48).
+ * Emitted as a multi-type `["MedicalWebPage","Article"]` node so the YMYL signals
+ * Google + AI search weigh for medical content (`reviewedBy`, `lastReviewed`,
+ * `citation`, `specialty`, `audience`) sit alongside the Article props (headline,
+ * author, publisher, dates). `pruneJsonLd` drops the empty optionals.
  */
 export function buildArticleJsonLd(a: ArticleLdInput): Record<string, unknown> {
   const base = siteBase();
   const url = a.locale === "bn" ? `${base}/bn/guides/${a.slug}` : `${base}/guides/${a.slug}`;
+
+  const reviewedBy = a.reviewerName
+    ? {
+        "@type": "Person",
+        name: a.reviewerName,
+        jobTitle: a.reviewerCredential || undefined,
+        url: toAbsoluteUrl(a.reviewerProfileUrl) || undefined,
+      }
+    : undefined;
+
+  const citation = (a.citations ?? [])
+    .filter((c) => c?.label && c?.url)
+    .map((c) => ({
+      "@type": "CreativeWork",
+      name: c.label,
+      url: c.url,
+      publisher: c.publisher ? { "@type": "Organization", name: c.publisher } : undefined,
+    }));
+
+  const specialty = (a.specialties ?? []).map((s) => s.trim()).filter(Boolean);
+
   return {
     "@context": "https://schema.org",
-    "@type": "Article",
+    "@type": ["MedicalWebPage", "Article"],
     "@id": url,
     mainEntityOfPage: url,
     headline: a.title.slice(0, 110),
@@ -328,6 +365,11 @@ export function buildArticleJsonLd(a: ArticleLdInput): Record<string, unknown> {
       name: "Daktar.Link",
       logo: { "@type": "ImageObject", url: `${base}/logo.svg` },
     },
+    reviewedBy,
+    lastReviewed: toIsoDate(a.reviewedAt),
+    citation: citation.length ? citation : undefined,
+    specialty: specialty.length ? specialty : undefined,
+    audience: { "@type": "MedicalAudience", audienceType: "Patient" },
     inLanguage: a.locale === "bn" ? "bn" : "en-BD",
   };
 }

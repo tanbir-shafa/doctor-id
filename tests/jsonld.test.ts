@@ -175,7 +175,7 @@ describe("Schema.org JSON-LD builders", () => {
       publishedAt: "2026-06-20T00:00:00.000Z",
       updatedAt: "2026-06-21T00:00:00.000Z",
     });
-    expect(ld["@type"]).toBe("Article");
+    expect(ld["@type"]).toEqual(["MedicalWebPage", "Article"]);
     expect(String(ld["@id"])).toContain("/guides/understanding-high-blood-pressure");
     expect(String(ld.headline)).toContain("High Blood Pressure");
     expect((ld.author as Record<string, unknown>).name).toBe("Dr. A Rahman");
@@ -183,6 +183,44 @@ describe("Schema.org JSON-LD builders", () => {
     expect(ld.datePublished).toBe("2026-06-20T00:00:00.000Z");
     expect(ld.dateModified).toBe("2026-06-21T00:00:00.000Z");
     expect(ld.inLanguage).toBe("en-BD");
+    // Patient audience is always emitted (YMYL signal).
+    expect((ld.audience as Record<string, unknown>).audienceType).toBe("Patient");
+  });
+
+  it("Article emits reviewedBy + lastReviewed + citation + specialty when provided", () => {
+    const ld = pruneJsonLd(
+      buildArticleJsonLd({
+        title: "Understanding High Blood Pressure",
+        slug: "understanding-high-blood-pressure",
+        reviewerName: "Dr. Ayesha Rahman",
+        reviewerCredential: "MBBS, FCPS (Medicine) · BMDC 12345",
+        reviewerProfileUrl: "daktar.link/ayesha-rahman-cardiologist",
+        reviewedAt: "2026-06-21T00:00:00.000Z",
+        specialties: ["Cardiology", "Medicine"],
+        citations: [
+          { label: "WHO — Hypertension", url: "https://www.who.int/x", publisher: "WHO" },
+          { label: "no url dropped", url: "" },
+        ],
+      }),
+    );
+    const reviewedBy = ld.reviewedBy as Record<string, unknown>;
+    expect(reviewedBy.name).toBe("Dr. Ayesha Rahman");
+    expect(reviewedBy.jobTitle).toContain("FCPS");
+    expect(String(reviewedBy.url)).toContain("https://daktar.link/ayesha-rahman-cardiologist");
+    expect(ld.lastReviewed).toBe("2026-06-21T00:00:00.000Z");
+    expect(ld.specialty).toEqual(["Cardiology", "Medicine"]);
+    const citation = ld.citation as Record<string, unknown>[];
+    expect(citation).toHaveLength(1); // the url-less entry is filtered out
+    expect(citation[0].name).toBe("WHO — Hypertension");
+    expect((citation[0].publisher as Record<string, unknown>).name).toBe("WHO");
+  });
+
+  it("Article omits review/citation fields when not provided (pruned)", () => {
+    const ld = pruneJsonLd(buildArticleJsonLd({ title: "x", slug: "s" }));
+    expect(ld.reviewedBy).toBeUndefined();
+    expect(ld.lastReviewed).toBeUndefined();
+    expect(ld.citation).toBeUndefined();
+    expect(ld.specialty).toBeUndefined();
   });
 
   it("Article locale:bn emits the /bn/guides URL + inLanguage bn", () => {

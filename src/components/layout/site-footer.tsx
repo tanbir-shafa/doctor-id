@@ -33,6 +33,9 @@ export function SiteFooter() {
           <Link href="/data-sources" className="hover:text-foreground">
             Data sources
           </Link>
+          <Link href="/editorial-policy" className="hover:text-foreground">
+            Editorial policy
+          </Link>
           <Link href="/privacy" className="hover:text-foreground">
             Privacy
           </Link>

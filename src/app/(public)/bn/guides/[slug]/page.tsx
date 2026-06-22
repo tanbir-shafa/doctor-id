@@ -52,6 +52,11 @@ export default async function BnGuidePage({ params }: { params: Promise<{ slug: 
   ).filter(Boolean) as { name: string; href: string }[];
 
   const published = a.publishedAt ? new Date(a.publishedAt) : null;
+  const reviewed = a.reviewedAt ? new Date(a.reviewedAt) : null;
+  // Bangla key facts if present; references are shared (language-neutral URLs).
+  const keyFacts = (a.keyFactsBn ?? []).length ? a.keyFactsBn : [];
+  const citations = a.citations ?? [];
+  const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const articleLd = pruneJsonLd(
     buildArticleJsonLd({
       title,
@@ -62,6 +67,12 @@ export default async function BnGuidePage({ params }: { params: Promise<{ slug: 
       publishedAt: a.publishedAt,
       updatedAt: a.updatedAt,
       locale: "bn",
+      reviewerName: a.reviewerName,
+      reviewerCredential: a.reviewerCredential,
+      reviewerProfileUrl: a.reviewerProfileUrl,
+      reviewedAt: a.reviewedAt,
+      citations,
+      specialties: a.specialties,
     }),
   );
   const breadcrumbLd = pruneJsonLd(
@@ -95,9 +106,23 @@ export default async function BnGuidePage({ params }: { params: Promise<{ slug: 
         <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">{title}</h1>
         <p className="mt-3 text-sm text-muted-foreground">
           লিখেছেন {a.authorName}
-          {a.reviewerName ? ` · চিকিৎসা-পর্যালোচনা: ${a.reviewerName}` : ""}
-          {published ? ` · ${published.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}` : ""}
+          {a.reviewerName
+            ? ` · চিকিৎসা-পর্যালোচনা: ${a.reviewerName}${a.reviewerCredential ? `, ${a.reviewerCredential}` : ""}`
+            : ""}
+          {published ? ` · প্রকাশিত ${fmtDate(published)}` : ""}
+          {reviewed ? ` · সর্বশেষ পর্যালোচনা ${fmtDate(reviewed)}` : ""}
         </p>
+
+        {keyFacts.length > 0 ? (
+          <section aria-labelledby="key-facts" className="mt-6 rounded-lg border border-border bg-muted/30 p-4">
+            <h2 id="key-facts" className="text-sm font-semibold text-foreground">সংক্ষেপে</h2>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-foreground">
+              {keyFacts.map((f, i) => (
+                <li key={i}>{f}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         <div
           className="mt-6 leading-relaxed text-foreground [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_h2]:mt-8 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-6 [&_h3]:text-lg [&_h3]:font-semibold [&_li]:mt-1 [&_ol]:mt-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mt-4 [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:pl-6"
@@ -121,9 +146,35 @@ export default async function BnGuidePage({ params }: { params: Promise<{ slug: 
           </aside>
         ) : null}
 
+        {citations.length > 0 ? (
+          <section aria-labelledby="references" className="mt-10 border-t border-border pt-6">
+            <h2 id="references" className="text-sm font-semibold text-foreground">তথ্যসূত্র</h2>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+              {citations.map((c, i) => (
+                <li key={i}>
+                  <a
+                    href={c.url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="text-primary underline"
+                  >
+                    {c.label}
+                  </a>
+                  {c.publisher ? ` — ${c.publisher}` : ""}
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
+
         <p className="mt-10 rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
           এই গাইডটি সাধারণ স্বাস্থ্য তথ্য — কোনো পেশাদার চিকিৎসা পরামর্শ, রোগনির্ণয় বা চিকিৎসার বিকল্প নয়।
-          আপনার নিজের অবস্থা সম্পর্কে সবসময় একজন যোগ্য ডাক্তারের পরামর্শ নিন।
+          আপনার নিজের অবস্থা সম্পর্কে সবসময় একজন যোগ্য ডাক্তারের পরামর্শ নিন। আমরা কীভাবে এই গাইডগুলো লিখি ও
+          পর্যালোচনা করি তা জানতে আমাদের{" "}
+          <Link href="/editorial-policy" className="text-primary underline">
+            সম্পাদকীয় নীতি
+          </Link>{" "}
+          দেখুন।
         </p>
       </article>
     </>

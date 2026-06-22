@@ -32,6 +32,27 @@ const ArticleSchema = new Schema(
     // matching specialty hubs (the "internal-link automation").
     specialties: { type: [String], default: [] },
 
+    // "Key facts" — short, self-contained takeaways rendered as a TL;DR block
+    // near the top. The liftable answer AI search engines quote + cite.
+    // keyFactsBn is the Bangla counterpart shown on /bn/guides/[slug].
+    keyFacts: { type: [String], default: [] },
+    keyFactsBn: { type: [String], default: [] },
+
+    // Authoritative references (WHO, DGHS, BMDC, peer-reviewed, …). Rendered as a
+    // visible "References" list AND emitted as schema.org `citation` — the
+    // sourcing signal Google/AI weigh for YMYL (health) content.
+    citations: {
+      type: [
+        {
+          _id: false,
+          label: { type: String, trim: true, maxlength: 240 },
+          url: { type: String, trim: true, maxlength: 500 },
+          publisher: { type: String, trim: true, maxlength: 120, default: null },
+        },
+      ],
+      default: [],
+    },
+
     // Authorship (E-E-A-T) + the submission/approval workflow.
     authorType: { type: String, enum: ["admin", "doctor"], default: "admin" },
     authorId: { type: Schema.Types.ObjectId, ref: "User", default: null },
@@ -41,6 +62,10 @@ const ArticleSchema = new Schema(
     // Medical/editorial review — set when an admin approves/publishes.
     reviewedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     reviewerName: { type: String, default: null, trim: true },
+    // The reviewing clinician's credential string (e.g. "MBBS, FCPS (Medicine) ·
+    // BMDC 12345") + optional link to their profile — emitted in `reviewedBy`.
+    reviewerCredential: { type: String, default: null, trim: true, maxlength: 240 },
+    reviewerProfileUrl: { type: String, default: null, trim: true, maxlength: 500 },
     reviewedAt: { type: Date, default: null },
 
     status: {

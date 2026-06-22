@@ -29,11 +29,32 @@ function toSlug(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/** One reference per line, "Label | URL | Publisher?" (publisher optional). */
+function parseCitations(raw: string) {
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [label = "", url = "", publisher = ""] = line.split("|").map((p) => p.trim());
+      return { label, url, publisher };
+    })
+    .filter((c) => c.label && c.url);
+}
+
 function parseForm(form: FormData) {
   const specialties = String(form.get("specialties") ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  const splitLines = (raw: string) =>
+    raw
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  const keyFacts = splitLines(String(form.get("keyFacts") ?? ""));
+  const keyFactsBn = splitLines(String(form.get("keyFactsBn") ?? ""));
+  const citations = parseCitations(String(form.get("citations") ?? ""));
   return articleInputSchema.safeParse({
     title: String(form.get("title") ?? ""),
     slug: String(form.get("slug") ?? ""),
@@ -41,7 +62,13 @@ function parseForm(form: FormData) {
     body: String(form.get("body") ?? ""),
     coverImageUrl: String(form.get("coverImageUrl") ?? ""),
     specialties,
+    keyFacts,
+    keyFactsBn,
+    citations,
     authorName: String(form.get("authorName") ?? ""),
+    reviewerName: String(form.get("reviewerName") ?? ""),
+    reviewerCredential: String(form.get("reviewerCredential") ?? ""),
+    reviewerProfileUrl: String(form.get("reviewerProfileUrl") ?? ""),
     status: String(form.get("status") ?? "draft"),
     titleBn: String(form.get("titleBn") ?? ""),
     excerptBn: String(form.get("excerptBn") ?? ""),
@@ -74,6 +101,11 @@ export async function createArticleAction(form: FormData): Promise<Result> {
 
   const publishing = data.status === "published";
   const now = new Date();
+  const citations = (data.citations ?? []).map((c) => ({
+    label: c.label,
+    url: c.url,
+    publisher: c.publisher || null,
+  }));
   await (Article as unknown as Loose).create({
     title: data.title,
     slug,
@@ -84,13 +116,20 @@ export async function createArticleAction(form: FormData): Promise<Result> {
     excerptBn: data.excerptBn ?? "",
     bodyBn: data.bodyBn || null,
     specialties: data.specialties ?? [],
+    keyFacts: data.keyFacts ?? [],
+    keyFactsBn: data.keyFactsBn ?? [],
+    citations,
     authorType: "admin",
     authorId: ctx.id,
     authorName: data.authorName || ctx.name,
+    reviewerCredential: data.reviewerCredential || null,
+    reviewerProfileUrl: data.reviewerProfileUrl || null,
     status: data.status,
     publishedAt: publishing ? now : null,
+    // reviewerName is the actual reviewing clinician if supplied, else the
+    // publishing admin (only meaningful once reviewed/published).
     reviewedBy: publishing ? ctx.id : null,
-    reviewerName: publishing ? ctx.name : null,
+    reviewerName: data.reviewerName || (publishing ? ctx.name : null),
     reviewedAt: publishing ? now : null,
   });
   revalidate(publishing ? slug : undefined);
@@ -126,12 +165,24 @@ export async function updateArticleAction(id: string, form: FormData): Promise<R
   doc.excerptBn = data.excerptBn ?? "";
   doc.bodyBn = data.bodyBn || null;
   doc.specialties = data.specialties ?? [];
+  doc.keyFacts = data.keyFacts ?? [];
+  doc.keyFactsBn = data.keyFactsBn ?? [];
+  doc.citations = (data.citations ?? []).map((c) => ({
+    label: c.label,
+    url: c.url,
+    publisher: c.publisher || null,
+  }));
   if (data.authorName) doc.authorName = data.authorName;
+  // Reviewer fields are editable directly (the reviewing clinician may differ
+  // from the publishing admin). A blank reviewerName leaves the existing one.
+  if (data.reviewerName) doc.reviewerName = data.reviewerName;
+  doc.reviewerCredential = data.reviewerCredential || null;
+  doc.reviewerProfileUrl = data.reviewerProfileUrl || null;
   doc.status = data.status;
   if (data.status === "published" && !wasPublished) {
     doc.publishedAt = (doc.publishedAt as Date | null) ?? new Date();
     doc.reviewedBy = ctx.id;
-    doc.reviewerName = ctx.name;
+    if (!doc.reviewerName) doc.reviewerName = ctx.name;
     doc.reviewedAt = new Date();
   }
   await doc.save();

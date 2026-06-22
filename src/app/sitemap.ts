@@ -66,6 +66,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/bn/guides`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
     // Trust / E-E-A-T pages — important for a YMYL (medical) site.
     { url: `${base}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/editorial-policy`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${base}/how-verification-works`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${base}/data-sources`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
     { url: `${base}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },

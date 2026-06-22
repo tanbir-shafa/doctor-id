@@ -19,9 +19,14 @@ export interface ArticleRecord {
   bodyBn: string | null;
   coverImageUrl: string | null;
   specialties: string[];
+  keyFacts: string[];
+  keyFactsBn: string[];
+  citations: { label: string; url: string; publisher: string | null }[];
   authorType: "admin" | "doctor";
   authorName: string;
   reviewerName: string | null;
+  reviewerCredential: string | null;
+  reviewerProfileUrl: string | null;
   reviewedAt: string | null;
   status: ArticleStatus;
   publishedAt: string | null;
