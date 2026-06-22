@@ -255,7 +255,8 @@ no secrets**. At the end it prints the remaining manual steps.
 Copy your completed env file into the shared slot bootstrap pre-created:
 ```bash
 # from your laptop:
-scp .env.production.local ubuntu@13.232.159.121:/tmp/prod.env
+scp -i ~/.ssh/s-production-server-key.pem .env.production.local ubuntu@13.232.159.121:/tmp/prod.env
+ssh daktar-link-vps
 # on the box:
 sudo install -m 600 -o appuser -g appuser /tmp/prod.env /srv/doctor-id/shared/.env.production.local
 sudo rm -f /tmp/prod.env
