@@ -12,9 +12,11 @@ export const dynamic = "force-dynamic";
 interface CampaignRow {
   _id: string; // = campaignId
   templates: string[];
+  channels: string[];
   total: number;
   sent: number;
   failed: number;
+  suppressed: number;
   optedOut: number;
   skipped: number;
   claimed: number;
@@ -23,7 +25,9 @@ interface CampaignRow {
 }
 
 interface OptOutRow {
-  phone: string;
+  channel: "sms" | "email";
+  phone: string | null;
+  email: string | null;
   reason: string | null;
   createdAt: string;
 }
@@ -37,9 +41,11 @@ export default async function AdminOutboundPage() {
       $group: {
         _id: "$campaignId",
         templates: { $addToSet: "$templateId" },
+        channels: { $addToSet: "$channel" },
         total: { $sum: 1 },
         sent: { $sum: { $cond: [{ $eq: ["$status", "sent"] }, 1, 0] } },
         failed: { $sum: { $cond: [{ $eq: ["$status", "failed"] }, 1, 0] } },
+        suppressed: { $sum: { $cond: [{ $eq: ["$status", "suppressed"] }, 1, 0] } },
         optedOut: { $sum: { $cond: [{ $eq: ["$status", "opted_out"] }, 1, 0] } },
         skipped: { $sum: { $cond: [{ $eq: ["$status", "skipped"] }, 1, 0] } },
         claimed: { $sum: { $cond: [{ $ne: ["$claimedAt", null] }, 1, 0] } },
@@ -66,7 +72,7 @@ export default async function AdminOutboundPage() {
     <div className="space-y-6">
       <PageHeader
         title="Outbound campaigns"
-        description="SMS acquisition runs. Dispatch happens via `npm run outbound` — this page is read-only telemetry + the opt-out roster."
+        description="SMS + email acquisition runs. Dispatch happens via `npm run outbound` (--channel=sms|email) — this page is read-only telemetry + the opt-out roster."
         breadcrumb={[{ label: "Outbound" }]}
       />
 
@@ -91,9 +97,11 @@ export default async function AdminOutboundPage() {
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Campaign</th>
+                  <th className="px-4 py-3">Channel</th>
                   <th className="px-4 py-3">Template(s)</th>
                   <th className="px-4 py-3 text-right">Sent</th>
                   <th className="px-4 py-3 text-right">Failed</th>
+                  <th className="px-4 py-3 text-right">Suppressed</th>
                   <th className="px-4 py-3 text-right">Opted out</th>
                   <th className="px-4 py-3 text-right">Claimed</th>
                   <th className="px-4 py-3 text-right">CTR</th>
@@ -106,9 +114,13 @@ export default async function AdminOutboundPage() {
                   return (
                     <tr key={c._id} className="hover:bg-slate-50">
                       <td className="px-4 py-2 font-medium">{c._id}</td>
+                      <td className="px-4 py-2 uppercase text-slate-600">
+                        {(c.channels ?? []).join(", ") || "sms"}
+                      </td>
                       <td className="px-4 py-2 text-slate-600">{c.templates.join(", ")}</td>
                       <td className="px-4 py-2 text-right tabular-nums">{c.sent}</td>
                       <td className="px-4 py-2 text-right tabular-nums text-rose-700">{c.failed}</td>
+                      <td className="px-4 py-2 text-right tabular-nums text-amber-700">{c.suppressed}</td>
                       <td className="px-4 py-2 text-right tabular-nums">{c.optedOut}</td>
                       <td className="px-4 py-2 text-right tabular-nums text-emerald-700">{c.claimed}</td>
                       <td className="px-4 py-2 text-right tabular-nums">{ctr}%</td>
@@ -142,27 +154,33 @@ export default async function AdminOutboundPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Phone</th>
+                  <th className="px-4 py-3">Channel</th>
+                  <th className="px-4 py-3">Phone / email</th>
                   <th className="px-4 py-3">Reason</th>
                   <th className="px-4 py-3">Added</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {optOuts.map((o) => (
-                  <tr key={o.phone} className="hover:bg-slate-50">
-                    <td className="px-4 py-2 font-mono text-xs">{o.phone}</td>
-                    <td className="px-4 py-2 text-slate-600">
-                      {o.reason ?? <span className="italic text-slate-400">no reason</span>}
-                    </td>
-                    <td className="px-4 py-2 text-slate-600">
-                      {new Date(o.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <RemoveOptOutButton phone={o.phone} />
-                    </td>
-                  </tr>
-                ))}
+                {optOuts.map((o) => {
+                  const channel = o.channel ?? "sms";
+                  const value = channel === "email" ? (o.email ?? "") : (o.phone ?? "");
+                  return (
+                    <tr key={`${channel}:${value}`} className="hover:bg-slate-50">
+                      <td className="px-4 py-2 uppercase text-slate-600">{channel}</td>
+                      <td className="px-4 py-2 font-mono text-xs">{value}</td>
+                      <td className="px-4 py-2 text-slate-600">
+                        {o.reason ?? <span className="italic text-slate-400">no reason</span>}
+                      </td>
+                      <td className="px-4 py-2 text-slate-600">
+                        {new Date(o.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <RemoveOptOutButton channel={channel} value={value} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

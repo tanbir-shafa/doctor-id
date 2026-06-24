@@ -54,18 +54,21 @@ describe("hasUnresolvedPlaceholders", () => {
 });
 
 describe("OUTBOUND_TEMPLATES catalog", () => {
-  it("ships the two starter A.8 templates", () => {
+  it("ships the two claim templates", () => {
     expect(OUTBOUND_TEMPLATES["en-claim-rx-pad"]).toBeDefined();
     expect(OUTBOUND_TEMPLATES["bn-claim-rx-pad"]).toBeDefined();
   });
 
-  it("marks broadcast templates as non-personalized (so they batch)", () => {
-    expect(OUTBOUND_TEMPLATES["en-claim-rx-pad"]?.personalized).toBe(false);
-    expect(OUTBOUND_TEMPLATES["bn-claim-rx-pad"]?.personalized).toBe(false);
+  it("marks claim templates as personalized (per-doctor deep link)", () => {
+    expect(OUTBOUND_TEMPLATES["en-claim-rx-pad"]?.personalized).toBe(true);
+    expect(OUTBOUND_TEMPLATES["bn-claim-rx-pad"]?.personalized).toBe(true);
   });
 
-  it("flags the personal variant as personalized (1-per-call)", () => {
-    expect(OUTBOUND_TEMPLATES["en-claim-rx-pad-personal"]?.personalized).toBe(true);
+  it("deep-links to the claim page, not the dead /claim URL", () => {
+    for (const tpl of Object.values(OUTBOUND_TEMPLATES)) {
+      expect(tpl.body).toContain("/auth/register?slug={{slug}}");
+      expect(tpl.body).not.toContain("daktar.link/claim");
+    }
   });
 
   it("each starter body stays under 3 SMS segments (cost ceiling)", () => {

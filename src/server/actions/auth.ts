@@ -24,6 +24,7 @@ import { resetPasswordTemplate } from "@/lib/email/templates";
 import { generateSlug } from "@/lib/utils/slug";
 import { normalizeBmdc } from "@/lib/utils/bmdc";
 import { normalizeBdPhone } from "@/lib/utils/phone";
+import { normalizeEmail } from "@/lib/utils/email";
 import { clientIp as getClientIp } from "@/lib/utils/request-ip";
 import { resolveReferrer, recordReferral, type ResolvedReferrer } from "@/lib/referral/service";
 import { sendSms } from "@/lib/sms/client";
@@ -449,13 +450,20 @@ export async function completeRegistrationAction(input: {
     },
   );
 
-  // A.8 claim attribution: if this phone received an outbound SMS in the
-  // last 30 days, stamp those rows as `claimedAt` so the campaign
-  // dashboard can compute a real claim rate.
+  // A.8 claim attribution: if this phone OR a known email for this registrant
+  // received an outbound message in the last 30 days, stamp those rows as
+  // `claimedAt` so the campaign dashboard can compute a real claim rate across
+  // both channels. `to` holds the E.164 phone (SMS) or the lowercased email
+  // (email), so a single `$in` covers both.
   const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+  const attributionTargets = new Set<string>([phone]);
+  for (const e of [user.email, user.regDraft.email]) {
+    const normalized = normalizeEmail(e);
+    if (normalized) attributionTargets.add(normalized);
+  }
   await OutboundMessage.updateMany(
     {
-      to: phone,
+      to: { $in: [...attributionTargets] },
       status: "sent",
       claimedAt: null,
       sentAt: { $gte: new Date(Date.now() - THIRTY_DAYS) },

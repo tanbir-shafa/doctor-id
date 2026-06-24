@@ -99,3 +99,24 @@ export const globalSmsBudgetLimiter = makeLimiter(
   })(),
   3600,
 );
+
+/**
+ * App-wide circuit breaker for outbound CAMPAIGN email — the email analogue of
+ * `globalSmsBudgetLimiter`. Checked inside `sendEmailBatch` (NOT the
+ * transactional `sendEmail`, so verify/reset mails are never throttled by a
+ * campaign budget). A coarse hourly ceiling on cold-outreach volume.
+ */
+export const globalEmailBudgetLimiter = makeLimiter(
+  "email-global",
+  (() => {
+    try {
+      return env().EMAIL_GLOBAL_HOURLY_CAP;
+    } catch {
+      return 2000;
+    }
+  })(),
+  3600,
+);
+
+/** 10 unsubscribe-link hits per IP per minute (public GET — abuse guard). */
+export const unsubscribeRateLimiter = makeLimiter("unsub", 10, 60);

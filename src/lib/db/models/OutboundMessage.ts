@@ -1,16 +1,18 @@
 /**
- * OutboundMessage — one row per SMS sent (or attempted) by the outbound
- * acquisition script (A.8).
+ * OutboundMessage — one row per message sent (or attempted) by the outbound
+ * acquisition script (A.8), across channels.
  *
- * The actual gateway dispatch is bulked in batches of up to 20 numbers per
- * MDL API call (when the body is identical), but we still persist one row
- * per recipient so the admin dashboard can report per-doctor outcomes:
- *   sent  (gateway acked)
- *   failed (gateway rejected the batch this row was in)
- *   opted_out (recipient is on the OptOut list — never sent)
+ * For SMS the gateway dispatch is bulked (up to 100/call under SSL); for email
+ * SESv2 is 1-recipient-per-call fanned out concurrently. Either way we persist
+ * one row per recipient so the admin dashboard can report per-doctor outcomes:
+ *   sent  (gateway / SES acked)
+ *   failed (gateway rejected the batch this row was in, or SES errored)
+ *   opted_out (recipient is on our OptOut list — never sent)
+ *   suppressed (email only: on the SES/app suppression list — never sent)
  *   skipped (already-messaged dedupe hit; recorded for visibility)
  *
- * `batchId` lets us group rows belonging to the same MDL call for
+ * `to` holds the E.164 phone (SMS) or the lowercased email address (email).
+ * `batchId` groups rows from the same SMS gateway call / email fan-out run for
  * post-mortems on partial failures. `campaignId` is the operator's free-form
  * tag for grouping a run.
  */
@@ -24,17 +26,17 @@ const OutboundMessageSchema = new Schema(
     campaignId: { type: String, required: true, index: true },
     /** Template key (e.g. `en-claim-rx-pad`). */
     templateId: { type: String, required: true, index: true },
-    /** Channel — kept as a literal for forward-compat with WhatsApp / email. */
-    channel: { type: String, enum: ["sms"], default: "sms" },
+    /** Channel — `sms` (default) or `email`. Forward-compat with WhatsApp. */
+    channel: { type: String, enum: ["sms", "email"], default: "sms" },
 
     /** Final rendered body (post-template). Forensic replay. */
     body: { type: String, required: true },
-    /** E.164 destination phone (always sent through normalizeBdPhone). */
+    /** Destination — E.164 phone (SMS, via normalizeBdPhone) or lowercased email. */
     to: { type: String, required: true, index: true },
 
     status: {
       type: String,
-      enum: ["queued", "sent", "failed", "opted_out", "skipped"],
+      enum: ["queued", "sent", "failed", "opted_out", "suppressed", "skipped"],
       default: "queued",
       required: true,
       index: true,
@@ -42,10 +44,10 @@ const OutboundMessageSchema = new Schema(
     sentAt: { type: Date, default: null },
     /** Set if a claim ties back to this row within 30 days of send. */
     claimedAt: { type: Date, default: null },
-    /** MDL response detail when status === 'failed'. */
+    /** Gateway / SES response detail when status === 'failed' (or 'suppressed'). */
     errorMessage: { type: String, default: null },
 
-    /** UUID grouping rows that went out in the same MDL chunk. */
+    /** UUID grouping rows that went out in the same gateway call / email run. */
     batchId: { type: String, default: null, index: true },
   },
   { timestamps: true, collection: "outboundMessages" },

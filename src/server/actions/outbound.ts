@@ -3,11 +3,12 @@
 /**
  * Admin Server Actions for the outbound dashboard (A.8).
  *
- *   addOptOutAction({ phone, reason })   — add a phone to the never-message list
- *   removeOptOutAction({ phone })        — undo (used when a doctor opts back in)
+ *   addOptOutAction({ channel, phone?, email?, reason })  — add to the never-message list
+ *   removeOptOutAction({ channel, phone?, email? })       — undo (opt back in)
  *
- * Send dispatching itself happens via `scripts/outbound.ts` — these actions
- * cover the admin UI surface.
+ * Channel-aware: SMS opt-outs key on a normalized phone, email opt-outs on a
+ * normalized email. Send dispatching itself happens via `scripts/outbound.ts` —
+ * these actions cover the admin UI surface.
  */
 
 import { revalidatePath } from "next/cache";
@@ -16,17 +17,19 @@ import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
 import { OptOut } from "@/lib/db/models";
 import { normalizeBdPhone } from "@/lib/utils/phone";
+import { normalizeEmail } from "@/lib/utils/email";
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
 const AddOptOutSchema = z.object({
-  phone: z.string().min(1, "Phone is required"),
+  channel: z.enum(["sms", "email"]).default("sms"),
+  phone: z.string().optional().or(z.literal("")),
+  email: z.string().optional().or(z.literal("")),
   reason: z.string().max(200).optional().or(z.literal("")),
 });
 
 async function requireAdmin(): Promise<
-  | { ok: true; userId: string }
-  | { ok: false; error: string }
+  { ok: true; userId: string } | { ok: false; error: string }
 > {
   const session = await auth();
   if (!session?.user?.id || session.user.role !== "admin") {
@@ -36,7 +39,9 @@ async function requireAdmin(): Promise<
 }
 
 export async function addOptOutAction(input: {
-  phone: string;
+  channel?: "sms" | "email";
+  phone?: string;
+  email?: string;
   reason?: string;
 }): Promise<ActionResult> {
   const guard = await requireAdmin();
@@ -46,35 +51,52 @@ export async function addOptOutAction(input: {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const phone = normalizeBdPhone(parsed.data.phone);
-  if (!phone) return { ok: false, error: "Enter a valid Bangladesh phone number." };
+  const { channel, reason } = parsed.data;
 
   await dbConnect();
-  await OptOut.updateOne(
-    { phone },
-    {
-      $setOnInsert: {
-        phone,
-        addedBy: guard.userId,
-      },
-      $set: { reason: parsed.data.reason || null },
-    },
-    { upsert: true },
-  );
+
+  if (channel === "email") {
+    const email = normalizeEmail(parsed.data.email);
+    if (!email) return { ok: false, error: "Enter a valid email address." };
+    await OptOut.updateOne(
+      { email },
+      { $setOnInsert: { channel: "email", email, addedBy: guard.userId }, $set: { reason: reason || null } },
+      { upsert: true },
+    );
+  } else {
+    const phone = normalizeBdPhone(parsed.data.phone);
+    if (!phone) return { ok: false, error: "Enter a valid Bangladesh phone number." };
+    await OptOut.updateOne(
+      { phone },
+      { $setOnInsert: { channel: "sms", phone, addedBy: guard.userId }, $set: { reason: reason || null } },
+      { upsert: true },
+    );
+  }
 
   revalidatePath("/admin/outbound");
   return { ok: true };
 }
 
-export async function removeOptOutAction(input: { phone: string }): Promise<ActionResult> {
+export async function removeOptOutAction(input: {
+  channel?: "sms" | "email";
+  phone?: string;
+  email?: string;
+}): Promise<ActionResult> {
   const guard = await requireAdmin();
   if (!guard.ok) return guard;
 
-  const phone = normalizeBdPhone(input?.phone);
-  if (!phone) return { ok: false, error: "Enter a valid Bangladesh phone number." };
-
   await dbConnect();
-  await OptOut.deleteOne({ phone });
+
+  if (input?.channel === "email") {
+    const email = normalizeEmail(input?.email);
+    if (!email) return { ok: false, error: "Enter a valid email address." };
+    await OptOut.deleteOne({ email });
+  } else {
+    const phone = normalizeBdPhone(input?.phone);
+    if (!phone) return { ok: false, error: "Enter a valid Bangladesh phone number." };
+    await OptOut.deleteOne({ phone });
+  }
+
   revalidatePath("/admin/outbound");
   return { ok: true };
 }

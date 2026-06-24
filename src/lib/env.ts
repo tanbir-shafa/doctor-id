@@ -74,6 +74,16 @@ const ServerEnvSchema = z.object({
   // ALL users. Bounds cost/blast-radius if an upstream layer is bypassed.
   SMS_GLOBAL_HOURLY_CAP: z.coerce.number().int().positive().default(2000),
 
+  // App-wide circuit breaker for outbound CAMPAIGN email (checked in
+  // sendEmailBatch, not the transactional sendEmail). A coarse volume safety
+  // ceiling — at current email coverage it won't fire, but it bounds blast
+  // radius as coverage grows.
+  EMAIL_GLOBAL_HOURLY_CAP: z.coerce.number().int().positive().default(2000),
+
+  // HMAC secret for one-click email unsubscribe links (lib/outbound/
+  // unsubscribe-token.ts). Optional — falls back to AUTH_SECRET when unset.
+  UNSUBSCRIBE_SECRET: z.string().optional(),
+
   // SMS provider switch. `ssl` (SSL Wireless iSMS Plus v3) is the default;
   // `mdl` selects the legacy in-house gateway as a one-env-var fallback.
   SMS_PROVIDER: z.enum(["ssl", "mdl"]).default("ssl"),

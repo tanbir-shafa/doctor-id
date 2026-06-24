@@ -10,7 +10,7 @@ import { publicEnv } from "@/lib/env";
 
 const APP_NAME = "Daktar.Link";
 
-function shell(body: string): string {
+export function shell(body: string): string {
   return `<!doctype html>
 <html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f6f7f9; padding:24px 0; margin:0;">
   <table align="center" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb;">
@@ -68,6 +68,6 @@ export function resetPasswordTemplate(opts: { name: string; token: string; email
   };
 }
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }

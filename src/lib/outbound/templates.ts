@@ -1,19 +1,18 @@
 /**
  * Outbound SMS templates + lightweight renderer.
  *
- * Two-letter design rules:
- *   1. **Identical bodies batch.** A template with no `{{placeholders}}` (or
- *      with placeholders that all resolve to the same string across a
- *      cohort) yields one body shared by every recipient — `sendSmsBatch`
- *      can then send 20 numbers per gateway call.
+ * Batching trade-off:
+ *   1. **Identical bodies batch.** A template with no `{{placeholders}}` yields
+ *      one body shared by every recipient — `sendSmsBatch` sends up to 100
+ *      numbers per SSL bulk call.
  *   2. **Personalized bodies don't.** Any per-doctor placeholder
- *      (e.g. `{{firstName}}`) makes each body unique → MDL needs one call
- *      per recipient. Slower; richer engagement.
+ *      (e.g. `{{slug}}`) makes each body unique → they pool into SSL's dynamic
+ *      endpoint (still ≤100/call) or one MDL call per recipient.
  *
- * Sprint A's first campaign ships the **identical-body** variant so the
- * 3,237 Popular Diagnostic doctors can be reached in ~165 API calls
- * instead of ~3,237. Personalized variants are configured but stay opt-in
- * via the `--template=*-personal` flag.
+ * The claim templates are **personalized** so each message deep-links to the
+ * doctor's own claim page (`/auth/register?slug=…`) — the highest-converting
+ * landing (lands on their pre-filled profile) and the basis for claim
+ * attribution. The modest send-cost bump (bulk → dynamic) is intentional.
  */
 
 export interface OutboundTemplate {
@@ -37,26 +36,18 @@ export const OUTBOUND_TEMPLATES: Record<string, OutboundTemplate> = {
   "en-claim-rx-pad": {
     id: "en-claim-rx-pad",
     description:
-      "English broadcast — identical body for every doctor. Batchable 20-per-call.",
-    body: "Daktar.Link: Your professional profile is ready. Claim it free + get a printable A5 prescription pad: https://daktar.link/claim. Reply STOP to opt out.",
-    personalized: false,
+      "English personalized claim invite — deep-links to /auth/register?slug=. SSL dynamic (≤100/call).",
+    body: "Daktar.Link: Dr. {{firstName}}, claim your free doctor profile + printable prescription pad: https://daktar.link/auth/register?slug={{slug}} Reply STOP to opt out.",
+    personalized: true,
     language: "en",
   },
   "bn-claim-rx-pad": {
     id: "bn-claim-rx-pad",
     description:
-      "Bangla broadcast — identical body for every doctor. Batchable 20-per-call.",
-    body: "Daktar.Link: আপনার প্রোফাইল প্রস্তুত। বিনামূল্যে দাবি করুন + ফ্রি প্রেসক্রিপশন প্যাড পান: https://daktar.link/claim। বন্ধ করতে STOP লিখে রিপ্লাই করুন।",
-    personalized: false,
-    language: "bn",
-  },
-  "en-claim-rx-pad-personal": {
-    id: "en-claim-rx-pad-personal",
-    description:
-      "English personalized — uses {{firstName}}; 1-per-call, higher engagement.",
-    body: "Daktar.Link: Hi Dr. {{firstName}}, your profile is ready. Claim it free: https://daktar.link/{{slug}}. Reply STOP to opt out.",
+      "Bangla personalized claim invite — deep-links to /auth/register?slug=. SSL dynamic (≤100/call).",
+    body: "Daktar.Link: ডা. {{firstName}}, আপনার ফ্রি প্রোফাইল দাবি করুন: https://daktar.link/auth/register?slug={{slug}} বন্ধ করতে STOP লিখুন।",
     personalized: true,
-    language: "en",
+    language: "bn",
   },
 };
 
