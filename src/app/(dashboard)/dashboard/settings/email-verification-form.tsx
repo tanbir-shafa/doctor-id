@@ -77,17 +77,21 @@ export function EmailVerificationForm({
         ) : null}
 
         <div className="flex items-center gap-3">
-          <Button type="submit" disabled={pending}>
-            {pending
-              ? "Sending…"
-              : verified
-                ? "Re-send verification link"
-                : "Send verification link"}
-          </Button>
-          {hasRealEmail && !editing ? (
-            <Button type="button" variant="outline" onClick={() => setEditing(true)} disabled={pending}>
-              Change email
+          {/* A verified email needs no link — only show "send" when unverified or while changing it. */}
+          {!verified || editing ? (
+            <Button type="submit" disabled={pending}>
+              {pending ? "Sending…" : "Send verification link"}
             </Button>
+          ) : null}
+          {hasRealEmail && !editing ? (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              disabled={pending}
+              className="text-xs text-muted-foreground underline-offset-4 hover:underline disabled:opacity-50"
+            >
+              Change email
+            </button>
           ) : null}
           {msg ? (
             <p className={msg.tone === "ok" ? "text-sm text-green-600" : "text-sm text-destructive"}>
