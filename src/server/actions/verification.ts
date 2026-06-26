@@ -10,6 +10,7 @@ import { computeVerificationLevel } from "@/lib/utils/verification";
 import { AccountVerificationSchema } from "@/lib/validators/verification";
 import { recordAuditLog } from "@/lib/audit/log";
 import { qualifyReferralAndRecompute } from "@/lib/referral/service";
+import { notifyDoctorVerification } from "@/lib/notifications/doctor";
 import { verificationRequestLimiter } from "@/lib/redis/ratelimit";
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
@@ -198,6 +199,13 @@ export async function approveClaimAction(claimId: string): Promise<ActionResult>
     });
   }
 
+  await notifyDoctorVerification({
+    userId: requesterId ? String(requesterId) : null,
+    event: "bmdc.approved",
+    doctorName: String(doctor.get("name.displayName") ?? ""),
+    doctorSlug: String(doctor.get("slug") ?? ""),
+  });
+
   revalidatePath(`/${doctor.get("slug")}`);
   revalidatePath("/admin/verifications");
   return { ok: true };
@@ -229,6 +237,15 @@ export async function rejectClaimAction(claimId: string, notes: string): Promise
     metadata: {
       doctorId: String(claim.get("doctorId")),
     },
+  });
+
+  const doctor = await Doctor.findById(claim.get("doctorId")).select("name.displayName slug").lean();
+  await notifyDoctorVerification({
+    userId: claim.get("requestedBy") ? String(claim.get("requestedBy")) : null,
+    event: "bmdc.rejected",
+    doctorName: String((doctor as { name?: { displayName?: string } } | null)?.name?.displayName ?? ""),
+    doctorSlug: String((doctor as { slug?: string } | null)?.slug ?? ""),
+    notes: trimmedNotes,
   });
 
   revalidatePath("/admin/verifications");
@@ -295,6 +312,13 @@ export async function approveAccountVerificationAction(requestId: string): Promi
     },
   });
 
+  await notifyDoctorVerification({
+    userId: req.get("requestedBy") ? String(req.get("requestedBy")) : null,
+    event: "identity.approved",
+    doctorName: String(doctor.get("name.displayName") ?? ""),
+    doctorSlug: String(doctor.get("slug") ?? ""),
+  });
+
   revalidatePath(`/${doctor.get("slug")}`);
   revalidatePath("/admin/account-verifications");
   return { ok: true };
@@ -329,6 +353,15 @@ export async function rejectAccountVerificationAction(
     metadata: {
       doctorId: String(req.get("doctorId")),
     },
+  });
+
+  const doctor = await Doctor.findById(req.get("doctorId")).select("name.displayName slug").lean();
+  await notifyDoctorVerification({
+    userId: req.get("requestedBy") ? String(req.get("requestedBy")) : null,
+    event: "identity.rejected",
+    doctorName: String((doctor as { name?: { displayName?: string } } | null)?.name?.displayName ?? ""),
+    doctorSlug: String((doctor as { slug?: string } | null)?.slug ?? ""),
+    notes: trimmedNotes,
   });
 
   revalidatePath("/admin/account-verifications");

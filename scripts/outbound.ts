@@ -5,6 +5,7 @@
  *   npm run outbound -- --campaign=2026-w22-claim --template=en-claim-rx-pad
  *     [--channel=sms|email]   (default sms)
  *     [--cohort=district=Dhaka,specialty=Cardiology]
+ *     [--email=doctor@example.com]   (filter to single doctor by public email)
  *     [--limit=N]
  *     [--dry-run]
  *
@@ -63,6 +64,7 @@ interface CliArgs {
   template: string | null;
   channel: Channel;
   cohort: Record<string, string>;
+  email: string | null;
   limit: number | null;
   dryRun: boolean;
 }
@@ -73,6 +75,7 @@ function parseArgs(argv: string[]): CliArgs {
     template: null,
     channel: "sms",
     cohort: {},
+    email: null,
     limit: null,
     dryRun: false,
   };
@@ -84,6 +87,8 @@ function parseArgs(argv: string[]): CliArgs {
       const c = a.slice("--channel=".length);
       if (c !== "sms" && c !== "email") throw new Error(`Invalid --channel: ${c} (sms|email)`);
       args.channel = c;
+    } else if (a.startsWith("--email=")) {
+      args.email = a.slice("--email=".length);
     } else if (a.startsWith("--limit=")) {
       const n = Number(a.slice("--limit=".length));
       if (!Number.isFinite(n) || n <= 0) throw new Error(`Invalid --limit: ${a}`);
@@ -398,6 +403,7 @@ async function main() {
   console.log(`→ Campaign: ${args.campaign}`);
   console.log(`→ Channel:  ${strategy.channel}`);
   console.log(`→ Template: ${strategy.templateLabel}`);
+  if (args.email) console.log(`→ Email filter: ${args.email}`);
   if (args.dryRun) console.log("  (dry-run: no API calls, no DB writes)");
 
   await dbConnect();
@@ -410,6 +416,15 @@ async function main() {
   };
   if (args.cohort.district) filter["chambers.district"] = args.cohort.district;
   if (args.cohort.specialty) filter["specialties.name"] = args.cohort.specialty;
+  if (args.email) {
+    const normalized = normalizeEmail(args.email);
+    if (!normalized) {
+      console.error(`✗ Invalid email: ${args.email}`);
+      process.exitCode = 1;
+      return;
+    }
+    filter["contact.publicEmail"] = normalized;
+  }
 
   const query = Doctor.find(filter).select(strategy.selectFields);
   if (args.limit) query.limit(args.limit);
@@ -434,18 +449,21 @@ async function main() {
   const optedOut = await strategy.loadOptedOut(recipients);
 
   // 7-day idempotency — exclude doctors already messaged on this template
-  // recently. One query batched on doctorId.
+  // recently. One query batched on doctorId. Bypassed for a single-email test
+  // (--email), so the same address can be re-tested without waiting 7 days.
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const doctorIds = candidates.map((c) => c.doctor._id as mongoose.Types.ObjectId);
-  const recentRows = doctorIds.length
-    ? ((await OutboundMessage.find({
-        doctorId: { $in: doctorIds as never },
-        templateId: args.template,
-        sentAt: { $gte: sevenDaysAgo },
-      })
-        .select("doctorId")
-        .lean()) as Array<{ doctorId: unknown }>)
-    : [];
+  const recentRows =
+    doctorIds.length && !args.email
+      ? ((await OutboundMessage.find({
+          doctorId: { $in: doctorIds as never },
+          templateId: args.template,
+          sentAt: { $gte: sevenDaysAgo },
+        })
+          .select("doctorId")
+          .lean()) as Array<{ doctorId: unknown }>)
+      : [];
+  if (args.email) console.log("→ Idempotency: bypassed (single-email test)");
   const recentlyMessaged = new Set<string>(recentRows.map((r) => String(r.doctorId)));
 
   type Row = {

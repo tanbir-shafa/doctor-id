@@ -78,6 +78,9 @@ export const reportProfileRateLimiter = makeLimiter("report", 5, 600);
 /** 5 verification requests per user per hour (authenticated doctor). */
 export const verificationRequestLimiter = makeLimiter("verify-req", 5, 3600);
 
+/** 3 email-verification (confirm-link) sends per user per 10 minutes (authenticated doctor). */
+export const emailVerifyLimiter = makeLimiter("email-verify", 3, 600);
+
 /**
  * App-wide OTP/transactional-SMS circuit breaker. A single sliding-window
  * counter keyed by a constant, so EVERY OTP-class send shares one global

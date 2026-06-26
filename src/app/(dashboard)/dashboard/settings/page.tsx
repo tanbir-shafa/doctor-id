@@ -1,14 +1,31 @@
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth/config";
+import { dbConnect } from "@/lib/db/mongoose";
+import { User } from "@/lib/db/models";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChangePasswordForm } from "./change-password-form";
 import { DeleteAccountForm } from "./delete-account-form";
+import { EmailVerificationForm } from "./email-verification-form";
 
 export const metadata: Metadata = { title: "Account settings" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const session = await auth();
+
+  let email: string | null = session?.user?.email ?? null;
+  let emailVerified = false;
+  if (session?.user?.id) {
+    await dbConnect();
+    const user = await User.findById(session.user.id)
+      .select("email emailVerified")
+      .lean<{ email: string; emailVerified: Date | null } | null>();
+    if (user) {
+      email = user.email ?? email;
+      emailVerified = Boolean(user.emailVerified);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header>
@@ -19,12 +36,10 @@ export default async function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Email</CardTitle>
-          <CardDescription>{session?.user?.email}</CardDescription>
+          <CardDescription>Set and verify the email where we send account notifications.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Email change is admin-only in MVP — contact support@daktar.link to change yours.
-          </p>
+          <EmailVerificationForm email={email} verified={emailVerified} />
         </CardContent>
       </Card>
 

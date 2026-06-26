@@ -16,11 +16,11 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import { signIn, signOut } from "@/lib/auth/config";
+import { auth, signIn, signOut } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
 import { User, Doctor, ClaimRequest, OutboundMessage } from "@/lib/db/models";
 import { sendEmail } from "@/lib/email/ses";
-import { resetPasswordTemplate } from "@/lib/email/templates";
+import { resetPasswordTemplate, verifyEmailTemplate } from "@/lib/email/templates";
 import { generateSlug } from "@/lib/utils/slug";
 import { normalizeBmdc } from "@/lib/utils/bmdc";
 import { normalizeBdPhone } from "@/lib/utils/phone";
@@ -35,6 +35,7 @@ import {
   smsOtpRequestLimiter,
   smsOtpByIpLimiter,
   smsOtpVerifyLimiter,
+  emailVerifyLimiter,
 } from "@/lib/redis/ratelimit";
 import { verifyTurnstile } from "@/lib/security/turnstile";
 import {
@@ -69,6 +70,37 @@ async function clientIp(): Promise<string> {
 
 function sha256(s: string): string {
   return crypto.createHash("sha256").update(s).digest("hex");
+}
+
+/** Synthetic email handed to doctors who register without one — never deliverable. */
+const PLACEHOLDER_EMAIL_DOMAIN = "@phone.daktar.link";
+
+/**
+ * Mint a 24h email-verification token on the User and send the confirm-link.
+ * Best-effort + never throws — registration auto-send and the settings button
+ * both call this. No-ops for placeholder/already-verified emails. The
+ * `/auth/verify-email` page + `verifyEmailAction` consume the link.
+ */
+async function sendEmailVerification(user: {
+  _id: unknown;
+  email: string;
+  emailVerified?: Date | null;
+}): Promise<void> {
+  try {
+    const email = (user.email ?? "").toLowerCase().trim();
+    if (!email || email.endsWith(PLACEHOLDER_EMAIL_DOMAIN) || user.emailVerified) return;
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const verifyTokenHash = sha256(rawToken);
+    const verifyTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await User.updateOne(
+      { _id: user._id as never },
+      { $set: { verifyTokenHash, verifyTokenExpiresAt } },
+    );
+    const tpl = verifyEmailTemplate({ name: email.split("@")[0], token: rawToken, email });
+    await sendEmail({ email, subject: tpl.subject, body: tpl.html });
+  } catch (err) {
+    console.error("Failed to send verification email:", err);
+  }
 }
 
 // --- Registration (phone-first; doctors only) ---
@@ -474,6 +506,14 @@ export async function completeRegistrationAction(input: {
     console.error("Outbound claim-attribution update failed:", err);
   });
 
+  // Auto-send the email-verification link when the doctor supplied a real
+  // email — so they may already be verified by approval time. Best-effort: the
+  // email stays unverified (`emailVerified: null`) until the link is clicked,
+  // and a send failure never blocks sign-in.
+  if (user.regDraft.email) {
+    await sendEmailVerification({ _id: user._id, email: user.regDraft.email, emailVerified: null });
+  }
+
   return { ok: true };
 }
 
@@ -711,6 +751,57 @@ export async function verifyEmailAction(args: {
       $unset: { verifyTokenHash: "", verifyTokenExpiresAt: "" },
     },
   );
+  return { ok: true };
+}
+
+/**
+ * Authenticated doctor: (optionally set/change their account email, then) send
+ * the email-verification link. This is what makes account notifications email
+ * a doctor — only a VERIFIED email receives approval/rejection mail. Setting an
+ * email here is the self-serve path for doctors who registered without one (or
+ * with a `@phone.daktar.link` placeholder); it clears `emailVerified` so the
+ * fresh address must be re-confirmed.
+ */
+export async function requestEmailVerificationAction(form: FormData): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Not signed in." };
+
+  const rl = await emailVerifyLimiter.limit(`user:${session.user.id}`);
+  if (!rl.success) return { ok: false, error: "Too many requests. Try again in a few minutes." };
+
+  await dbConnect();
+  const user = await User.findById(session.user.id)
+    .select("email emailVerified")
+    .lean<{ _id: unknown; email: string; emailVerified: Date | null } | null>();
+  if (!user) return { ok: false, error: "Account not found." };
+
+  let email = String(user.email ?? "").toLowerCase();
+  let emailVerified = user.emailVerified;
+
+  const rawEmail = String(form.get("email") ?? "").trim();
+  if (rawEmail) {
+    const normalized = normalizeEmail(rawEmail);
+    if (!normalized) return { ok: false, error: "Enter a valid email address." };
+    if (normalized !== email) {
+      const clash = await User.findOne({ email: normalized, _id: { $ne: String(user._id) } })
+        .select("_id")
+        .lean();
+      if (clash) return { ok: false, error: "An account with this email already exists." };
+      await User.updateOne(
+        { _id: user._id as never },
+        { $set: { email: normalized, emailVerified: null } },
+      );
+      email = normalized;
+      emailVerified = null;
+    }
+  }
+
+  if (!email || email.endsWith(PLACEHOLDER_EMAIL_DOMAIN)) {
+    return { ok: false, error: "Add an email address first." };
+  }
+  if (emailVerified) return { ok: true }; // already verified — idempotent
+
+  await sendEmailVerification({ _id: user._id, email, emailVerified });
   return { ok: true };
 }
 
