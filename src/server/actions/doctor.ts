@@ -80,10 +80,11 @@ export async function recordProfileViewAction(slug: string): Promise<ActionResul
   const referrer = h.get("referer");
   const userAgent = h.get("user-agent");
 
-  // Don't count crawlers / scripting clients (option 1). Even though the page
-  // now fires this from the client (option 2), JS-capable bots and direct hits
-  // to this action still reach here — this is the defense-in-depth filter.
-  if (isBotUserAgent(userAgent)) return { ok: true };
+  // Classify crawler vs. real visitor and split into separate counters: humans
+  // feed the doctor-facing `profileViews`, crawlers feed the admin-only
+  // `botViews`. This keeps the doctor's number real without discarding the
+  // crawler signal (which admin uses to see SEO/AI coverage per profile).
+  const isBot = isBotUserAgent(userAgent);
 
   // Skip if we've already logged this hash for this doctor today.
   const start = new Date();
@@ -97,23 +98,25 @@ export async function recordProfileViewAction(slug: string): Promise<ActionResul
     .lean();
   if (existing) return { ok: true };
 
+  const update = isBot
+    ? {
+        $inc: { botViews: 1, "metrics.botViews30d": 1 },
+        $set: { "metrics.lastBotViewedAt": new Date() },
+      }
+    : {
+        $inc: { profileViews: 1, "metrics.profileViews30d": 1 },
+        $set: { "metrics.lastViewedAt": new Date() },
+      };
+
   await Promise.all([
     ProfileView.create({
       doctorId: doctor._id,
       viewerIpHash: ipHash,
       referrer,
       userAgent,
+      isBot,
     }),
-    // Lifetime counter + 30d window cache (T12 — surfaces as "views this
-    // month" chip on the public profile). lastViewedAt powers freshness
-    // signals later.
-    Doctor.updateOne(
-      { _id: doctor._id },
-      {
-        $inc: { profileViews: 1, "metrics.profileViews30d": 1 },
-        $set: { "metrics.lastViewedAt": new Date() },
-      },
-    ),
+    Doctor.updateOne({ _id: doctor._id }, update),
   ]);
   return { ok: true };
 }

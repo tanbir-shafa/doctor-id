@@ -331,13 +331,15 @@ export async function listDoctorsForAdmin(params: AdminDoctorListParams): Promis
 // --- Admin profile-views summary ---
 
 /** The view metric the summary table is sorted by. */
-export type AdminViewsSort = "all" | "30d" | "recent";
+export type AdminViewsSort = "all" | "30d" | "recent" | "bots";
 
 export interface AdminViewsListParams {
   /** Which view metric to sort by, descending. Defaults to all-time. */
   sort?: string;
   /** Optional status scope (draft/published/suspended). */
   status?: string;
+  /** Optional crawl filter: "true" = crawled by a bot, "false" = never crawled. */
+  crawled?: string;
   page?: number;
   pageSize?: number;
 }
@@ -347,6 +349,7 @@ const VIEWS_SORTS: Record<AdminViewsSort, Record<string, 1 | -1>> = {
   all: { profileViews: -1, _id: 1 },
   "30d": { "metrics.profileViews30d": -1, _id: 1 },
   recent: { "metrics.lastViewedAt": -1, _id: 1 },
+  bots: { botViews: -1, _id: 1 },
 };
 
 /**
@@ -373,9 +376,13 @@ export async function listDoctorsByViews(params: AdminViewsListParams): Promise<
   if (typeof params.status === "string" && DOCTOR_STATUSES.includes(params.status)) {
     filter.status = params.status;
   }
+  if (params.crawled === "true") filter.botViews = { $gt: 0 };
+  if (params.crawled === "false") filter.botViews = { $not: { $gt: 0 } };
 
   const sortKey: AdminViewsSort =
-    params.sort === "30d" || params.sort === "recent" ? params.sort : "all";
+    params.sort === "30d" || params.sort === "recent" || params.sort === "bots"
+      ? params.sort
+      : "all";
 
   const [rawDocs, total] = await Promise.all([
     (Doctor as unknown as Loose)
@@ -383,7 +390,7 @@ export async function listDoctorsByViews(params: AdminViewsListParams): Promise<
       .sort(VIEWS_SORTS[sortKey])
       .skip(skip)
       .limit(pageSize)
-      .select("slug name profileViews metrics status isClaimed")
+      .select("slug name profileViews botViews metrics status isClaimed")
       .lean(),
     (Doctor as unknown as Loose).countDocuments(filter),
   ]);

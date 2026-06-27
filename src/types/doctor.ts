@@ -141,6 +141,8 @@ export interface DoctorMetrics {
   profileViews30d: number;
   whatsappClicks30d: number;
   lastViewedAt?: Date | string | null;
+  botViews30d?: number;
+  lastBotViewedAt?: Date | string | null;
 }
 
 /**
@@ -216,6 +218,9 @@ export interface DoctorDocLike {
 
   profileCompletenessScore: number;
   profileViews: number;
+  // Lifetime crawler/bot view counter (admin-only). Human views are on
+  // `profileViews` above.
+  botViews?: number;
   // 30-day rolling window — denormalized cache for profile chips. Lifetime
   // counter stays on `profileViews` above.
   metrics?: DoctorMetrics;

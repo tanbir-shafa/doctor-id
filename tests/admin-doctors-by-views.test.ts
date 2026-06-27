@@ -58,6 +58,11 @@ describe("listDoctorsByViews", () => {
     expect(findChain.sort).toHaveBeenLastCalledWith({ "metrics.lastViewedAt": -1, _id: 1 });
   });
 
+  it("sorts by bot crawls when sort=bots", async () => {
+    await listDoctorsByViews({ sort: "bots" });
+    expect(findChain.sort).toHaveBeenLastCalledWith({ botViews: -1, _id: 1 });
+  });
+
   it("falls back to all-time sort for an unknown sort value", async () => {
     await listDoctorsByViews({ sort: "bogus" });
     expect(findChain.sort).toHaveBeenLastCalledWith({ profileViews: -1, _id: 1 });
@@ -71,9 +76,19 @@ describe("listDoctorsByViews", () => {
     expect(doctorMock.find).toHaveBeenLastCalledWith({});
   });
 
+  it("filters by crawl status when crawled is set", async () => {
+    await listDoctorsByViews({ crawled: "true" });
+    expect(doctorMock.find).toHaveBeenLastCalledWith({ botViews: { $gt: 0 } });
+
+    await listDoctorsByViews({ crawled: "false" });
+    expect(doctorMock.find).toHaveBeenLastCalledWith({ botViews: { $not: { $gt: 0 } } });
+  });
+
   it("projects only the columns the table needs", async () => {
     await listDoctorsByViews({});
-    expect(findChain.select).toHaveBeenCalledWith("slug name profileViews metrics status isClaimed");
+    expect(findChain.select).toHaveBeenCalledWith(
+      "slug name profileViews botViews metrics status isClaimed",
+    );
   });
 
   it("computes skip from page × pageSize and clamps pageSize to [10, 100]", async () => {

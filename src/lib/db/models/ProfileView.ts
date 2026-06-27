@@ -18,6 +18,10 @@ const ProfileViewSchema = new Schema(
     viewerIpHash: { type: String, default: null }, // sha256(ip + daySalt), truncated
     referrer: { type: String, default: null },
     userAgent: { type: String, default: null },
+    // Crawler vs. real visitor, classified from userAgent at write time
+    // (isBotUserAgent). Lets the doctor-facing analytics show humans only while
+    // admin can still inspect crawler activity per profile.
+    isBot: { type: Boolean, default: false },
     // Optional parsed values cached at write-time to avoid re-parsing in aggregations.
     parsedCity: { type: String, default: null },
     parsedDeviceType: { type: String, default: null, enum: ["mobile", "tablet", "desktop", null] },

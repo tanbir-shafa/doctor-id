@@ -18,8 +18,8 @@ import {
   buildDistrictHubMetadata,
   DistrictHubView,
 } from "@/components/search/hub-views";
+import { recordProfileViewAction } from "@/server/actions/doctor";
 import { DoctorProfileView } from "@/components/profile/doctor-profile-view";
-import { ProfileViewTracker } from "@/components/profile/profile-view-tracker";
 import {
   listDistrictsForSpecialty,
   findSpecialtySlugByName,
@@ -96,6 +96,11 @@ export default async function SlugPage({
   const doctor = await getDoctor(slug);
   if (!doctor) notFound();
 
+  // Fire-and-forget — view recording must never block the page render. Recorded
+  // server-side (not client) so non-JS crawlers are still observed; the action
+  // classifies the UA and counts humans and bots into separate counters.
+  recordProfileViewAction(doctor.slug).catch(() => {});
+
   const primarySpecialty = doctor.specialties.find((s) => s.isPrimary) ?? doctor.specialties[0];
   const [specialtyDistricts, primarySpecialtySlug] = await Promise.all([
     primarySpecialty ? listDistrictsForSpecialty(primarySpecialty.name) : Promise.resolve([]),
@@ -149,7 +154,6 @@ export default async function SlugPage({
         />
       ))}
       <DoctorProfileView doctor={doctor} categoryLinks={categoryLinks} />
-      <ProfileViewTracker slug={doctor.slug} />
     </>
   );
 }

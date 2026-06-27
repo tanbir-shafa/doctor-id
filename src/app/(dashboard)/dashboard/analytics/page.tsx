@@ -24,7 +24,9 @@ export default async function AnalyticsPage() {
   // round trip instead of two.
   const [dailyResult, referrers] = await Promise.all([
     (ProfileView as unknown as Loose).aggregate([
-      { $match: { doctorId: doctor._id, viewedAt: { $gte: since } } },
+      // Human visitors only — bot/crawler events (isBot:true) are excluded so the
+      // doctor's insights reflect real patient interest.
+      { $match: { doctorId: doctor._id, viewedAt: { $gte: since }, isBot: { $ne: true } } },
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$viewedAt" } },
@@ -34,7 +36,7 @@ export default async function AnalyticsPage() {
       { $sort: { _id: 1 } },
     ]),
     (ProfileView as unknown as Loose).aggregate([
-      { $match: { doctorId: doctor._id, viewedAt: { $gte: since }, referrer: { $ne: null } } },
+      { $match: { doctorId: doctor._id, viewedAt: { $gte: since }, isBot: { $ne: true }, referrer: { $ne: null } } },
       { $group: { _id: "$referrer", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 10 },

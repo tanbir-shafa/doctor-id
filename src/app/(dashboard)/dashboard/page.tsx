@@ -1,10 +1,9 @@
-import type { Loose } from "@/lib/db/models/loose";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ExternalLink, ArrowRight, CheckCircle2, Circle, Award } from "lucide-react";
 import { auth } from "@/lib/auth/config";
 import { dbConnect } from "@/lib/db/mongoose";
-import { Doctor, ProfileView, User } from "@/lib/db/models";
+import { Doctor, User } from "@/lib/db/models";
 import { computeCompleteness, MANDATORY_PUBLISH_KEYS } from "@/lib/utils/completeness";
 import { FOUNDING_DOCTOR_THRESHOLD } from "@/lib/utils/referral";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -55,12 +54,10 @@ export default async function DashboardOverview({ searchParams }: PageProps) {
           .sort((a, b) => b.weight - a.weight)[0] ?? null
       : null;
 
-  // eslint-disable-next-line react-hooks/purity
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const last30 = await (ProfileView as unknown as Loose).countDocuments({
-    doctorId: doctor._id,
-    viewedAt: { $gte: since },
-  });
+  // Real (human) view counts — bot/crawler views live on `botViews` and are
+  // never shown to the doctor. Read the denormalized human counters.
+  const last30 = doctor.metrics?.profileViews30d ?? 0;
+  const allTimeViews = doctor.profileViews ?? 0;
 
   // Read the EMR subdoc so the banner can render the right state. Missing
   // subdoc (legacy users) → treat as "not requested" → banner hidden.
@@ -162,10 +159,26 @@ export default async function DashboardOverview({ searchParams }: PageProps) {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Profile views (30d)</CardDescription>
-            <CardTitle className="text-3xl">{Intl.NumberFormat("en-IN").format(last30)}</CardTitle>
+            {allTimeViews === 0 ? (
+              <CardTitle className="text-lg font-semibold text-muted-foreground">
+                No views yet
+              </CardTitle>
+            ) : (
+              <CardTitle className="text-3xl">{Intl.NumberFormat("en-IN").format(last30)}</CardTitle>
+            )}
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">Total all-time: {Intl.NumberFormat("en-IN").format(doctor.profileViews)}</p>
+            {allTimeViews === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {doctor.status === "published"
+                  ? "Your profile is live — patient visits will appear here. Share your link to get started."
+                  : "Publish your profile and share your link — patient visits will appear here."}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Total all-time: {Intl.NumberFormat("en-IN").format(allTimeViews)}
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>

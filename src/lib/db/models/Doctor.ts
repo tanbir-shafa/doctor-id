@@ -185,9 +185,14 @@ const PublicationSchema = new Schema(
 
 const MetricsSchema = new Schema(
     {
+        // Human (real visitor) counters — what doctors see.
         profileViews30d: {type: Number, default: 0, min: 0},
         whatsappClicks30d: {type: Number, default: 0, min: 0},
         lastViewedAt: {type: Date, default: null},
+        // Bot / crawler counters — admin-only (SEO/AI crawler activity). Kept
+        // separate so the doctor-facing count stays real. See recordProfileView.
+        botViews30d: {type: Number, default: 0, min: 0},
+        lastBotViewedAt: {type: Date, default: null},
     },
     {_id: false},
 );
@@ -301,9 +306,12 @@ const DoctorSchema = new Schema(
         concentrations: {type: [String], default: []},
 
         profileCompletenessScore: {type: Number, default: 0, min: 0, max: 100},
+        // Lifetime HUMAN view counter (append-only) — the real, doctor-facing
+        // number. Bot/crawler views accumulate separately in `botViews`.
         profileViews: {type: Number, default: 0},
+        botViews: {type: Number, default: 0},
         // 30-day rolling counters — incremented in recordProfileView; rolled
-        // back by an out-of-band job (TBD). Lifetime `profileViews` above is
+        // back by an out-of-band job (TBD). Lifetime counters above are
         // append-only.
         metrics: {type: MetricsSchema, default: () => ({})},
 
