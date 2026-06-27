@@ -13,6 +13,7 @@ import {
   Sparkles,
   Send,
   Newspaper,
+  BarChart3,
 } from "lucide-react";
 import { BrandWordmark } from "@/components/layout/brand-wordmark";
 import { BrandMark } from "@/components/layout/brand-mark";
@@ -109,6 +110,15 @@ export function AdminSidebar({
           active={pathname.startsWith("/admin/specialties")}
         >
           Specialties
+        </NavItem>
+
+        <SectionLabel>Analytics</SectionLabel>
+        <NavItem
+          href="/admin/profile-views"
+          icon={BarChart3}
+          active={pathname.startsWith("/admin/profile-views")}
+        >
+          Profile views
         </NavItem>
 
         <SectionLabel>Content</SectionLabel>

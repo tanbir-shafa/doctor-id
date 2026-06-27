@@ -328,6 +328,77 @@ export async function listDoctorsForAdmin(params: AdminDoctorListParams): Promis
   };
 }
 
+// --- Admin profile-views summary ---
+
+/** The view metric the summary table is sorted by. */
+export type AdminViewsSort = "all" | "30d" | "recent";
+
+export interface AdminViewsListParams {
+  /** Which view metric to sort by, descending. Defaults to all-time. */
+  sort?: string;
+  /** Optional status scope (draft/published/suspended). */
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** Maps the `sort` param to a Mongo sort spec with a stable `_id` tiebreaker. */
+const VIEWS_SORTS: Record<AdminViewsSort, Record<string, 1 | -1>> = {
+  all: { profileViews: -1, _id: 1 },
+  "30d": { "metrics.profileViews30d": -1, _id: 1 },
+  recent: { "metrics.lastViewedAt": -1, _id: 1 },
+};
+
+/**
+ * Lists doctors ranked by profile-view counts for the admin
+ * `/admin/profile-views` table.
+ *
+ * Reads the **denormalized counters on Doctor** (`profileViews`,
+ * `metrics.profileViews30d`, `metrics.lastViewedAt`) — no aggregation over the
+ * `ProfileView` time-series — so it stays fast on a 15k-row collection. Returns
+ * the same `{ doctors, total, page, pageSize, totalPages }` shape as
+ * `listDoctorsForAdmin` so the shared `<Pagination>` renders unchanged.
+ */
+export async function listDoctorsByViews(params: AdminViewsListParams): Promise<AdminDoctorListResult> {
+  await dbConnect();
+
+  const page = Math.min(ADMIN_MAX_PAGE, Math.max(1, Number(params.page) || 1));
+  const pageSize = Math.min(
+    ADMIN_MAX_PAGE_SIZE,
+    Math.max(ADMIN_MIN_PAGE_SIZE, Number(params.pageSize) || ADMIN_DEFAULT_PAGE_SIZE),
+  );
+  const skip = (page - 1) * pageSize;
+
+  const filter: Record<string, unknown> = {};
+  if (typeof params.status === "string" && DOCTOR_STATUSES.includes(params.status)) {
+    filter.status = params.status;
+  }
+
+  const sortKey: AdminViewsSort =
+    params.sort === "30d" || params.sort === "recent" ? params.sort : "all";
+
+  const [rawDocs, total] = await Promise.all([
+    (Doctor as unknown as Loose)
+      .find(filter)
+      .sort(VIEWS_SORTS[sortKey])
+      .skip(skip)
+      .limit(pageSize)
+      .select("slug name profileViews metrics status isClaimed")
+      .lean(),
+    (Doctor as unknown as Loose).countDocuments(filter),
+  ]);
+
+  const doctors = (rawDocs as unknown[]).map((d) => JSON.parse(JSON.stringify(d))) as DoctorDocLike[];
+
+  return {
+    doctors,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
 // --- Admin chamber list (flattened across all doctors) ---
 
 export interface AdminChamberListParams {

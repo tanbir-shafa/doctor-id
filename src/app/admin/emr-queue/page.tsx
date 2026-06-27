@@ -75,7 +75,8 @@ export default async function EmrQueuePage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pending.map((u) => {
-                  const d = doctorByOwner.get(String(u._id));
+                  const userId = String(u._id);
+                  const d = doctorByOwner.get(userId);
                   const isSynthEmail = u.email.endsWith("@phone.daktar.link");
                   const days = Math.max(
                     0,
@@ -83,7 +84,7 @@ export default async function EmrQueuePage() {
                     Math.floor((Date.now() - new Date(u.createdAt).getTime()) / 86400000),
                   );
                   return (
-                    <tr key={u._id} className="hover:bg-slate-50">
+                    <tr key={userId} className="hover:bg-slate-50">
                       <td className="px-4 py-3">
                         {d ? (
                           <Link
@@ -121,7 +122,7 @@ export default async function EmrQueuePage() {
                       </td>
                       <td className="px-4 py-3">
                         <MarkReadyForm
-                          userId={u._id}
+                          userId={userId}
                           suggestedEmail={isSynthEmail ? "" : u.email}
                         />
                       </td>
