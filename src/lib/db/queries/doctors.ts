@@ -6,7 +6,7 @@
 
 import type { Loose } from "@/lib/db/models/loose";
 import { dbConnect } from "@/lib/db/mongoose";
-import { Doctor, Specialty, ProfileView } from "@/lib/db/models";
+import { Doctor, Specialty } from "@/lib/db/models";
 import type { DoctorDocLike, VerificationLevel } from "@/types/doctor";
 
 export interface DoctorSearchParams {
@@ -235,16 +235,22 @@ export async function listActiveSpecialties(): Promise<{ name: string; slug: str
 }
 
 /**
- * Total profile views across all published profiles in the last 30 days.
+ * Total human profile views across all profiles in the last 30 days.
  * Powers the homepage "patients viewed profiles N× in the last 30 days" hook —
  * a real demand signal, never a bare vanity counter.
+ *
+ * Sums the denormalized human-only `metrics.profileViews30d` counter rather than
+ * counting raw `profileViews` events: the recorder filters bots before writing,
+ * but pre-filter bot events linger in the event collection until the 90-day TTL
+ * purges them, so an event count would stay inflated. The counter is bot-free
+ * (reset by `scripts/clean-bot-views.ts`, maintained human-only going forward).
  */
 export async function getProfileViewsLast30Days(): Promise<number> {
   await dbConnect();
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  return (await (ProfileView as unknown as Loose).countDocuments({
-    viewedAt: { $gte: since },
-  })) as number;
+  const rows = (await (Doctor as unknown as Loose).aggregate([
+    { $group: { _id: null, total: { $sum: "$metrics.profileViews30d" } } },
+  ])) as { total: number }[];
+  return rows[0]?.total ?? 0;
 }
 
 export interface FeaturedDoctor {

@@ -18,6 +18,7 @@
     "verify:bmdc": "tsx --env-file=.env.local scripts/verify-doctime-bmdc.ts",
     "seed:unified:photos": "tsx --env-file=.env.local scripts/seed-unified-photos.ts",
     "clean:legacy-photos": "tsx --env-file=.env.local scripts/clean-legacy-unified-photos.ts",
+    "clean:bot-views": "tsx --env-file=.env.local scripts/clean-bot-views.ts",
     "outbound": "tsx --env-file=.env.local scripts/outbound.ts",
     "build:chambers": "tsx scripts/build-chamber-catalog.ts",
     "build:normalized": "tsx scripts/build-normalized.ts",

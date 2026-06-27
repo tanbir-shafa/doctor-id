@@ -9,6 +9,7 @@ import { profileViewRateLimiter, reportProfileRateLimiter } from "@/lib/redis/ra
 import { clientIpHash as ipHash } from "@/lib/utils/request-ip";
 import { auth } from "@/lib/auth/config";
 import { computeCompleteness, missingPublishRequirements } from "@/lib/utils/completeness";
+import { isBotUserAgent } from "@/lib/utils/bot-detection";
 import { resolveVerifiedNameUpdate } from "@/lib/utils/verification";
 import type { DoctorDocLike } from "@/types/doctor";
 import type { HomeScoreboard } from "@/types/home";
@@ -78,6 +79,11 @@ export async function recordProfileViewAction(slug: string): Promise<ActionResul
   const h = await headers();
   const referrer = h.get("referer");
   const userAgent = h.get("user-agent");
+
+  // Don't count crawlers / scripting clients (option 1). Even though the page
+  // now fires this from the client (option 2), JS-capable bots and direct hits
+  // to this action still reach here — this is the defense-in-depth filter.
+  if (isBotUserAgent(userAgent)) return { ok: true };
 
   // Skip if we've already logged this hash for this doctor today.
   const start = new Date();

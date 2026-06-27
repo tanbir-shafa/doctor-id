@@ -45,6 +45,8 @@ export interface Loose {
   updateOne(...args: unknown[]): Promise<unknown>;
   updateMany(...args: unknown[]): Promise<unknown>;
   deleteOne(...args: unknown[]): Promise<unknown>;
+  deleteMany(...args: unknown[]): Promise<unknown>;
+  bulkWrite(...args: unknown[]): Promise<unknown>;
   // Schema hook / event methods
   pre(...args: unknown[]): unknown;
   post(...args: unknown[]): unknown;
