@@ -13,22 +13,34 @@ function subscribeConsent(callback: () => void): () => void {
 }
 
 /**
- * GA4 loader + SPA page_view tracker. Loads gtag.js ONLY when analytics is
- * configured (NEXT_PUBLIC_GA_MEASUREMENT_ID set) AND the visitor has consented
- * (cookie-consent banner → "granted"), so no analytics cookie/script exists
- * before consent. Consent is read via useSyncExternalStore so a change (Accept
- * in the banner) flips GA on live, with no reload and no hydration mismatch.
- * The gtag `config` fires the initial page_view; we fire subsequent
- * client-navigation page_views ourselves, skipping the first effect run to avoid
- * a double count. Only `usePathname` is used (no `useSearchParams`), so no
- * Suspense is required.
+ * GA4 loader + SPA page_view tracker. Opt-out model: gtag.js loads as soon as
+ * analytics is configured (NEXT_PUBLIC_GA_MEASUREMENT_ID set), BEFORE any banner
+ * interaction — it stops only if the visitor explicitly chose "denied". Consent
+ * is read via useSyncExternalStore so a later Decline flips GA off live, with no
+ * reload and no hydration mismatch. The gtag `config` fires the initial
+ * page_view; we fire subsequent client-navigation page_views ourselves, skipping
+ * the first effect run to avoid a double count. Only `usePathname` is used (no
+ * `useSearchParams`), so no Suspense is required.
+ *
+ * The admin portal (`/admin/*`) is excluded entirely — it's an internal
+ * authenticated tool, not a marketing surface, so we neither load gtag.js nor
+ * emit page_views there.
+ *
+ * The server/initial-hydration snapshot is "denied" (not the real value): during
+ * SSR and the first client render we can't read the cookie reliably, and since
+ * `null !== "denied"` would otherwise let gtag mount for a visitor who actually
+ * declined — and once next/script injects gtag, unmounting can't remove it — we
+ * default to NOT loading until the post-hydration client snapshot reports the
+ * true cookie value. useSyncExternalStore is built for this server/client
+ * snapshot divergence (it re-renders after hydration, no mismatch warning).
  */
 export function GoogleAnalytics() {
   const pathname = usePathname();
   const isInitial = useRef(true);
-  const consent = useSyncExternalStore(subscribeConsent, readConsent, () => null);
+  const consent = useSyncExternalStore(subscribeConsent, readConsent, () => "denied" as const);
 
-  const active = analyticsEnabled && consent === "granted";
+  const isAdmin = pathname?.startsWith("/admin") ?? false;
+  const active = analyticsEnabled && consent !== "denied" && !isAdmin;
 
   useEffect(() => {
     if (!active) return;

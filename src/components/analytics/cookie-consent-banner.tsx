@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { analyticsEnabled } from "@/lib/analytics/gtag";
 import {
   readConsent,
@@ -18,13 +19,17 @@ function subscribeConsent(callback: () => void): () => void {
 }
 
 /**
- * Cookie-consent banner. Renders only when analytics is configured
- * (NEXT_PUBLIC_GA_MEASUREMENT_ID set) AND there's no stored choice yet — when
- * there's nothing non-essential to consent to, there's no banner. Accept/Decline
- * persists the choice (which <GoogleAnalytics/> reacts to); the footer "Cookie
+ * Cookie notice (opt-out model). Renders only when analytics is configured
+ * (NEXT_PUBLIC_GA_MEASUREMENT_ID set) AND there's no stored choice yet. Analytics
+ * already runs by default (see <GoogleAnalytics/>); this is a low-key notice that
+ * lets a visitor opt OUT. "Decline" persists "denied" (which stops GA), "Got it"
+ * persists "granted" so the notice doesn't reappear. The footer "Cookie
  * preferences" control re-opens it via CONSENT_REOPEN_EVENT.
+ *
+ * Intentionally unobtrusive: a small bottom-corner card, not a full-width bar.
  */
 export function CookieConsentBanner() {
+  const pathname = usePathname();
   const consent = useSyncExternalStore(subscribeConsent, readConsent, () => null);
   const [reopened, setReopened] = useState(false);
 
@@ -40,39 +45,39 @@ export function CookieConsentBanner() {
   }
 
   if (!analyticsEnabled) return null;
+  // No analytics runs on the admin portal, so there's nothing to consent to there.
+  if (pathname?.startsWith("/admin")) return null;
   if (consent !== null && !reopened) return null;
 
   return (
     <div
       role="dialog"
-      aria-label="Cookie consent"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80"
+      aria-label="Cookie notice"
+      className="fixed bottom-3 left-3 z-40 max-w-xs rounded-lg border border-border bg-card/90 p-3 text-xs shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/70"
     >
-      <div className="mx-auto flex max-w-4xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <p className="text-sm text-muted-foreground">
-          We use analytics cookies to understand how the site is used. They load only if you accept,
-          and not at all if you decline. See our{" "}
-          <Link href="/privacy" className="font-medium text-foreground underline underline-offset-2">
-            Privacy Policy
-          </Link>
-          .
-        </p>
-        <div className="flex shrink-0 gap-2">
-          <button
-            type="button"
-            onClick={() => decide("denied")}
-            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
-          >
-            Decline
-          </button>
-          <button
-            type="button"
-            onClick={() => decide("granted")}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-          >
-            Accept
-          </button>
-        </div>
+      <p className="text-muted-foreground">
+        We use analytics cookies to understand how the site is used. You can opt out anytime — see
+        our{" "}
+        <Link href="/privacy" className="font-medium text-foreground underline underline-offset-2">
+          Privacy Policy
+        </Link>
+        .
+      </p>
+      <div className="mt-2 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => decide("denied")}
+          className="rounded-md px-2.5 py-1 font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          Decline
+        </button>
+        <button
+          type="button"
+          onClick={() => decide("granted")}
+          className="rounded-md bg-primary px-2.5 py-1 font-medium text-primary-foreground hover:opacity-90"
+        >
+          Got it
+        </button>
       </div>
     </div>
   );
